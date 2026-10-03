@@ -41,11 +41,11 @@
   }
   function nutGhi(html, attrs) {
     var khoa = !DM.coTheGhi();
-    return '<button type="button" ' + (attrs || '') + (khoa ? ' disabled title="Nhập PIN ở màn Cài đặt để dùng nút này"' : '') + '>' + html + '</button>';
+    return '<button type="button" ' + (attrs || '') + (khoa ? ' disabled title="Dán URL Apps Script ở màn Cài đặt để dùng nút này"' : '') + '>' + html + '</button>';
   }
 
   /* ---------- Trạng thái ---------- */
-  var S = { files: [], kq: null, tab: 'HA', hocDaGui: {}, hocDangGui: false };
+  var S = { files: [], demFile: 0, kq: null, tab: 'HA', hocDaGui: {}, hocDangGui: false };
 
   var THE = [
     { k: 'HA', ten: 'Hồng Ân', emoji: '🌸' },
@@ -75,15 +75,14 @@
     });
     Promise.all(viec).then(function (ds) {
       ds.forEach(function (p) {
-        // Cùng sàn thì thay file cũ (tránh cộng trùng)
-        if (!p.error) {
-          var cu = S.files.filter(function (x) { return x.san === p.san && !x.error; });
-          if (cu.length) toast('Đã thay file ' + p.san + ' cũ bằng file mới.');
-          S.files = S.files.filter(function (x) { return x.san !== p.san || x.error; });
-        }
+        // Nhiều file cùng sàn (mỗi gian hàng 1 file) → cộng thêm, không thay file cũ
         S.files = S.files.filter(function (x) { return !(x.error && x.file === p.file); });
+        if (!p.error) { p.rowsGoc = p.rows; p.id = ++S.demFile; }
         S.files.push(p);
       });
+      gop();
+      var trung = ds.reduce(function (s, p) { return s + (p.soDonTrung || 0); }, 0);
+      if (trung) toast('🔁 Đã bỏ qua ' + trung + ' đơn trùng (đã có trong file thả trước).');
       var loi = ds.filter(function (p) { return p.error; });
       if (loi.length) setMeoLoi();
       xuLy(true);
@@ -96,6 +95,9 @@
     setMeoLoi.t = setTimeout(function () { $('drop-cat').innerHTML = LV.meo('om'); }, 3500);
   }
 
+  /* Tính lại chống trùng đơn giữa các file (theo thứ tự thả) */
+  function gop() { root.DocFile.gopFile(S.files); }
+
   function veChips() {
     $('chips').innerHTML = S.files.map(function (p, i) {
       if (p.error) {
@@ -103,7 +105,9 @@
           ' <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';
       }
       return '<li class="chip"><span class="tag tag-' + p.san + '">' + p.san + '</span> ' + esc(p.file) +
-        ' · <b>' + so(p.rows.length) + '</b> dòng <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';
+        ' · <b>' + so(p.soDonMoi) + '</b> đơn mới (' + so(p.rows.length) + ' dòng)' +
+        (p.soDonTrung ? ' · <span class="chip-trung" title="Các đơn này đã có trong file thả trước nên không cộng lại">bỏ qua ' + so(p.soDonTrung) + ' đơn trùng</span>' : '') +
+        ' <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';
     }).join('');
   }
 
@@ -120,7 +124,7 @@
     tuHoc();
   }
 
-  /* Ghi gom SKU tự học 1 lần (chỉ khi có PIN) */
+  /* Ghi gom SKU tự học 1 lần (khi đã kết nối Google Sheets) */
   function tuHoc() {
     if (!S.kq || !DM.coTheGhi() || S.hocDangGui) return;
     var ds = S.kq.hoc.filter(function (h) { return !S.hocDaGui[h.key]; });
@@ -279,7 +283,7 @@
           (DM.coTheGhi()
             ? '<select class="select" data-gan-bq="' + i + '" aria-label="Gán lại nhà"><option value="">— chọn —</option>' +
               PL.NHA.map(function (n) { return '<option value="' + n + '">' + n + ' · ' + PL.TEN_NHA[n] + '</option>'; }).join('') + '</select>'
-            : '<span class="muted" title="Nhập PIN ở màn Cài đặt">🔒</span>') +
+            : '<span class="muted" title="Dán URL Apps Script ở màn Cài đặt">🔌</span>') +
           '</td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -326,9 +330,6 @@
     var b = $('banner'), c = DM.caiDat;
     if (!c.url) {
       b.innerHTML = '🔌 Chưa kết nối danh mục Google Sheets – vẫn tách đơn được, nhưng chưa nhớ được SKU/combo. <button class="linkish" data-di="caidat">Vào Cài đặt</button>';
-      b.hidden = false;
-    } else if (!c.pin) {
-      b.innerHTML = '👀 Chế độ chỉ xem: các nút sửa danh mục đang khóa. <button class="linkish" data-di="caidat">Nhập PIN</button> để mở khóa.';
       b.hidden = false;
     } else b.hidden = true;
   }
@@ -377,6 +378,7 @@
       var b = e.target.closest('[data-xoa-file]');
       if (!b) return;
       S.files.splice(+b.dataset.xoaFile, 1);
+      gop();
       xuLy(false);
     });
 

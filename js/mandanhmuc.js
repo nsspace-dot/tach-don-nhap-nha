@@ -1,4 +1,4 @@
-/* Màn Danh mục: SKU → nhà và Combo. Tìm, sửa, xóa, xuất / nạp Excel. */
+/* Màn Danh mục: SKU → nhà, Combo, Lịch sử. Tìm, sửa, xóa, xuất / nạp Excel. */
 (function (root) {
   'use strict';
   var PL = root.PhanLoai, DM = root.DanhMuc, A = root.App, DX = root.DanhMucExcel;
@@ -23,9 +23,55 @@
     });
     document.querySelectorAll('#man-danhmuc .can-write').forEach(function (b) {
       b.disabled = !DM.coTheGhi();
-      b.title = DM.coTheGhi() ? '' : 'Nhập PIN ở màn Cài đặt để dùng nút này';
+      b.title = DM.coTheGhi() ? '' : 'Dán URL Apps Script ở màn Cài đặt để dùng nút này';
     });
-    if (tab === 'sku') veSku(c.skus, q); else veCombo(c.combos, q);
+    if (tab === 'sku') veSku(c.skus, q);
+    else if (tab === 'combo') veCombo(c.combos, q);
+    else veLichSu(q);
+  }
+
+  /* ---------- Lịch sử (100 thay đổi gần nhất, chỉ xem) ---------- */
+  var lichSu = null, dangTaiLs = false, loiLs = '';
+  var TEN_HD = {
+    upsertSku: '✋ Gán / sửa nhà', upsertSkuBatch: '🤖 Tự học', deleteSku: '🗑 Xóa SKU',
+    upsertCombo: '🎁 Lưu combo', addComboKey: '🔗 Gắn khóa combo', boKhoa: '✂️ Chuyển khóa sang combo khác',
+    deleteCombo: '🗑 Xóa combo', importBatch: '📥 Nạp Excel', khoiPhuc: '♻️ Khôi phục sao lưu'
+  };
+  function taiLichSu() {
+    if (dangTaiLs) return;
+    dangTaiLs = true; loiLs = '';
+    DM.lichSu().then(function (ds) { lichSu = ds; }).catch(function (e) { loiLs = e.message; })
+      .then(function () { dangTaiLs = false; if (tab === 'lichsu') ve(); });
+  }
+  function tomTat(json) {
+    if (!json) return '—';
+    try {
+      var o = JSON.parse(json);
+      if (o.thanh_phan) {
+        return (o.ten_combo || '') + '\n' + o.thanh_phan.map(function (t) { return '· ' + t.so_luong + '× ' + t.ten + ' (' + t.nha + ')'; }).join('\n') +
+          (o.khoa ? '\nkhóa: ' + [].concat(o.khoa).join(', ') : '');
+      }
+      if (o.nha) return (o.sku ? o.sku + ' · ' : '') + o.ten + '\n→ ' + o.nha + ' (' + (o.nguon === 'tu_hoc' ? 'tự học' : 'gán tay') + ')';
+      return json;
+    } catch (e) { return json; }
+  }
+  function veLichSu(q) {
+    if (!DM.caiDat.url) { $('dm-bang').innerHTML = rong('Chưa kết nối Google Sheets – dán URL ở màn Cài đặt nha.'); return; }
+    if (!lichSu && !loiLs) { $('dm-bang').innerHTML = '<div class="trong-bang">Đang tải lịch sử…</div>'; taiLichSu(); return; }
+    if (loiLs) { $('dm-bang').innerHTML = '<div class="trong-bang">😿 ' + A.esc(loiLs) + ' <button class="linkish" id="ls-lai">Thử lại</button></div>'; return; }
+    var ds = lichSu.filter(function (r) {
+      return !q || A.boDau([r.hanh_dong, r.khoa, r.du_lieu_cu, r.du_lieu_moi].join(' ')).indexOf(q) >= 0;
+    });
+    if (!ds.length) { $('dm-bang').innerHTML = rong(lichSu.length ? 'Không tìm thấy.' : 'Chưa có thay đổi nào.'); return; }
+    $('dm-bang').innerHTML = '<div class="legend" style="padding:12px 16px">100 thay đổi gần nhất (mới nhất ở trên). Bản đầy đủ nằm ở sheet LICH_SU. ' +
+      '<button class="linkish" id="ls-lai">Tải lại</button></div>' +
+      '<table class="tbl"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Khóa</th><th>Trước</th><th>Sau</th></tr></thead><tbody>' +
+      ds.map(function (r) {
+        return '<tr><td class="pl">' + ngay(r.thoi_gian) + '</td><td class="ls-hd">' + A.esc(TEN_HD[r.hanh_dong] || r.hanh_dong) + '</td>' +
+          '<td><span class="khoa">' + A.esc(r.khoa) + '</span></td>' +
+          '<td><pre class="ls-json">' + A.esc(tomTat(r.du_lieu_cu)) + '</pre></td>' +
+          '<td><pre class="ls-json">' + A.esc(tomTat(r.du_lieu_moi)) + '</pre></td></tr>';
+      }).join('') + '</tbody></table>';
   }
 
   function rong(msg) {
@@ -90,7 +136,9 @@
   }
   function xoaCombo(i) {
     var c = DM.catalog.combos[i];
-    A.hoi('Xóa combo "' + c.ten_combo + '"? Lần sau combo này sẽ quay lại tab Combo để khai báo lại.', 'Xóa').then(function (ok) {
+    A.hoi('Xóa combo "' + c.ten_combo + '"?\n\nCombo này có ' + c.thanh_phan.length + ' thành phần:\n' +
+      c.thanh_phan.map(function (t) { return '· ' + t.so_luong + '× ' + t.ten + ' (' + t.nha + ')'; }).join('\n') +
+      '\n\nSau khi xóa, các đơn của combo này sẽ quay lại tab Combo để khai báo lại.', 'Xóa combo').then(function (ok) {
       if (!ok) return;
       DM.goi('deleteCombo', { combo_id: c.combo_id })
         .then(function () { A.toast('🗑 Đã xóa combo.', 'ok'); })
@@ -130,6 +178,7 @@
       if (s) suaSku(+s.dataset.suaSku, s.value);
     });
     $('dm-bang').addEventListener('click', function (e) {
+      if (e.target.id === 'ls-lai') { lichSu = null; loiLs = ''; ve(); return; }
       var b = e.target.closest('button');
       if (!b || b.disabled) return;
       if (b.dataset.xoaSku) xoaSku(+b.dataset.xoaSku);
@@ -144,6 +193,9 @@
       e.target.value = '';
     });
   });
+
+  // Danh mục vừa thay đổi → lịch sử cũ không còn mới, tải lại khi mở tab
+  DM.nghe(function (loai) { if (loai === 'catalog') { lichSu = null; loiLs = ''; } });
 
   root.ManDanhMuc = { ve: ve };
 })(typeof self !== 'undefined' ? self : this);

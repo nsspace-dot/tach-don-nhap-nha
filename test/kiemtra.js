@@ -46,6 +46,34 @@ check('File lạ → báo lỗi thân thiện', !!sai.error);
 
 var rows = tt.rows.concat(sp.rows);
 
+console.log('\n1b. Nhiều file cùng sàn – chống trùng đơn giữa các file');
+var f = function (p, ten) { return { file: ten, san: p.san, rowsGoc: p.rows.slice() }; };
+var tongDong = function (ds) { return ds.reduce(function (s, x) { return s + x.rows.length; }, 0); };
+var ds = DocFile.gopFile([f(tt, 'tiktok.xlsx'), f(sp, 'shopee.xlsx')]);
+check('TikTok + Shopee: không đơn nào trùng, đủ 141 dòng', tongDong(ds) === 141 && ds[0].soDonTrung === 0 && ds[1].soDonTrung === 0);
+var demDon = function (rs) { var o = {}; rs.forEach(function (r) { o[r.orderId] = 1; }); return Object.keys(o).length; };
+var soDonTT = demDon(tt.rows);
+var nhieuDong = tt.rows.filter(function (r, i, a) { return a.filter(function (x) { return x.orderId === r.orderId; }).length > 1; });
+check('Trong 1 file, 1 đơn nhiều dòng vẫn giữ đủ (có ' + nhieuDong.length + ' dòng thuộc đơn nhiều sản phẩm)', nhieuDong.length > 0 && ds[0].rows.length === 103);
+ds = DocFile.gopFile([f(tt, 'tiktok.xlsx'), f(tt, 'tiktok-ban-sao.xlsx')]);
+check('Thả lại cùng file TikTok: file sau 0 đơn mới, bỏ qua ' + soDonTT + ' đơn trùng', ds[1].soDonMoi === 0 && ds[1].soDonTrung === soDonTT && tongDong(ds) === 103,
+  [ds[1].soDonMoi, ds[1].soDonTrung]);
+// Chia file TikTok thành 2 "gian hàng" có phần đơn chồng lên nhau
+var ids = []; tt.rows.forEach(function (r) { if (ids.indexOf(r.orderId) < 0) ids.push(r.orderId); });
+var A = ids.slice(0, 60), B = ids.slice(40);
+var fa = { file: 'gian-1.xlsx', san: 'TikTok', rowsGoc: tt.rows.filter(function (r) { return A.indexOf(r.orderId) >= 0; }) };
+var fb = { file: 'gian-2.xlsx', san: 'TikTok', rowsGoc: tt.rows.filter(function (r) { return B.indexOf(r.orderId) >= 0; }) };
+ds = DocFile.gopFile([fa, fb, f(sp, 'shopee.xlsx')]);
+check('2 file TikTok chồng 20 đơn: file 2 bỏ qua 20 đơn trùng, cộng thêm ' + (B.length - 20) + ' đơn mới', ds[1].soDonTrung === 20 && ds[1].soDonMoi === B.length - 20, [ds[1].soDonTrung, ds[1].soDonMoi]);
+check('Tổng sau gộp vẫn đúng 141 dòng', tongDong(ds) === 141, tongDong(ds));
+var kqGop = PL.classify(ds.reduce(function (a, x) { return a.concat(x.rows); }, []), { skus: [], combos: [] });
+check('Kết quả phân loại sau gộp vẫn HA 43 / KV 5', kqGop.dongTheoNha.HA === 43 && kqGop.dongTheoNha.KV === 5);
+ds = DocFile.gopFile([fb, f(sp, 'shopee.xlsx')]); // gỡ file gian-1 ra
+check('Gỡ file 1 → file 2 tính lại, không còn đơn trùng', ds[0].soDonTrung === 0 && ds[0].soDonMoi === B.length);
+var spGia = { file: 'x.xlsx', san: 'Shopee', rowsGoc: [{ san: 'Shopee', orderId: tt.rows[0].orderId, sku: '1', ten: 'X', phanLoai: '', gia: 1, sl: 1 }] };
+ds = DocFile.gopFile([f(tt, 'tiktok.xlsx'), spGia]);
+check('Trùng mã đơn nhưng khác sàn → không coi là trùng', ds[1].soDonTrung === 0 && ds[1].rows.length === 1);
+
 console.log('\n2. Nhận mã nhà (regex)');
 var f = function (s) { return PL.findCodes(s, PL.RE_NHA).join(','); };
 [['Sách - X - HA', 'HA'], ['Sách - X - HA - Newshop', 'HA'], ['X - HA - Tác Giả Lê Thị Nương', 'HA'],
@@ -136,6 +164,16 @@ check('"COMBO.HA" là combo dù SKU là mã vạch', cr('8935092825724', 'Sách 
 check('SKU "55252" không có dấu hiệu combo → sách lẻ', !cr('55252', 'Sách X', 'LẺ'));
 check('SKU trống không có dấu hiệu combo → sách lẻ', !cr('', 'Sách X', 'LẺ'));
 check('"Lớp 1+2+3" không phải combo', !cr('8935092839820', 'Luyện Viết Tiếng Anh Lớp 1+2+3', 'LỚP 2'));
+
+console.log('\n6b. File mẫu nạp danh mục');
+global.PhanLoai = PL;
+var DX = require('../js/danhmuc-excel.js');
+var mauNap = DX.nap(XLSX.read(XLSX.write(DX.mau(XLSX), { type: 'buffer', bookType: 'xlsx' })), XLSX);
+check('File mẫu nạp lại được: 3 SKU, 1 combo 2 thành phần, không lỗi', mauNap.skus.length === 3 && mauNap.combos.length === 1 &&
+  mauNap.combos[0].thanh_phan.length === 2 && mauNap.loi.length === 0, mauNap.loi);
+check('Khóa combo "55252 ;; 8935092825724" tự thêm tiền tố sku:', mauNap.combos[0].khoa.join(',') === 'sku:55252,sku:8935092825724');
+var xuatLai = DX.nap(XLSX.read(XLSX.write(DX.xuat({ skus: mauNap.skus, combos: mauNap.combos }, XLSX), { type: 'buffer', bookType: 'xlsx' })), XLSX);
+check('Xuất danh mục rồi nạp lại giữ nguyên', JSON.stringify(xuatLai.skus) === JSON.stringify(mauNap.skus) && JSON.stringify(xuatLai.combos) === JSON.stringify(mauNap.combos));
 
 console.log('\n7. Xuất Excel');
 var wb = XuatFile.buildWorkbook(kq2, ExcelJS);

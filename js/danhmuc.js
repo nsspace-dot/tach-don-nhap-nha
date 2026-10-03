@@ -1,6 +1,8 @@
 /* Danh mục dùng chung (Google Sheets qua Apps Script) + cài đặt lưu trên máy.
  * - Đọc: GET <url>  → { ok, skus, combos }
- * - Ghi: POST <url> body {pin, action, data} (Content-Type text/plain để tránh CORS preflight)
+ * - Ghi: POST <url> body {action, data} (Content-Type text/plain để tránh CORS preflight)
+ * - Lịch sử: GET <url>?action=lichSu → { ok, lich_su }
+ * URL chỉ lưu trong localStorage của từng máy, không bao giờ nằm trong code.
  *        → { ok, catalog } hoặc { ok:false, error } */
 (function (root) {
   'use strict';
@@ -15,7 +17,8 @@
     try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* hết chỗ / chế độ riêng tư */ }
   }
 
-  var caiDat = Object.assign({ url: '', pin: '', maKhac: root.PhanLoai.MA_KHAC_MAC_DINH.slice() }, docLS(LS_CAIDAT, {}));
+  var caiDat = Object.assign({ url: '', maKhac: root.PhanLoai.MA_KHAC_MAC_DINH.slice() }, docLS(LS_CAIDAT, {}));
+  if ('pin' in caiDat) { delete caiDat.pin; ghiLS(LS_CAIDAT, caiDat); } // bản cũ có PIN – không dùng nữa
   var cache = docLS(LS_DANHMUC, null);
   var catalog = chuanHoa(cache && cache.catalog);
   var trangThai = { state: caiDat.url ? 'idle' : 'none', luc: cache ? cache.luc : null, loi: '' };
@@ -77,12 +80,11 @@
   /* Gửi 1 thao tác ghi. Trả về Promise kết quả (đã cập nhật catalog nếu server trả về). */
   function goi(action, data) {
     if (!caiDat.url) return Promise.reject(new Error('Chưa dán URL Apps Script ở màn Cài đặt.'));
-    if (!caiDat.pin && action !== 'ping') return Promise.reject(new Error('Chưa nhập mã PIN ở màn Cài đặt.'));
     datTrangThai('syncing');
     return fetch(caiDat.url, {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ pin: caiDat.pin, action: action, data: data || {} })
+      body: JSON.stringify({ action: action, data: data || {} })
     })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (j) {
@@ -93,9 +95,22 @@
       })
       .catch(function (e) {
         var msg = moTaLoi(e);
-        datTrangThai(/PIN/i.test(msg) ? 'ok' : 'error', msg);
+        datTrangThai('error', msg);
         throw new Error(msg);
       });
+  }
+
+  /* 100 thay đổi gần nhất (sheet LICH_SU) */
+  function lichSu() {
+    if (!caiDat.url) return Promise.reject(new Error('Chưa dán URL Apps Script ở màn Cài đặt.'));
+    var u = caiDat.url + (caiDat.url.indexOf('?') >= 0 ? '&' : '?') + 'action=lichSu';
+    return fetch(u, { method: 'GET', redirect: 'follow', cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok) throw new Error((j && j.error) || 'Lỗi không rõ');
+        return j.lich_su || [];
+      })
+      .catch(function (e) { throw new Error(moTaLoi(e)); });
   }
 
   function luuCaiDat(moi) {
@@ -110,7 +125,8 @@
     get catalog() { return catalog; },
     get caiDat() { return caiDat; },
     get trangThai() { return trangThai; },
-    coTheGhi: function () { return !!(caiDat.url && caiDat.pin); },
+    coTheGhi: function () { return !!caiDat.url; },
+    lichSu: lichSu,
     taiLai: taiLai,
     goi: goi,
     luuCaiDat: luuCaiDat,

@@ -83,6 +83,7 @@
         <div class="seg" role="tablist" aria-label="Loại danh mục">
           <button class="seg-btn is-active" data-dm="sku" role="tab" aria-selected="true">SKU → nhà <span id="dm-dem-sku" class="dem"></span></button>
           <button class="seg-btn" data-dm="combo" role="tab" aria-selected="false">Combo <span id="dm-dem-combo" class="dem"></span></button>
+          <button class="seg-btn" data-dm="lichsu" role="tab" aria-selected="false">🕘 Lịch sử</button>
         </div>
         <input type="search" class="input search" id="dm-tim" placeholder="🔎 Tìm theo SKU, tên sách…" aria-label="Tìm trong danh mục">
         <div class="dm-actions">
@@ -104,15 +105,8 @@
         <label class="field">
           <span>URL Apps Script (Web App)</span>
           <input class="input" id="cd-url" type="url" placeholder="https://script.google.com/macros/s/…/exec">
-          <small>Dán đường link có đuôi <code>/exec</code> lấy ở bước “Deploy” (xem HUONG-DAN.md).</small>
-        </label>
-        <label class="field">
-          <span>Mã PIN</span>
-          <span class="pin-row">
-            <input class="input" id="cd-pin" type="password" placeholder="Để trống = chỉ xem">
-            <button class="btn btn-ghost" type="button" id="cd-pin-hien" aria-pressed="false">👁 Hiện</button>
-          </span>
-          <small>Nhập 1 lần trên máy này. Không có PIN thì chỉ xem được danh mục, không sửa được.</small>
+          <small>Dán đường link có đuôi <code>/exec</code> lấy ở bước “Deploy” (xem HUONG-DAN.md).
+            Link chỉ được lưu trên máy này. 🔐 Ai có link này đều sửa được danh mục – đừng dán nó lên GitHub, Zalo nhóm đông người…</small>
         </label>
         <label class="field">
           <span>Mã nhà khác (bỏ qua)</span>

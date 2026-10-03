@@ -130,6 +130,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
   display: inline-flex; align-items: center; gap: 8px; background: var(--paper); border: 2px solid var(--line);
   border-radius: 999px; padding: 6px 8px 6px 6px; font-size: 14px; box-shadow: var(--shadow);
 }
+.chip-trung { background: var(--warn); color: #6f5300; border-radius: 999px; padding: 2px 8px; font-size: 12px; }
 .chip.is-error { border-color: #f3b0bb; background: #fff1f3; color: #8f2338; padding-left: 14px; }
 .tag { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .tag-TikTok { background: #222; color: #fff; }
@@ -236,6 +237,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .nguon-tay { color: var(--focus); font-weight: 700; }
 .nguon-tu_hoc { color: var(--muted); }
 .tp-list { margin: 0; padding-left: 18px; font-size: 13px; }
+.ls-json { font: 600 12px/1.45 var(--font); white-space: pre-wrap; word-break: break-word; max-width: 360px; color: var(--muted); margin: 0; }
+.ls-hd { font-weight: 700; white-space: nowrap; }
 .khoa { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: #f4ebe4; border-radius: 6px; padding: 1px 6px; margin: 2px 4px 2px 0; display: inline-block; word-break: break-all; }
 
 /* ---------- Cài đặt ---------- */

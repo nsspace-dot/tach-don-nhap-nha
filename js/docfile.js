@@ -113,5 +113,31 @@
     };
   }
 
-  return { parseWorkbook: parseWorkbook, fixRef: fixRef, toNum: toNum, clean: clean };
+  /* Gộp nhiều file (kể cả nhiều file cùng sàn – mỗi gian hàng 1 file).
+   * Chống cộng trùng GIỮA CÁC FILE: đơn (cùng sàn + mã đơn) đã có ở file thả trước thì bỏ qua ở file sau.
+   * Trong cùng 1 file, 1 đơn nhiều dòng sản phẩm là bình thường → giữ hết.
+   * files: [{ san, rowsGoc: [...], error }] theo thứ tự thả. Ghi kết quả vào từng file:
+   *   rows (dòng được dùng), soDon, soDonMoi, soDonTrung, soDongTrung. */
+  function gopFile(files) {
+    var daCo = {};
+    files.forEach(function (f) {
+      if (f.error) return;
+      var trongFile = {}, trung = {}, moi = {};
+      f.rows = [];
+      f.soDongTrung = 0;
+      (f.rowsGoc || []).forEach(function (r) {
+        var id = r.orderId ? r.san + ':' + r.orderId : '';
+        if (id && daCo[id]) { trung[id] = 1; f.soDongTrung++; return; }
+        if (id) { trongFile[id] = 1; moi[id] = 1; }
+        f.rows.push(r);
+      });
+      Object.keys(trongFile).forEach(function (id) { daCo[id] = 1; });
+      f.soDonMoi = Object.keys(moi).length;
+      f.soDonTrung = Object.keys(trung).length;
+      f.soDon = f.soDonMoi + f.soDonTrung;
+    });
+    return files;
+  }
+
+  return { parseWorkbook: parseWorkbook, gopFile: gopFile, fixRef: fixRef, toNum: toNum, clean: clean };
 });

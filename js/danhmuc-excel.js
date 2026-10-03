@@ -61,7 +61,7 @@
       { combo_id: 'C001', ten_combo: 'Combo Tập Viết Tiếng Nhật Katakana + Hiragana', khoa: '55252 ;; 8935092825724' }
     ], [12, 60, 50]), 'COMBO');
     XLSX.utils.book_append_sheet(wb, sheet(XLSX, COT_TP, [
-      { combo_id: 'C001', sku: '8935092825731', ten: 'Sách - Tập Viết Tiếng Nhật Katakana', nha: 'HA', gia_goc: 25000, so_luong: 1 },
+      { combo_id: 'C001', sku: '', ten: 'Sách - Tập Viết Tiếng Nhật Katakana (ĐIỀN MÃ VẠCH THẬT VÀO CỘT sku)', nha: 'HA', gia_goc: 25000, so_luong: 1 },
       { combo_id: 'C001', sku: '8935092825724', ten: 'Sách - Tập Viết Tiếng Nhật Hiragana', nha: 'HA', gia_goc: 25000, so_luong: 1 }
     ], [12, 16, 60, 8, 10, 10]), 'COMBO_THANH_PHAN');
     return wb;
