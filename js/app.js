@@ -122,6 +122,21 @@
     veChips();
     veKetQua(moi);
     tuHoc();
+    doiKhoaCu();
+  }
+
+  /* Combo khai báo bằng khóa mã vạch trơn ("sku:<mã vạch>") → đổi sang "sku:<mã vạch>|<phân loại>" (ghi LICH_SU) */
+  var daDoiKhoa = {};
+  function doiKhoaCu() {
+    if (!S.kq || !DM.coTheGhi()) return;
+    S.kq.doiKhoa.forEach(function (d) {
+      var id = d.combo_id + '|' + d.khoa_cu;
+      if (daDoiKhoa[id]) return;
+      daDoiKhoa[id] = true;
+      DM.goi('doiKhoaCombo', d)
+        .then(function () { toast('🔑 Đã đổi khóa combo ' + d.khoa_cu + ' → ' + d.khoa_moi.join(', ') + ' (an toàn hơn cho mã vạch).', 'ok'); })
+        .catch(function (e) { delete daDoiKhoa[id]; toast('Không đổi được khóa combo: ' + e.message, 'loi'); });
+    });
   }
 
   /* Ghi gom SKU tự học 1 lần (khi đã kết nối Google Sheets) */
@@ -204,13 +219,21 @@
     return esc(g.sku);
   }
 
+  /* Tên gọn trên giao diện, rê chuột thấy tên gốc */
+  function tenHien(g) {
+    var gon = g.tenGon || g.ten;
+    return gon === g.ten ? esc(gon) : '<span title="Tên gốc: ' + esc(g.ten) + '">' + esc(gon) + '</span>';
+  }
+
   function nguonNho(g) {
-    var san = {}, combo = {};
+    var san = {}, combo = {}, nguyen = false;
     (g.nguon || []).forEach(function (n) {
       if (n.combo) combo[n.combo] = (combo[n.combo] || 0) + 1; else san[n.san] = (san[n.san] || 0) + 1;
+      if (n.nguyen) nguyen = true;
     });
     var h = Object.keys(san).map(function (s) { return '<span class="nho">' + s + '</span>'; }).join('');
-    h += Object.keys(combo).map(function (c) { return '<span class="nho nho-combo" title="Tách từ combo">🎁 ' + esc(c) + '</span>'; }).join('');
+    h += Object.keys(combo).map(function (c) { return '<span class="nho nho-combo" title="Tách từ combo">🎁 ' + esc(PL.tenGon(c, DM.caiDat.maKhac)) + '</span>'; }).join('');
+    if (nguyen) h += '<span class="nho nho-combo" title="Xuất nguyên combo, không tách thành từng cuốn">📦 nguyên combo</span>';
     if (g.canhBaoGia) h += '<span class="nho nho-warn">⚠ giá khác</span>';
     return h;
   }
@@ -219,7 +242,7 @@
     return '<table class="tbl"><thead><tr><th class="stt">#</th><th>SKU</th><th>Tên sản phẩm</th><th class="so">Giá gốc</th><th class="so">Số lượng</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr' + (g.canhBaoGia ? ' class="canh-bao"' : '') + '><td class="stt">' + (i + 1) + '</td><td class="sku">' + oSku(g) +
-          '</td><td class="ten">' + esc(g.ten) + '<div>' + nguonNho(g) + '</div></td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td></tr>';
+          '</td><td class="ten">' + tenHien(g) + '<div>' + nguonNho(g) + '</div></td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -227,13 +250,16 @@
     return '<table class="tbl"><thead><tr><th>Nhà</th><th>SKU</th><th>Tên sản phẩm / phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Khai báo</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td>' + badge(g.nha) + '</td><td class="sku">' + (g.sku ? esc(g.sku) : '<span class="sku-trong">(trống)</span>') + '</td>' +
-          '<td class="ten">' + esc(g.ten) + '<div class="pl">' + esc(g.phanLoai) + '</div>' +
+          '<td class="ten">' + tenHien(g) + '<div class="pl">' + esc(g.phanLoai) + '</div>' +
           (g.ghiChu ? '<div class="ghi-chu">⚠ ' + esc(g.ghiChu) + '</div>' : '') +
           '<div>' + g.san.map(function (s) { return '<span class="nho">' + s + '</span>'; }).join('') + '</div></td>' +
           '<td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td>' +
           '<td><div class="actions">' +
           nutGhi('🧩 Khai báo thành phần', 'class="btn btn-sm btn-primary" data-khai-bao="' + i + '"') +
           nutGhi('🔗 Đây là combo đã có', 'class="btn btn-sm" data-co-san="' + i + '"') +
+          (g.tronNha
+            ? '<button type="button" class="btn btn-sm" disabled title="Combo có sách nhà khác nên không xuất nguyên được – hãy tách để lấy phần ' + esc(g.nha) + '">📦 Xuất nguyên combo</button>'
+            : nutGhi('📦 Xuất nguyên combo', 'class="btn btn-sm" data-nguyen="' + i + '"')) +
           '</div></td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -250,7 +276,7 @@
   function bangChuaRo(list) {
     return '<table class="tbl"><thead><tr><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Chọn nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
-        return '<tr><td class="sku">' + oSku(g) + '</td><td class="ten">' + esc(g.ten) +
+        return '<tr><td class="sku">' + oSku(g) + '</td><td class="ten">' + tenHien(g) +
           (g.ghiChu ? '<div class="ghi-chu">⚠ ' + esc(g.ghiChu) + '</div>' : '') +
           '<div>' + g.san.map(function (s) { return '<span class="nho">' + s + '</span>'; }).join('') + '</div></td>' +
           '<td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td>' +
@@ -278,7 +304,7 @@
       }).join(' ') + '<span class="muted">Bỏ nhầm? Chọn lại nhà ở cột cuối.</span></div>' +
       '<table class="tbl"><thead><tr><th>Lý do</th><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">SL</th><th>Gán lại nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
-        return '<tr><td><span class="ly-do">' + esc(g.lyDo) + '</span></td><td class="sku">' + esc(g.sku) + '</td><td class="ten">' + esc(g.ten) +
+        return '<tr><td><span class="ly-do">' + esc(g.lyDo) + '</span></td><td class="sku">' + esc(g.sku) + '</td><td class="ten">' + tenHien(g) +
           '</td><td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.sl) + '</td><td>' +
           (DM.coTheGhi()
             ? '<select class="select" data-gan-bq="' + i + '" aria-label="Gán lại nhà"><option value="">— chọn —</option>' +
@@ -408,6 +434,7 @@
       } else if (b.dataset.khaiBao) root.KhaiBao.moKhaiBao(S.kq.combo[+b.dataset.khaiBao]);
       else if (b.dataset.khaiBaoCr) root.KhaiBao.moKhaiBao(S.kq.chuaRo[+b.dataset.khaiBaoCr]);
       else if (b.dataset.coSan) root.KhaiBao.moCoSan(S.kq.combo[+b.dataset.coSan]);
+      else if (b.dataset.nguyen) root.KhaiBao.moKhaiBao(S.kq.combo[+b.dataset.nguyen], 'nguyen');
     });
     $('bang-bo-qua').addEventListener('change', function (e) {
       var s = e.target.closest('[data-gan-bq]');

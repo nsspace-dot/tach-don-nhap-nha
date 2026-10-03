@@ -80,7 +80,7 @@ Mỗi tối khoảng **23h**, script tự chép 3 sheet danh mục sang 1 file r
 > - **Tuyệt đối không** dán URL vào code, vào GitHub (repo đang public), nhóm chat đông người…
 > - Nếu lỡ lộ URL: **Triển khai → Quản lý các bản triển khai (Manage deployments)** → bấm **Lưu trữ (Archive)** bản cũ → tạo **New deployment** mới (URL mới) → dán URL mới vào Cài đặt từng máy. Nếu danh mục bị phá, xem lại sheet **LICH_SU** và khôi phục theo Phần C.
 
-**Khi cập nhật `Code.gs` sau này (giữ nguyên URL):**
+**Khi cập nhật `Code.gs` sau này (giữ nguyên URL) – ⚠️ làm mỗi khi có bản `Code.gs` mới:**
 dán code mới → 💾 Lưu → **Triển khai → Quản lý các bản triển khai** → bấm ✏️ **Chỉnh sửa** → *Phiên bản (Version)*: **Phiên bản mới (New version)** → **Triển khai**.
 (Nếu tạo *New deployment* thì sẽ ra URL khác.)
 
@@ -135,6 +135,10 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
    - **Combo:**
      - **🧩 Khai báo thành phần:** nhập từng cuốn trong combo (SKU, tên, nhà, giá gốc, số lượng mỗi combo). Gõ SKU đã biết thì app tự điền tên/nhà/giá. Sách nhà khác trong combo trộn thì chọn nhà **Khác** (sẽ không nhập).
      - **🔗 Đây là combo đã có:** cùng 1 combo nhưng sàn khác đặt mã khác → chọn combo có sẵn để gắn thêm mã.
+     - **📦 Xuất nguyên combo:** dùng cho sách mà hệ thống lên đơn của shop **chỉ có dạng combo**, không có từng cuốn lẻ.
+       Chọn **Nhà**, có thể điền **Mã trên hệ thống** (mã combo trên website lên đơn; để trống = dùng SKU của sàn) và **Tên xuất** (để trống = tên combo đã làm gọn).
+       Không cần nhập thành phần. File Excel sẽ có **1 dòng** cho combo đó trong sheet nhà: giá gốc = giá combo trên sàn, số lượng = số combo (cộng cả 2 sàn nếu đã gắn mã của cả 2 sàn).
+       Combo **trộn nhà khác** (có MEGA, TN…) thì không chọn được "Xuất nguyên" – phải tách để chỉ lấy phần HA/KV/ML.
      - Khai báo xong, combo tự tách thành từng cuốn và cộng vào sheet nhà – không cần thả file lại.
    - **🙈 Đã bỏ qua:** lịch, tranh, trà… và sách nhà khác. Nếu bị bỏ nhầm thì chọn lại nhà ở cột cuối.
 5. Bấm **⬇️ Tải file Excel** → được file `Don-nhap-nha_dd-mm-yyyy.xlsx`:
@@ -144,6 +148,10 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
 | Hồng Ân / Khang Việt / Minh Long | SKU, Tên, Giá gốc, Số lượng – đã cộng cả 2 sàn và phần tách từ combo |
 | Combo | Combo chưa khai báo (cần khai báo để lần sau tự tách) |
 | Chưa rõ nhà | Dòng chưa biết nhà |
+
+**Tên sản phẩm trong file Excel được làm gọn:** bỏ phần loại sách ở đầu ("Sách -", "Sách Tham Khảo -"…) và phần mã nhà, tên shop, tác giả ở cuối ("- HA - Newshop", "(HA)", "- KV - Tác Giả …"). Ví dụ
+"Sách Tham Khảo - Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối) - HA - Newshop" → "Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối)".
+Trên màn hình app cũng hiện tên gọn; **rê chuột vào tên** để xem tên gốc. Dữ liệu gốc và danh mục không bị đổi.
 
 Ý nghĩa màu trong file Excel:
 - 🟧 **Ô SKU màu cam:** SKU trống hoặc không phải mã vạch – app nhận diện bằng tên + phân loại.
@@ -156,7 +164,8 @@ Lần sau nếu tên sách thiếu mã nhà, app vẫn nhận ra. Những gì b�
 ## Màn Danh mục
 
 - **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), đổi nhà, xóa (có hỏi lại).
-- **Combo:** xem thành phần, **✏️ Sửa**, xóa (hiện rõ tên combo và các thành phần trước khi xóa).
+- **Combo:** xem thành phần, cột **Cách xuất** (✂️ Tách / 📦 Nguyên combo – đổi qua lại ngay tại đây), **✏️ Sửa**, xóa (hiện rõ tên combo và các thành phần trước khi xóa).
+  - Combo có SKU là **mã vạch** (vd dòng Shopee "Hiragana (HA)" phân loại COMBO.HA) được nhận diện bằng mã vạch **kèm phân loại** (`sku:8935092825724|combo.ha`), để không nhầm với cuốn lẻ cùng mã vạch. Combo khai báo trước đây bằng mã vạch trơn sẽ **tự đổi sang khóa mới** lần đầu bạn thả file có combo đó (có ghi Lịch sử).
 - **🕘 Lịch sử:** 100 thay đổi gần nhất (ai gán nhà, tự học, lưu/xóa combo…), có dữ liệu trước và sau. Bản đầy đủ ở sheet **LICH_SU**.
 - **📤 Xuất danh mục ra Excel:** sao lưu thủ công về máy.
 - **📥 Nạp từ Excel:** nạp hàng loạt. Bấm **📄 Tải file mẫu** (hoặc dùng [`templates/mau-nap-danh-muc.xlsx`](templates/mau-nap-danh-muc.xlsx)), đọc sheet `HUONG_DAN` trong file, điền rồi nạp. File xuất ở trên cũng nạp lại được.

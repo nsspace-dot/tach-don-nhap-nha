@@ -35,6 +35,8 @@
       return {
         combo_id: String(x.combo_id || ''), ten_combo: String(x.ten_combo || ''), cap_nhat: x.cap_nhat || '',
         khoa: khoa.map(function (k) { return String(k).trim(); }).filter(Boolean),
+        cach_xuat: x.cach_xuat === 'nguyen' ? 'nguyen' : 'tach', // combo cũ chưa có giá trị → tách
+        ma_he_thong: String(x.ma_he_thong || ''), ten_xuat: String(x.ten_xuat || ''), nha: String(x.nha || ''),
         thanh_phan: (x.thanh_phan || []).map(function (t) {
           return { sku: String(t.sku || ''), ten: String(t.ten || ''), nha: String(t.nha || 'KHAC'),
                    gia_goc: Number(t.gia_goc) || 0, so_luong: Number(t.so_luong) || 1 };

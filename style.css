@@ -273,10 +273,21 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .tbl-tp td:nth-child(4) { width: 120px; }
 .tbl-tp td:nth-child(5) { width: 90px; }
 #hoi-noidung { white-space: pre-line; margin: 0; }
+.cach-xuat { border: 2px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 0; }
+.cach-xuat legend { font-weight: 700; padding: 0 6px; }
+.radio { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.radio.is-khoa { opacity: .45; cursor: not-allowed; }
+.cach-xuat small { flex-basis: 100%; }
+.nguyen-grid { display: grid; grid-template-columns: 160px 1fr; gap: 10px 14px; background: var(--cb); border-radius: var(--r-md); padding: 12px 14px; }
+.nguyen-grid .field-rong { grid-column: 1 / -1; }
+.badge-cach { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.badge-tach { background: #f4ebe4; color: var(--muted); }
+.badge-nguyen { background: var(--cb); color: var(--cb-ink); }
 .err { color: var(--danger); margin: 0; min-height: 1.2em; }
 .cs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow: auto; }
 .cs-item { width: 100%; text-align: left; font: inherit; color: inherit; background: #fffaf6; border: 2px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; cursor: pointer; }
-.cs-item:hover { border-color: var(--cb-deep); background: var(--cb); }
+.cs-item:hover:not(:disabled) { border-color: var(--cb-deep); background: var(--cb); }
+.cs-item:disabled { opacity: .5; cursor: not-allowed; }
 .cs-item small { display: block; color: var(--muted); font-weight: 500; }
 
 /* ---------- Thông báo ---------- */

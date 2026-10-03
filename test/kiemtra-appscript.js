@@ -67,6 +67,36 @@ r = m.post('deleteSku', { key: 'sku:222' });
 check('deleteSku', r.catalog.skus.every(function (e) { return e.key !== 'sku:222'; }));
 check('Xóa thứ không có → lỗi rõ ràng', /Không tìm thấy/.test(m.post('deleteSku', { key: 'sku:222' }).error || ''));
 
+console.log('\n3b. Xuất nguyên combo & đổi khóa mã vạch');
+r = m.post('upsertCombo', { ten_combo: 'Combo GETV 3', khoa: ['sku:55889'], cach_xuat: 'nguyen', nha: 'HA', ma_he_thong: 'NS-CB1', ten_xuat: '', thanh_phan: [] });
+var cn = r.catalog.combos.filter(function (c) { return c.combo_id === r.combo_id; })[0];
+check('Lưu combo "nguyen" không cần thành phần', r.ok && cn.cach_xuat === 'nguyen' && cn.nha === 'HA' && cn.ma_he_thong === 'NS-CB1' && cn.thanh_phan.length === 0, r.error || cn);
+check('Combo "nguyen" thiếu nhà → lỗi rõ ràng', /cần chọn nhà/.test(m.post('upsertCombo', { ten_combo: 'Z', khoa: ['sku:1'], cach_xuat: 'nguyen', thanh_phan: [] }).error || ''));
+check('Combo "tach" vẫn bắt buộc thành phần', /chưa có thành phần/.test(m.post('upsertCombo', { ten_combo: 'Z', khoa: ['sku:1'], cach_xuat: 'tach', thanh_phan: [] }).error || ''));
+check('Combo không ghi cach_xuat → mặc định "tach"', m.get().combos.filter(function (c) { return c.combo_id === 'C001'; })[0].cach_xuat === 'tach');
+r = m.post('upsertCombo', Object.assign({}, cn, { cach_xuat: 'tach', thanh_phan: [{ sku: '1', ten: 'Tập 1', nha: 'HA' }] }));
+check('Đổi combo từ "nguyen" sang "tach"', r.catalog.combos.filter(function (c) { return c.combo_id === cn.combo_id; })[0].cach_xuat === 'tach');
+var lsCx = m.get({ action: 'lichSu' }).lich_su[0];
+check('LICH_SU ghi nhận đổi cách xuất (trước nguyen → sau tach)', JSON.parse(lsCx.du_lieu_cu).cach_xuat === 'nguyen' && JSON.parse(lsCx.du_lieu_moi).cach_xuat === 'tach');
+m.post('addComboKey', { combo_id: 'C001', khoa: 'sku:8935092825724' });
+r = m.post('doiKhoaCombo', { combo_id: 'C001', khoa_cu: 'sku:8935092825724', khoa_moi: ['sku:8935092825724|combo.ha'] });
+var c001 = r.catalog.combos.filter(function (c) { return c.combo_id === 'C001'; })[0];
+check('doiKhoaCombo: bỏ khóa mã vạch trơn, thêm khóa kèm phân loại', c001.khoa.indexOf('sku:8935092825724') < 0 && c001.khoa.indexOf('sku:8935092825724|combo.ha') >= 0, c001.khoa);
+check('doiKhoaCombo có ghi LICH_SU', m.get({ action: 'lichSu' }).lich_su[0].hanh_dong === 'doiKhoaCombo');
+var truocDk = soDongLs(m);
+m.post('doiKhoaCombo', { combo_id: 'C001', khoa_cu: 'sku:8935092825724', khoa_moi: ['sku:8935092825724|combo.ha'] });
+check('Đổi khóa lần 2 (máy khác đã đổi) → không ghi thừa', soDongLs(m) === truocDk);
+
+console.log('\n3c. Sheet COMBO bản cũ (4 cột) vẫn đọc được');
+var m2 = GL.taoMoiTruong();
+m2.ctx.khoiTao();
+var shC = m2.ss.getSheetByName('COMBO');
+shC.data = [['combo_id', 'ten_combo', 'khoa', 'cap_nhat'], ['C001', 'Combo cũ', 'sku:55252', '2026-10-01 10:00:00']];
+m2.ss.getSheetByName('COMBO_THANH_PHAN').data.push(['C001', '1', 'Sách A', 'HA', 25000, 1]);
+var g2 = m2.get();
+check('Combo cũ chưa có cach_xuat → coi là "tach"', g2.ok && g2.combos[0].cach_xuat === 'tach' && g2.combos[0].thanh_phan.length === 1, g2);
+check('Tiêu đề sheet COMBO tự bổ sung cột mới', shC.data[0].join(',') === 'combo_id,ten_combo,khoa,cap_nhat,cach_xuat,ma_he_thong,ten_xuat,nha', shC.data[0]);
+
 console.log('\n4. Nạp Excel hàng loạt');
 r = m.post('importBatch', {
   skus: [{ key: 'sku:444', sku: '444', ten: 'Sách D', nha: 'ML', nguon: 'tay' }, { key: 'sku:555', nha: 'SAI' }],

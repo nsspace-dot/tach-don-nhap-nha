@@ -135,13 +135,33 @@
         <span>Khóa nhận diện <small>(mỗi sàn có thể đặt mã khác nhau)</small></span>
         <div class="khoa-list" id="cb-khoa"></div>
       </div>
-      <div class="table-wrap">
-        <table class="tbl tbl-tp">
-          <thead><tr><th>SKU</th><th>Tên sách</th><th>Nhà</th><th>Giá gốc</th><th>SL / combo</th><th><span class="sr">Xóa</span></th></tr></thead>
-          <tbody id="cb-tp"></tbody>
-        </table>
+      <fieldset class="cach-xuat">
+        <legend>Cách xuất ra file Excel</legend>
+        <label class="radio"><input type="radio" name="cb-cach" value="tach" checked> ✂️ Tách thành từng cuốn</label>
+        <label class="radio" id="cb-nguyen-nhan"><input type="radio" name="cb-cach" value="nguyen" id="cb-nguyen"> 📦 Xuất nguyên combo</label>
+        <small class="muted" id="cb-cach-ghichu"></small>
+      </fieldset>
+      <div class="nguyen-grid" id="cb-khoi-nguyen" hidden>
+        <label class="field"><span>Nhà</span>
+          <select class="input" id="cb-nha"><option value="HA">HA · Hồng Ân</option><option value="KV">KV · Khang Việt</option><option value="ML">ML · Minh Long</option></select>
+        </label>
+        <label class="field"><span>Mã trên hệ thống <small>(không bắt buộc)</small></span>
+          <input class="input" id="cb-maht" placeholder="Để trống = dùng SKU của sàn">
+        </label>
+        <label class="field field-rong"><span>Tên xuất <small>(không bắt buộc)</small></span>
+          <input class="input" id="cb-tenxuat">
+        </label>
+        <small class="muted field-rong">Combo sẽ ra 1 dòng trong sheet nhà: SKU = mã trên hệ thống, giá gốc = giá combo trên sàn, số lượng = số combo. Không cần nhập thành phần.</small>
       </div>
-      <button class="btn btn-ghost" type="button" id="cb-them">＋ Thêm cuốn</button>
+      <div id="cb-khoi-tach">
+        <div class="table-wrap">
+          <table class="tbl tbl-tp">
+            <thead><tr><th>SKU</th><th>Tên sách</th><th>Nhà</th><th>Giá gốc</th><th>SL / combo</th><th><span class="sr">Xóa</span></th></tr></thead>
+            <tbody id="cb-tp"></tbody>
+          </table>
+        </div>
+        <button class="btn btn-ghost" type="button" id="cb-them">＋ Thêm cuốn</button>
+      </div>
       <p class="err" id="cb-loi" role="alert"></p>
       <div class="dlg-actions">
         <button class="btn" value="cancel" formnovalidate>Hủy</button>

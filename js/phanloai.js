@@ -23,13 +23,18 @@
   /* ---------- Khóa nhận diện ---------- */
   function skuKey(sku) { return 'sku:' + clean(sku).toUpperCase(); }
   function tenKey(ten, phanLoai) { return 'ten:' + norm(ten) + '|' + norm(phanLoai); }
+  /* Combo có SKU là mã vạch (mã của 1 cuốn lẻ) → khóa kèm phân loại: "sku:8935092825724|combo.ha" */
+  function skuPlKey(sku, phanLoai) { return skuKey(sku) + '|' + norm(phanLoai); }
   /* Khóa chính của 1 dòng:
-   * - combo: có SKU thì theo SKU, không thì theo tên|phân loại
+   * - combo: SKU mã vạch → sku:<mã>|<phân loại> ; SKU khác → sku:<SKU> ; không SKU → tên|phân loại
    * - sách lẻ: SKU mã vạch thì theo SKU, SKU trống / dạng chữ thì theo tên|phân loại */
   function rowKey(row, isCombo) {
     if (isCombo === undefined) isCombo = !!comboReason(row);
-    var dungSku = isCombo ? !!clean(row.sku) : isBarcode(row.sku);
-    return dungSku ? skuKey(row.sku) : tenKey(row.ten, row.phanLoai);
+    if (isCombo) {
+      if (isBarcode(row.sku)) return skuPlKey(row.sku, row.phanLoai);
+      return clean(row.sku) ? skuKey(row.sku) : tenKey(row.ten, row.phanLoai);
+    }
+    return isBarcode(row.sku) ? skuKey(row.sku) : tenKey(row.ten, row.phanLoai);
   }
   function rowKeys(row, isCombo) {
     var k = [rowKey(row, isCombo)];
@@ -55,6 +60,28 @@
     var m;
     while ((m = re.exec(text))) if (out.indexOf(m[1]) < 0) out.push(m[1]);
     return out;
+  }
+
+  /* ---------- Làm gọn tên sách (chỉ để hiển thị / xuất Excel) ----------
+   * "Sách Tham Khảo - Hướng Dẫn … (Dùng Kèm SGK) - HA - Newshop" → "Hướng Dẫn … (Dùng Kèm SGK)"
+   * 1. Bỏ tiền tố: đoạn trước " - " đầu tiên bắt đầu bằng Sách/Vở và ≤ 4 từ.
+   * 2. Bỏ hậu tố: từ mã nhà đứng riêng (HA/KV/ML/mã nhà khác) trở về sau.
+   * 3. Không có mã nhà: bỏ "Newshop" ở cuối.  Gạch nối giữa tên giữ nguyên. Rỗng thì trả tên gốc. */
+  var RE_DAU_THUA = /^[\s\-_,.:;|]+|[\s\-_,.:;|(\[]+$/gu;
+  function tenGon(ten, maKhac) {
+    var goc = clean(ten), s = goc;
+    var i = s.indexOf(' - ');
+    if (i > 0) {
+      var dau = s.slice(0, i);
+      if (/^(sách|vở)(?![\p{L}\p{N}])/iu.test(dau) && dau.split(' ').length <= 4) s = s.slice(i + 3);
+    }
+    var re = codeRegex(NHA.concat(maKhac || MA_KHAC_MAC_DINH));
+    re.lastIndex = 0;
+    var m = re.exec(s);
+    if (m && m.index > 0) s = s.slice(0, m.index);
+    else s = s.replace(/[\s\-_]*newshop\s*$/iu, '');
+    s = s.replace(RE_DAU_THUA, '').replace(/\s+/g, ' ').trim();
+    return s || goc;
   }
 
   /* ---------- Không phải sách ---------- */
@@ -103,10 +130,21 @@
     var text = row.ten + ' ' + row.phanLoai;
     var cr = comboReason(row);
     var res = { row: row, key: rowKey(row, !!cr), isCombo: !!cr, comboLyDo: cr, nha: '', ghiChu: '', lyDo: '' };
+    res.tronNha = findCodes(text, reKhac).length > 0;
 
     // Bước 1: combo đã khai báo (chỉ xét dòng có dấu hiệu combo)
     var combo = res.isCombo ? lookup(idx.combo, row, true) : null;
-    if (combo) { res.loai = 'tach_combo'; res.combo = combo; res.nguonNha = 'combo đã khai báo'; return res; }
+    // Khóa cũ "sku:<mã vạch>" trơn → vẫn nhận, và ghi nhận để đổi sang khóa mới
+    if (!combo && res.isCombo && isBarcode(row.sku) && idx.combo.has(skuKey(row.sku))) {
+      combo = idx.combo.get(skuKey(row.sku));
+      res.doiKhoa = { combo_id: combo.combo_id, khoa_cu: skuKey(row.sku), khoa_moi: res.key };
+    }
+    if (combo) {
+      res.combo = combo; res.nguonNha = 'combo đã khai báo';
+      if (combo.cach_xuat === 'nguyen' && NHA.indexOf(combo.nha) >= 0) { res.loai = 'nguyen_combo'; res.nha = combo.nha; }
+      else res.loai = 'tach_combo';
+      return res;
+    }
 
     // Bước 2: gán tay trong danh mục → coi là 1 cuốn sách của nhà đó
     var e = lookup(idx.sku, row, res.isCombo);
@@ -156,26 +194,28 @@
   var PL_CHUNG = /^(|lẻ|le|mặc định|not specified|default|1 cuốn)$/u;
 
   /* SKU mã vạch → gộp theo SKU ; SKU trống / dạng chữ → gộp theo tên + phân loại */
-  function addToHouse(map, item) {
+  function addToHouse(map, item, maKhac) {
     var pl = clean(item.phanLoai);
-    var skuLa = !isBarcode(item.sku);
-    var hienPL = skuLa && !PL_CHUNG.test(norm(pl));
-    var ten = hienPL ? item.ten + ' (' + pl + ')' : item.ten;
-    var nhom = skuLa ? tenKey(item.ten, hienPL ? pl : '') : skuKey(item.sku);
+    var skuLa = item.nhom ? !clean(item.sku) : !isBarcode(item.sku);
+    var hienPL = !item.nhom && skuLa && !PL_CHUNG.test(norm(pl));
+    var duoi = hienPL ? ' (' + pl + ')' : '';
+    var ten = item.ten + duoi;
+    var gon = (item.tenXuat || tenGon(item.ten, maKhac)) + duoi;
+    var nhom = item.nhom || (skuLa ? tenKey(item.ten, hienPL ? pl : '') : skuKey(item.sku));
     var id = nhom + '|' + (item.gia || 0);
     var g = map.get(id);
     if (!g) {
-      g = { sku: clean(item.sku), ten: ten, gia: item.gia || 0, sl: 0, rank: 9, nhom: nhom,
-            skuLa: skuLa, key: skuLa ? tenKey(item.ten, pl) : skuKey(item.sku), nguon: [], canhBaoGia: false };
+      g = { sku: clean(item.sku), ten: ten, tenGon: gon, gia: item.gia || 0, sl: 0, rank: 9, nhom: nhom,
+            skuLa: skuLa, key: item.nhom ? '' : (skuLa ? tenKey(item.ten, pl) : skuKey(item.sku)), nguon: [], canhBaoGia: false };
       map.set(id, g);
     }
     var rank = SAN_RANK[item.rankSan];
-    if (rank < g.rank) { g.rank = rank; g.ten = ten; }
+    if (rank < g.rank) { g.rank = rank; g.ten = ten; g.tenGon = gon; if (item.nhom && !item.skuCoDinh) { g.sku = clean(item.sku); g.skuLa = !g.sku; } }
     g.sl += item.sl;
     g.nguon.push(item.src);
   }
 
-  function addToList(map, line, extra) {
+  function addToList(map, line, maKhac) {
     var r = line.row;
     var id = [skuKey(r.sku), norm(r.ten), norm(r.phanLoai)].join('|');
     var g = map.get(id);
@@ -183,16 +223,15 @@
       g = { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: 0, nha: line.nha || '',
             ghiChu: line.ghiChu || '', lyDo: line.lyDo || '', comboLyDo: line.comboLyDo || '',
             isCombo: line.isCombo, key: line.key, keys: rowKeys(r, line.isCombo), skuLa: !isBarcode(r.sku),
-            san: [], lines: [] };
+            tronNha: !!line.tronNha, tenGon: tenGon(r.ten, maKhac), san: [], lines: [] };
       map.set(id, g);
     }
     g.sl += r.sl;
     if (g.san.indexOf(r.san) < 0) g.san.push(r.san);
     g.lines.push(line);
-    if (extra) extra(g);
   }
 
-  function sortVi(a, b) { return a.ten.localeCompare(b.ten, 'vi', { sensitivity: 'base' }); }
+  function sortVi(a, b) { return (a.tenGon || a.ten).localeCompare(b.tenGon || b.ten, 'vi', { sensitivity: 'base' }); }
 
   /* rows: mảng dòng đọc từ file ; catalog: {skus, combos} ; settings: {maKhac: [...]} */
   function classify(rows, catalog, settings) {
@@ -202,12 +241,19 @@
     var houses = { HA: new Map(), KV: new Map(), ML: new Map() };
     var comboMap = new Map(), chuaRoMap = new Map(), boQuaMap = new Map();
     var dongTheoNha = { HA: 0, KV: 0, ML: 0 };
-    var hoc = new Map(), hocXungDot = {};
+    var hoc = new Map(), hocXungDot = {}, doiKhoa = {};
+    var maKhac = settings.maKhac || MA_KHAC_MAC_DINH;
     var lines = rows.map(function (row) { return classifyRow(row, idx, reKhac); });
 
     lines.forEach(function (ln) {
       var r = ln.row;
       if (NHA.indexOf(ln.nha) >= 0 && (ln.loai === 'nha' || ln.loai === 'combo')) dongTheoNha[ln.nha]++;
+      if (ln.loai === 'nguyen_combo') dongTheoNha[ln.nha]++;
+      if (ln.doiKhoa) {
+        var dk = doiKhoa[ln.doiKhoa.combo_id + '\u0000' + ln.doiKhoa.khoa_cu] = doiKhoa[ln.doiKhoa.combo_id + '\u0000' + ln.doiKhoa.khoa_cu] ||
+          { combo_id: ln.doiKhoa.combo_id, khoa_cu: ln.doiKhoa.khoa_cu, khoa_moi: [] };
+        if (dk.khoa_moi.indexOf(ln.doiKhoa.khoa_moi) < 0) dk.khoa_moi.push(ln.doiKhoa.khoa_moi);
+      }
       if (ln.loai === 'tach_combo') NHA.forEach(function (n) {
         if ((ln.combo.thanh_phan || []).some(function (tp) { return tp.nha === n; })) dongTheoNha[n]++;
       });
@@ -219,11 +265,20 @@
               sku: tp.sku, ten: clean(tp.ten), phanLoai: '', gia: Number(tp.gia_goc) || 0,
               sl: r.sl * (Number(tp.so_luong) || 1), rankSan: 'combo',
               src: { san: r.san, combo: ln.combo.ten_combo, row: r }
-            });
+            }, maKhac);
           });
           break;
+        case 'nguyen_combo':
+          // Xuất nguyên combo: 1 dòng / combo, gộp mọi đơn của combo (mọi sàn, mọi khóa)
+          var cb = ln.combo, maHT = clean(cb.ma_he_thong);
+          addToHouse(houses[ln.nha], {
+            nhom: 'combo:' + cb.combo_id, sku: maHT || r.sku, skuCoDinh: !!maHT, ten: r.ten, tenXuat: clean(cb.ten_xuat),
+            phanLoai: '', gia: r.gia, sl: r.sl, rankSan: r.san,
+            src: { san: r.san, nguyen: cb.ten_combo, row: r }
+          }, maKhac);
+          break;
         case 'nha':
-          addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, src: { san: r.san, row: r } });
+          addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, src: { san: r.san, row: r } }, maKhac);
           if (ln.hocSku) {
             var k = skuKey(r.sku), old = hoc.get(k);
             if (old && old.nha !== ln.nha) hocXungDot[k] = true;
@@ -231,9 +286,9 @@
               hoc.set(k, { key: k, sku: r.sku, ten: r.ten, nha: ln.nha, nguon: 'tu_hoc', san: r.san });
           }
           break;
-        case 'combo': addToList(comboMap, ln); break;
-        case 'chua_ro': addToList(chuaRoMap, ln); break;
-        default: addToList(boQuaMap, ln);
+        case 'combo': addToList(comboMap, ln, maKhac); break;
+        case 'chua_ro': addToList(chuaRoMap, ln, maKhac); break;
+        default: addToList(boQuaMap, ln, maKhac);
       }
     });
 
@@ -247,7 +302,8 @@
       hocList.push(h);
     });
 
-    var out = { nha: {}, combo: [], chuaRo: [], boQua: [], hoc: hocList, lines: lines, dongTheoNha: dongTheoNha, tongDong: rows.length };
+    var out = { nha: {}, combo: [], chuaRo: [], boQua: [], hoc: hocList, lines: lines, dongTheoNha: dongTheoNha, tongDong: rows.length,
+                maKhac: maKhac, doiKhoa: Object.keys(doiKhoa).map(function (k) { return doiKhoa[k]; }) };
     NHA.forEach(function (n) {
       var list = Array.from(houses[n].values());
       var dem = {};
@@ -273,7 +329,7 @@
     classify: classify, classifyRow: classifyRow, buildIndex: buildIndex,
     comboReason: comboReason, isNotBook: isNotBook, isBarcode: isBarcode,
     findCodes: findCodes, codeRegex: codeRegex, RE_NHA: RE_NHA,
-    skuKey: skuKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys,
+    skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };
 });

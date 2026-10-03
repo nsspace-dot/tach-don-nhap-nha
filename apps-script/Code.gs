@@ -9,7 +9,8 @@
  *
  * Các sheet:
  *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat
- *   COMBO             combo_id | ten_combo | khoa | cap_nhat      (khoa cách nhau bằng " ;; ")
+ *   COMBO             combo_id | ten_combo | khoa | cap_nhat | cach_xuat | ma_he_thong | ten_xuat | nha
+ *                     (khoa cách nhau bằng " ;; " ; cach_xuat = tach | nguyen ; trống = tach)
  *   COMBO_THANH_PHAN  combo_id | sku | ten | nha | gia_goc | so_luong
  *   LICH_SU           thoi_gian | hanh_dong | khoa | du_lieu_cu | du_lieu_moi   (chỉ thêm dòng)
  *
@@ -17,23 +18,24 @@
  *   GET  <url>                  → { ok, skus, combos }
  *   GET  <url>?action=lichSu    → { ok, lich_su }   (100 thay đổi gần nhất, mới nhất trước)
  *   POST <url>  body {action, data}  (Content-Type: text/plain)
- *        action: ping, upsertSku, upsertSkuBatch, deleteSku, upsertCombo, addComboKey, deleteCombo, importBatch
+ *        action: ping, upsertSku, upsertSkuBatch, deleteSku, upsertCombo, addComboKey, doiKhoaCombo, deleteCombo, importBatch
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU' };
 var COT = {
   SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat'],
-  COMBO: ['combo_id', 'ten_combo', 'khoa', 'cap_nhat'],
+  COMBO: ['combo_id', 'ten_combo', 'khoa', 'cap_nhat', 'cach_xuat', 'ma_he_thong', 'ten_xuat', 'nha'],
   COMBO_THANH_PHAN: ['combo_id', 'sku', 'ten', 'nha', 'gia_goc', 'so_luong'],
   LICH_SU: ['thoi_gian', 'hanh_dong', 'khoa', 'du_lieu_cu', 'du_lieu_moi']
 };
 // Cột lưu dạng chữ (tránh Google Sheets tự đổi mã vạch thành số / ngày tháng)
 var COT_CHU = {
-  SKU_NHA: 6, COMBO: 4, COMBO_THANH_PHAN: 4, LICH_SU: 5
+  SKU_NHA: 6, COMBO: 8, COMBO_THANH_PHAN: 4, LICH_SU: 5
 };
 var NHA_SKU = ['HA', 'KV', 'ML', 'KHONG_NHAP'];
 var NHA_TP = ['HA', 'KV', 'ML', 'KHAC'];
+var NHA_CHINH = ['HA', 'KV', 'ML'];
 var TACH_KHOA = ' ;; ';
 var SO_BAN_SAO_LUU = 30;
 var GIO_SAO_LUU = 23;
@@ -97,6 +99,9 @@ function xuLy_(action, data) {
     case 'addComboKey':
       addComboKey_(cat, data, ctx);
       break;
+    case 'doiKhoaCombo':
+      doiKhoaCombo_(cat, data, ctx);
+      break;
     case 'deleteCombo':
       deleteCombo_(cat, data, ctx);
       break;
@@ -116,7 +121,8 @@ function xuLy_(action, data) {
   if (ctx.doiSku) ghiBang_(SH.SKU, cat.skus);
   if (ctx.doiCombo) {
     ghiBang_(SH.COMBO, cat.combos.map(function (c) {
-      return { combo_id: c.combo_id, ten_combo: c.ten_combo, khoa: c.khoa.join(TACH_KHOA), cap_nhat: c.cap_nhat };
+      return { combo_id: c.combo_id, ten_combo: c.ten_combo, khoa: c.khoa.join(TACH_KHOA), cap_nhat: c.cap_nhat,
+               cach_xuat: c.cach_xuat, ma_he_thong: c.ma_he_thong, ten_xuat: c.ten_xuat, nha: c.nha };
     }));
     var tps = [];
     cat.combos.forEach(function (c) {
@@ -173,6 +179,10 @@ function chuanCombo_(d) {
     if (k && khoa.indexOf(k) < 0) khoa.push(k);
   });
   if (!khoa.length) throw new Error('Combo "' + ten + '" chưa có khóa nhận diện.');
+  var cachXuat = chuoi_(d.cach_xuat) === 'nguyen' ? 'nguyen' : 'tach';
+  var nha = chuoi_(d.nha).toUpperCase();
+  if (cachXuat === 'nguyen' && NHA_CHINH.indexOf(nha) < 0) throw new Error('Combo "' + ten + '" xuất nguyên combo cần chọn nhà HA / KV / ML.');
+  if (nha && NHA_CHINH.indexOf(nha) < 0) nha = '';
   var tps = (d.thanh_phan || []).map(function (t) {
     var nha = chuoi_(t.nha).toUpperCase();
     if (NHA_TP.indexOf(nha) < 0) throw new Error('Nhà của thành phần không hợp lệ: ' + t.nha);
@@ -183,8 +193,10 @@ function chuanCombo_(d) {
       gia_goc: Number(t.gia_goc) || 0, so_luong: Math.max(1, Math.round(Number(t.so_luong) || 1))
     };
   });
-  if (!tps.length) throw new Error('Combo "' + ten + '" chưa có thành phần.');
-  return { ten_combo: ten, khoa: khoa, thanh_phan: tps };
+  // "Xuất nguyên combo" không bắt buộc thành phần; "Tách thành từng cuốn" thì bắt buộc
+  if (!tps.length && cachXuat === 'tach') throw new Error('Combo "' + ten + '" chưa có thành phần.');
+  return { ten_combo: ten, khoa: khoa, thanh_phan: tps, cach_xuat: cachXuat,
+           ma_he_thong: chuoi_(d.ma_he_thong), ten_xuat: chuoi_(d.ten_xuat), nha: nha };
 }
 
 /* Mỗi khóa chỉ thuộc 1 combo: gắn khóa vào combo này thì gỡ khỏi combo khác (có ghi lịch sử) */
@@ -217,7 +229,8 @@ function upsertCombo_(cat, d, ctx) {
   var id = chuoi_(d.combo_id) || idMoi_(cat);
   var i = timViTri_(cat.combos, 'combo_id', id);
   var cu = i >= 0 ? saoChep_(cat.combos[i]) : null;
-  var moi = { combo_id: id, ten_combo: c.ten_combo, khoa: c.khoa, thanh_phan: c.thanh_phan, cap_nhat: ctx.now };
+  var moi = { combo_id: id, ten_combo: c.ten_combo, khoa: c.khoa, thanh_phan: c.thanh_phan, cap_nhat: ctx.now,
+             cach_xuat: c.cach_xuat, ma_he_thong: c.ma_he_thong, ten_xuat: c.ten_xuat, nha: c.nha };
   c.khoa.forEach(function (k) { goKhoaKhoiComboKhac_(cat, k, id, ctx); });
   if (i >= 0) cat.combos[i] = moi; else cat.combos.push(moi);
   ctx.doiCombo = true;
@@ -238,6 +251,30 @@ function addComboKey_(cat, d, ctx) {
   c.cap_nhat = ctx.now;
   ctx.doiCombo = true;
   ghiLog_(ctx, 'addComboKey', id, cu, c);
+}
+
+/* Đổi khóa cũ (vd "sku:<mã vạch>" trơn) sang khóa mới ("sku:<mã vạch>|<phân loại>") */
+function doiKhoaCombo_(cat, d, ctx) {
+  var id = chuoi_(d.combo_id), cu = chuoi_(d.khoa_cu);
+  var moi = [].concat(d.khoa_moi || []).map(chuoi_).filter(function (k) { return k; });
+  if (!moi.length) throw new Error('Thiếu khóa mới.');
+  var i = timViTri_(cat.combos, 'combo_id', id);
+  if (i < 0) throw new Error('Không tìm thấy combo ' + id + ' (có thể máy khác vừa xóa).');
+  var c = cat.combos[i];
+  var truoc = saoChep_(c);
+  var j = c.khoa.indexOf(cu);
+  if (j >= 0) c.khoa.splice(j, 1);
+  var them = false;
+  moi.forEach(function (k) {
+    if (c.khoa.indexOf(k) >= 0) return;
+    goKhoaKhoiComboKhac_(cat, k, id, ctx);
+    c.khoa.push(k);
+    them = true;
+  });
+  if (j < 0 && !them) return; // đã đổi rồi (máy khác làm trước)
+  c.cap_nhat = ctx.now;
+  ctx.doiCombo = true;
+  ghiLog_(ctx, 'doiKhoaCombo', id, truoc, c);
 }
 
 function deleteCombo_(cat, d, ctx) {
@@ -264,6 +301,10 @@ function sheet_(ten) {
     s = ss.insertSheet(ten);
     s.getRange(1, 1, 1, COT[ten].length).setValues([COT[ten]]).setFontWeight('bold');
     s.setFrozenRows(1);
+  } else {
+    // Bản cũ thiếu cột mới (vd COMBO thêm cach_xuat…) → bổ sung tiêu đề; cột mới luôn nằm sau cột cũ
+    var dau = s.getRange(1, 1, 1, COT[ten].length).getValues()[0];
+    if (dau.join('|') !== COT[ten].join('|')) s.getRange(1, 1, 1, COT[ten].length).setValues([COT[ten]]).setFontWeight('bold');
   }
   return s;
 }
@@ -297,6 +338,8 @@ function docCatalog_() {
     return {
       combo_id: c.combo_id, ten_combo: c.ten_combo, cap_nhat: c.cap_nhat,
       khoa: c.khoa.split(/\s*;;\s*/).map(chuoi_).filter(function (k) { return k; }),
+      cach_xuat: c.cach_xuat === 'nguyen' ? 'nguyen' : 'tach', // combo cũ chưa có giá trị → tach
+      ma_he_thong: c.ma_he_thong || '', ten_xuat: c.ten_xuat || '', nha: c.nha || '',
       thanh_phan: []
     };
   });

@@ -73,9 +73,30 @@
     }).join('') || '<span class="muted">(chưa có)</span>';
   }
 
+  function cachDangChon() { return document.querySelector('input[name="cb-cach"]:checked').value; }
+  function doiCach() {
+    var nguyen = cachDangChon() === 'nguyen';
+    $('cb-khoi-nguyen').hidden = !nguyen;
+    $('cb-khoi-tach').hidden = nguyen;
+    if (!dang.combo_id) $('dlg-combo-title').textContent = nguyen ? '📦 Xuất nguyên combo' : 'Khai báo thành phần combo';
+  }
+
   function moHop(opt) {
     dang = opt;
     $('dlg-combo-title').textContent = opt.combo_id ? 'Sửa combo' : 'Khai báo thành phần combo';
+    var cach = opt.cach_xuat === 'nguyen' && !opt.tronNha ? 'nguyen' : 'tach';
+    document.querySelector('input[name="cb-cach"][value="' + cach + '"]').checked = true;
+    // Combo trộn nhà khác (MEGA, TN…) không được xuất nguyên
+    $('cb-nguyen').disabled = !!opt.tronNha;
+    $('cb-nguyen-nhan').classList.toggle('is-khoa', !!opt.tronNha);
+    $('cb-cach-ghichu').textContent = opt.tronNha
+      ? '⚠ Combo này có sách của nhà khác (' + (opt.maTron || 'MEGA, TN…') + ') nên không xuất nguyên được – hãy tách để chỉ lấy phần HA/KV/ML.'
+      : 'Xuất nguyên: dùng cho sách mà hệ thống lên đơn chỉ có dạng combo, không có từng cuốn lẻ.';
+    $('cb-nha').value = PL.NHA.indexOf(opt.nha) >= 0 ? opt.nha : (PL.NHA.indexOf(opt.nhaGoiY) >= 0 ? opt.nhaGoiY : 'HA');
+    $('cb-maht').value = opt.ma_he_thong || '';
+    $('cb-tenxuat').value = opt.ten_xuat || '';
+    $('cb-tenxuat').placeholder = 'Để trống = ' + PL.tenGon(opt.tenGoc || opt.ten_combo || '', DM.caiDat.maKhac);
+    doiCach();
     $('cb-goc').innerHTML = opt.mota || '';
     $('cb-goc').hidden = !opt.mota;
     $('cb-ten').value = opt.ten_combo || '';
@@ -85,8 +106,18 @@
     veDatalist();
     (opt.thanh_phan && opt.thanh_phan.length ? opt.thanh_phan : [{}]).forEach(dongTp);
     $('dlg-combo').showModal();
-    var first = $('cb-tp').querySelector('.tp-sku');
+    var first = cach === 'nguyen' ? $('cb-maht') : $('cb-tp').querySelector('.tp-sku');
     if (first && !opt.combo_id) first.focus();
+    if (opt.thongBao) $('cb-loi').textContent = opt.thongBao;
+  }
+
+  function maTron(g) {
+    var ma = [];
+    (g.lines || []).forEach(function (ln) {
+      PL.findCodes(ln.row.ten + ' ' + ln.row.phanLoai, PL.codeRegex(DM.caiDat.maKhac || PL.MA_KHAC_MAC_DINH))
+        .forEach(function (m) { if (ma.indexOf(m) < 0) ma.push(m); });
+    });
+    return ma.join(', ');
   }
 
   function moTaNhom(g) {
@@ -95,14 +126,21 @@
   }
 
   /* Mở form khai báo từ 1 dòng combo chưa khai báo */
-  function moKhaiBao(g) {
+  function moKhaiBao(g, cach) {
     var nha = PL.NHA.indexOf(g.nha) >= 0 ? g.nha : 'HA';
-    moHop({ khoa: [g.key], ten_combo: g.ten, nhaGoiY: nha, mota: moTaNhom(g), nhom: g });
+    moHop({ khoa: [g.key], ten_combo: g.ten, tenGoc: g.ten, nhaGoiY: nha, mota: moTaNhom(g), nhom: g,
+            cach_xuat: cach || 'tach', tronNha: !!g.tronNha, maTron: maTron(g) });
   }
 
-  /* Mở form sửa combo đã có (màn Danh mục) */
-  function moSua(c) {
-    moHop({ combo_id: c.combo_id, khoa: c.khoa.slice(), ten_combo: c.ten_combo, thanh_phan: c.thanh_phan, nhaGoiY: 'HA' });
+  /* Combo đã lưu có thành phần nhà khác → coi là trộn nhà */
+  function comboTron(c) { return c.thanh_phan.some(function (t) { return t.nha === 'KHAC'; }); }
+
+  /* Mở form sửa combo đã có (màn Danh mục). cachMoi: ép chọn sẵn cách xuất (khi đổi qua lại) */
+  function moSua(c, cachMoi, thongBao) {
+    var nhaTp = c.thanh_phan.map(function (t) { return t.nha; }).filter(function (n) { return PL.NHA.indexOf(n) >= 0; })[0];
+    moHop({ combo_id: c.combo_id, khoa: c.khoa.slice(), ten_combo: c.ten_combo, thanh_phan: c.thanh_phan,
+            nhaGoiY: nhaTp || 'HA', nha: c.nha, ma_he_thong: c.ma_he_thong, ten_xuat: c.ten_xuat,
+            cach_xuat: cachMoi || c.cach_xuat, tronNha: comboTron(c), thongBao: thongBao });
   }
 
   function docForm() {
@@ -119,10 +157,17 @@
       if (!tp.ten) loi = loi || 'Cuốn thứ ' + (i + 1) + ' chưa có tên sách.';
       tps.push(tp);
     });
-    if (!tps.length) loi = loi || 'Thêm ít nhất 1 cuốn nha.';
+    var cach = cachDangChon();
+    if (cach === 'tach') {
+      if (!tps.length) loi = loi || 'Thêm ít nhất 1 cuốn nha.';
+    } else {
+      loi = ''; // xuất nguyên: thành phần không bắt buộc (dòng thiếu tên bỏ qua)
+      tps = tps.filter(function (t) { return t.ten; });
+    }
     var ten = PL.clean($('cb-ten').value);
     if (!ten) loi = loi || 'Chưa có tên combo.';
-    return { loi: loi, data: { combo_id: dang.combo_id || '', ten_combo: ten, khoa: dang.khoa, thanh_phan: tps } };
+    return { loi: loi, data: { combo_id: dang.combo_id || '', ten_combo: ten, khoa: dang.khoa, thanh_phan: tps, cach_xuat: cach,
+      nha: cach === 'nguyen' ? $('cb-nha').value : '', ma_he_thong: PL.clean($('cb-maht').value), ten_xuat: PL.clean($('cb-tenxuat').value) } };
   }
 
   function luu() {
@@ -134,7 +179,7 @@
     DM.goi('upsertCombo', f.data)
       .then(function () {
         $('dlg-combo').close();
-        A.toast('🎁 Đã lưu combo "' + f.data.ten_combo.slice(0, 50) + '"', 'ok');
+        A.toast((f.data.cach_xuat === 'nguyen' ? '📦 Đã lưu (xuất nguyên combo): "' : '🎁 Đã lưu combo "') + f.data.ten_combo.slice(0, 50) + '"', 'ok');
       })
       .catch(function (e) { $('cb-loi').textContent = 'Không lưu được: ' + e.message; })
       .then(function () { btn.disabled = false; });
@@ -155,9 +200,15 @@
     var ds = DM.catalog.combos.filter(function (c) {
       return !q || A.boDau(c.ten_combo + ' ' + c.khoa.join(' ') + ' ' + c.thanh_phan.map(function (t) { return t.ten + ' ' + t.sku; }).join(' ')).indexOf(q) >= 0;
     });
+    var tron = nhomCoSan && nhomCoSan.tronNha;
     $('cs-list').innerHTML = ds.length ? ds.slice(0, 200).map(function (c) {
-      return '<li><button type="button" class="cs-item" data-cid="' + A.esc(c.combo_id) + '">🎁 ' + A.esc(c.ten_combo) +
-        '<small>' + c.thanh_phan.map(function (t) { return t.so_luong + '× ' + A.esc(t.ten) + ' (' + t.nha + ')'; }).join(' · ') + '</small></button></li>';
+      var nguyen = c.cach_xuat === 'nguyen', khoa = tron && nguyen;
+      return '<li><button type="button" class="cs-item" data-cid="' + A.esc(c.combo_id) + '"' +
+        (khoa ? ' disabled title="Dòng này trộn nhà khác nên không gắn vào combo xuất nguyên được"' : '') + '>' +
+        (nguyen ? '📦 ' : '🎁 ') + A.esc(c.ten_combo) +
+        ' <span class="badge-cach badge-' + (nguyen ? 'nguyen' : 'tach') + '">' + (nguyen ? 'Nguyên combo · ' + A.esc(c.nha) : 'Tách') + '</span>' +
+        '<small>' + (c.thanh_phan.length ? c.thanh_phan.map(function (t) { return t.so_luong + '× ' + A.esc(t.ten) + ' (' + t.nha + ')'; }).join(' · ')
+          : 'Không khai báo thành phần') + '</small></button></li>';
     }).join('') : '<li class="muted">Chưa có combo nào' + (q ? ' khớp' : '') + '. Hãy dùng “Khai báo thành phần”.</li>';
   }
   function ganCoSan(cid) {
@@ -173,6 +224,7 @@
 
   /* ---------- Sự kiện ---------- */
   document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('input[name="cb-cach"]').forEach(function (r) { r.addEventListener('change', doiCach); });
     $('cb-them').addEventListener('click', function () { dongTp({}).querySelector('.tp-sku').focus(); });
     $('cb-luu').addEventListener('click', luu);
     $('cb-tp').addEventListener('click', function (e) {
@@ -202,5 +254,5 @@
     });
   });
 
-  root.KhaiBao = { moKhaiBao: moKhaiBao, moCoSan: moCoSan, moSua: moSua, goiY: goiY };
+  root.KhaiBao = { moKhaiBao: moKhaiBao, moCoSan: moCoSan, moSua: moSua, goiY: goiY, comboTron: comboTron };
 })(typeof self !== 'undefined' ? self : this);

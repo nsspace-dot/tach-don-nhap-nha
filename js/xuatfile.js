@@ -65,6 +65,7 @@
     return list.map(function (g) {
       var o = { _canhBao: g.canhBaoGia, _skuLa: skuLa && g.skuLa };
       cols.forEach(function (c) { o[c.k] = g[c.k] === undefined ? '' : g[c.k]; });
+      if (g.tenGon) o.ten = g.tenGon; // tên đã làm gọn (bỏ "Sách -", "- HA - Newshop"…)
       return o;
     });
   }

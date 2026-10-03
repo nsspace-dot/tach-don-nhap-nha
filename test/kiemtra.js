@@ -81,6 +81,16 @@ var f = function (s) { return PL.findCodes(s, PL.RE_NHA).join(','); };
  ['KV07 - PHONG THỦY', ''], ['HAI', ''], ['Hà Nội', ''], ['Lịch Sử 9 - KV - Newshop', 'KV'], ['-HA', 'HA']
 ].forEach(function (c) { check('"' + c[0] + '" → ' + (c[1] || '(không có)'), f(c[0]) === c[1], f(c[0])); });
 
+console.log('\n2b. Việc 1 – Làm gọn tên sách');
+JSON.parse(fs.readFileSync(path.join(__dirname, 'vi-du-ten-gon.json'), 'utf8')).forEach(function (v) {
+  var g = PL.tenGon(v[0]);
+  check('"' + v[0].slice(0, 45) + '…" → "' + v[1].slice(0, 40) + '…"', g === v[1], g);
+});
+check('Không có mã nhà, không Newshop → giữ nguyên', PL.tenGon('Sách - Tuyển Tập 25 Năm Đề Thi Olympic 30 Tháng 4 Ngữ Văn 10') === 'Tuyển Tập 25 Năm Đề Thi Olympic 30 Tháng 4 Ngữ Văn 10');
+check('Mã nhà khác (MEGA, NS…) cũng cắt hậu tố', PL.tenGon('Sách Tâm Lý - Đắc Nhân Tâm (NS) - Newshop') === 'Đắc Nhân Tâm' && PL.tenGon('Sách - Takenote - Kiến Thức Toán Và Dạng Toán 5 - MEGA - Newshop') === 'Takenote - Kiến Thức Toán Và Dạng Toán 5');
+check('Tên làm gọn rỗng → giữ tên gốc', PL.tenGon('HA') === 'HA');
+check('Không đổi dữ liệu gốc: dòng vẫn giữ tên gốc', rows[0].ten === 'Sách - Hướng Dẫn Giải VIOLYMPIC Toán 1 - HA');
+
 console.log('\n3. Phân loại với danh mục rỗng');
 var kq = PL.classify(rows, { skus: [], combos: [] });
 var d = kq.dongTheoNha;
@@ -116,7 +126,7 @@ var catalog = {
   skus: [],
   combos: [{
     combo_id: 'C1', ten_combo: 'Combo Tập Viết Tiếng Nhật Katakana + Hiragana',
-    khoa: ['sku:55252', 'sku:8935092825724'], // 55252 (TikTok + Shopee) và dòng Shopee "Hiragana (HA)" COMBO.HA
+    khoa: ['sku:55252', 'sku:8935092825724|combo.ha'], // 55252 (TikTok + Shopee) và dòng Shopee "Hiragana (HA)" COMBO.HA
     thanh_phan: [
       { sku: KATA, ten: 'Sách - Tập Viết Tiếng Nhật Katakana (HA)', nha: 'HA', gia_goc: 25000, so_luong: 1 },
       { sku: HIRA, ten: 'Sách - Tập Viết Tiếng Nhật Hiragana (HA)', nha: 'HA', gia_goc: 25000, so_luong: 1 }
@@ -135,6 +145,43 @@ check('Hiragana trong Hồng Ân = 11, chỉ 1 dòng', hira.length === 1 && hira
 check('Đếm dòng HA vẫn = 43 sau khi khai báo combo', kq2.dongTheoNha.HA === 43, kq2.dongTheoNha.HA);
 check('Không còn dòng Hiragana giá 50.000', !hira.some(function (g) { return g.gia === 50000; }));
 check('Combo trộn nhà (không SKU) vẫn ở Combo vì chưa khai báo', kq2.combo.some(function (g) { return /MEGA/.test(g.phanLoai); }));
+check('Dòng combo trộn nhà được đánh dấu tronNha (không cho xuất nguyên)', kq2.combo.filter(function (g) { return /MEGA/.test(g.phanLoai); }).every(function (g) { return g.tronNha; }) &&
+  kq2.combo.filter(function (g) { return g.sku === '55889'; }).every(function (g) { return !g.tronNha; }));
+check('Tên thành phần combo cũng được làm gọn', kata[0].tenGon === 'Tập Viết Tiếng Nhật Katakana' && hira[0].tenGon === 'Tập Viết Tiếng Nhật Hiragana', [kata[0].tenGon, hira[0].tenGon]);
+
+console.log('\n4b. Việc 3 – Khóa combo có SKU là mã vạch');
+var rowHiraCombo = rows.filter(function (r) { return r.sku === HIRA; })[0];
+check('Dòng Shopee COMBO.HA (SKU mã vạch) → khóa "sku:8935092825724|combo.ha"', PL.rowKey(rowHiraCombo) === 'sku:8935092825724|combo.ha', PL.rowKey(rowHiraCombo));
+check('SKU không phải mã vạch (55252) giữ khóa "sku:55252"', PL.rowKey(rows.filter(function (r) { return r.sku === '55252'; })[0]) === 'sku:55252');
+check('Sách lẻ mã vạch vẫn dùng khóa "sku:<mã>"', PL.rowKey({ sku: '8935092845425', ten: 'Sách - X - HA', phanLoai: 'LẺ' }) === 'sku:8935092845425');
+var catCu = JSON.parse(JSON.stringify(catalog));
+catCu.combos[0].khoa = ['sku:55252', 'sku:8935092825724']; // combo khai báo trước đây bằng mã vạch trơn
+var kqCu = PL.classify(rows, catCu);
+check('Combo dùng khóa mã vạch trơn (cũ) vẫn được nhận', kqCu.nha.HA.filter(function (g) { return g.sku === HIRA; }).reduce(function (a, g) { return a + g.sl; }, 0) === 11);
+check('…và được đề nghị đổi sang khóa mới', kqCu.doiKhoa.length === 1 && kqCu.doiKhoa[0].khoa_cu === 'sku:8935092825724' &&
+  kqCu.doiKhoa[0].khoa_moi.join(',') === 'sku:8935092825724|combo.ha', kqCu.doiKhoa);
+check('Khóa mới rồi thì không đề nghị đổi nữa', kq2.doiKhoa.length === 0);
+var leMaVach = { san: 'TikTok', orderId: '9', sku: HIRA, ten: 'Sách - Tập Viết Tiếng Nhật Hiragana (HA)', phanLoai: 'LẺ', gia: 25000, sl: 1 };
+check('Sách lẻ trùng mã vạch Hiragana KHÔNG bị nhận nhầm thành combo', PL.classify([leMaVach], catalog).nha.HA[0].sl === 1 &&
+  PL.classify([leMaVach], catalog).nha.HA.length === 1 && PL.classify([leMaVach], catalog).nha.HA[0].sku === HIRA);
+
+console.log('\n4c. Việc 2 – Xuất nguyên combo');
+var cbNguyen = { combo_id: 'C2', ten_combo: 'Combo Giúp Em Học Tốt Tiếng Việt Lớp 3 - Tập 1 + 2', khoa: ['sku:55889'],
+  cach_xuat: 'nguyen', nha: 'HA', ma_he_thong: '', ten_xuat: '', thanh_phan: [] };
+var catNguyen = { skus: [], combos: catalog.combos.concat([cbNguyen]) };
+var kqN = PL.classify(rows, catNguyen);
+var d55889 = kqN.nha.HA.filter(function (g) { return g.sku === '55889'; });
+check('Khai báo 55889 "Xuất nguyên combo" → Hồng Ân có 1 dòng SKU 55889, SL 1', d55889.length === 1 && d55889[0].sl === 1, d55889.map(function (g) { return [g.sku, g.sl]; }));
+check('Tên đã làm gọn', d55889[0] && d55889[0].tenGon === 'Combo Giúp Em Học Tốt Tiếng Việt Lớp 3 - Tập 1 + 2 (Dùng Kèm SGK Kết Nối Tri Thức) (Bộ 2 Cuốn)', d55889[0] && d55889[0].tenGon);
+check('Giá gốc = giá combo trên sàn (118.000)', d55889[0] && d55889[0].gia === 118000);
+check('55889 không còn ở sheet Combo', !kqN.combo.some(function (g) { return g.sku === '55889'; }));
+check('Đếm dòng HA vẫn = 43', kqN.dongTheoNha.HA === 43, kqN.dongTheoNha.HA);
+var cbN2 = Object.assign({}, cbNguyen, { khoa: ['sku:55889', 'sku:SP-55889'], ma_he_thong: 'NS-CB-TV3', ten_xuat: 'Combo GETV Lớp 3 (2 tập)' });
+var dongShopee = { san: 'Shopee', orderId: 'X1', sku: 'SP-55889', ten: 'Sách - Combo Giúp Em Học Tốt Tiếng Việt Lớp 3 - Tập 1 + 2 - HA', phanLoai: 'COMBO', gia: 118000, sl: 2 };
+var kqN2 = PL.classify(rows.concat([dongShopee]), { skus: [], combos: [cbN2] });
+var d2 = kqN2.nha.HA.filter(function (g) { return g.sku === 'NS-CB-TV3'; });
+check('Gộp đơn 2 sàn (khác SKU, cùng combo) thành 1 dòng, cộng SL = 3', d2.length === 1 && d2[0].sl === 3, d2.map(function (g) { return [g.sku, g.sl]; }));
+check('Dùng "Mã trên hệ thống" và "Tên xuất" khi có', d2[0] && d2[0].tenGon === 'Combo GETV Lớp 3 (2 tập)' && !d2[0].skuLa);
 
 console.log('\n5. Danh mục gán tay & tự học');
 var kq3 = PL.classify(rows, { skus: [{ key: 'sku:9786320103126', sku: '9786320103126', nha: 'ML', nguon: 'tay' }], combos: [] });
@@ -169,14 +216,21 @@ console.log('\n6b. File mẫu nạp danh mục');
 global.PhanLoai = PL;
 var DX = require('../js/danhmuc-excel.js');
 var mauNap = DX.nap(XLSX.read(XLSX.write(DX.mau(XLSX), { type: 'buffer', bookType: 'xlsx' })), XLSX);
-check('File mẫu nạp lại được: 3 SKU, 1 combo 2 thành phần, không lỗi', mauNap.skus.length === 3 && mauNap.combos.length === 1 &&
+check('File mẫu nạp lại được: 3 SKU, combo tách 2 thành phần + combo xuất nguyên, không lỗi', mauNap.skus.length === 3 && mauNap.combos.length === 2 &&
   mauNap.combos[0].thanh_phan.length === 2 && mauNap.loi.length === 0, mauNap.loi);
-check('Khóa combo "55252 ;; 8935092825724" tự thêm tiền tố sku:', mauNap.combos[0].khoa.join(',') === 'sku:55252,sku:8935092825724');
+check('Khóa "55252 ;; 8935092825724|COMBO.HA" → sku:55252, sku:8935092825724|combo.ha', mauNap.combos[0].khoa.join(',') === 'sku:55252,sku:8935092825724|combo.ha', mauNap.combos[0].khoa);
+check('Combo mẫu C002 là "nguyen", nhà HA, không cần thành phần', mauNap.combos[1].cach_xuat === 'nguyen' && mauNap.combos[1].nha === 'HA' && mauNap.combos[1].thanh_phan.length === 0);
+var napLoi = DX.nap((function () {
+  var w = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(w, XLSX.utils.aoa_to_sheet([['combo_id', 'ten_combo', 'khoa', 'cach_xuat', 'nha'], ['C9', 'X', '111', 'nguyen', '']]), 'COMBO');
+  return w;
+})(), XLSX);
+check('Nạp combo "nguyen" thiếu nhà → báo lỗi', napLoi.combos.length === 0 && /cần cột nha/.test(napLoi.loi[0] || ''), napLoi.loi);
 var xuatLai = DX.nap(XLSX.read(XLSX.write(DX.xuat({ skus: mauNap.skus, combos: mauNap.combos }, XLSX), { type: 'buffer', bookType: 'xlsx' })), XLSX);
 check('Xuất danh mục rồi nạp lại giữ nguyên', JSON.stringify(xuatLai.skus) === JSON.stringify(mauNap.skus) && JSON.stringify(xuatLai.combos) === JSON.stringify(mauNap.combos));
 
 console.log('\n7. Xuất Excel');
-var wb = XuatFile.buildWorkbook(kq2, ExcelJS);
+var wb = XuatFile.buildWorkbook(kqN, ExcelJS); // có combo Katakana+Hiragana (tách) và 55889 (xuất nguyên)
 check('Có đủ 5 sheet đúng thứ tự', wb.worksheets.map(function (w) { return w.name; }).join(',') === 'Hồng Ân,Khang Việt,Minh Long,Combo,Chưa rõ nhà');
 check('Tên file đúng mẫu', XuatFile.fileName(new Date(2026, 9, 3)) === 'Don-nhap-nha_03-10-2026.xlsx');
 var empty = XuatFile.buildWorkbook(PL.classify([], {}), ExcelJS);
@@ -187,8 +241,15 @@ wb.xlsx.writeBuffer().then(function (buf) {
   fs.writeFileSync(out, Buffer.from(buf));
   var back = XLSX.read(fs.readFileSync(out), { type: 'buffer' });
   var ha = XLSX.utils.sheet_to_json(back.Sheets['Hồng Ân']);
-  check('Đọc lại file xuất: Hồng Ân có ' + kq2.nha.HA.length + ' dòng, cột số là kiểu số',
-    ha.length === kq2.nha.HA.length && typeof ha[0]['Số lượng'] === 'number' && typeof ha[0]['Giá gốc'] === 'number');
+  check('Đọc lại file xuất: Hồng Ân có ' + kqN.nha.HA.length + ' dòng, cột số là kiểu số',
+    ha.length === kqN.nha.HA.length && typeof ha[0]['Số lượng'] === 'number' && typeof ha[0]['Giá gốc'] === 'number');
+  check('Việc 1: tên trong file xuất đã làm gọn (không còn "Sách -", "- HA", "Newshop")', ha.every(function (r) {
+    return !/^Sách\b.* - /.test(r['Tên sản phẩm']) && !/(?<![\p{L}\p{N}])(HA|KV|ML)(?![\p{L}\p{N}])/u.test(r['Tên sản phẩm']) && !/newshop/i.test(r['Tên sản phẩm']);
+  }), ha.map(function (r) { return r['Tên sản phẩm']; }).filter(function (t) { return /HA|Newshop|^Sách/.test(t); }));
+  check('Việc 1: sheet Combo và Chưa rõ nhà cũng dùng tên gọn', XLSX.utils.sheet_to_json(back.Sheets['Chưa rõ nhà'])[0]['Tên sản phẩm'] === 'Liễu Phàm Tứ Huấn' &&
+    XLSX.utils.sheet_to_json(back.Sheets['Combo']).every(function (r) { return !/newshop/i.test(r['Tên sản phẩm']); }));
+  check('Việc 2: dòng 55889 trong file xuất ở sheet Hồng Ân', ha.some(function (r) { return String(r.SKU) === '55889' && r['Số lượng'] === 1; }) &&
+    !XLSX.utils.sheet_to_json(back.Sheets['Combo']).some(function (r) { return String(r.SKU) === '55889'; }));
   console.log('\nKẾT QUẢ: ' + dat + ' đạt, ' + loi + ' lỗi.  File xuất thử: mau/ket-qua-kiem-thu.xlsx');
   process.exit(loi ? 1 : 0);
 });
