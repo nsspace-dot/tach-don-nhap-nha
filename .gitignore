@@ -1,0 +1,8 @@
+# Du lieu don hang that (co thong tin khach) - KHONG BAO GIO commit
+mau/
+*.xlsx
+*.xls
+*.csv
+# Ngoai le: file Excel mau de nap danh muc (khong co du lieu khach)
+!templates/*.xlsx
+node_modules/
