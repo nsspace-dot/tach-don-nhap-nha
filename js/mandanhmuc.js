@@ -60,7 +60,7 @@
         return (o.ten_combo || '') + (o.cach_xuat === 'nguyen' ? '\n📦 xuất nguyên combo → ' + o.nha + (o.ma_he_thong ? ' · mã ' + o.ma_he_thong : '') : '') + '\n' + o.thanh_phan.map(function (t) { return '· ' + t.so_luong + '× ' + t.ten + ' (' + t.nha + ')'; }).join('\n') +
           (o.khoa ? '\nkhóa: ' + [].concat(o.khoa).join(', ') : '');
       }
-      if (o.nha) return (o.sku ? o.sku + ' · ' : '') + o.ten + '\n→ ' + o.nha + ' (' + (o.nguon === 'tu_hoc' ? 'tự học' : 'gán tay') + ')';
+      if (o.nha) return (o.sku ? o.sku + ' · ' : '') + o.ten + '\n→ ' + o.nha + ' (' + (o.nguon === 'tu_hoc' ? 'tự học' : o.nguon === 'web' ? 'web' : 'gán tay') + ')';
       return json;
     } catch (e) { return json; }
   }
@@ -109,7 +109,7 @@
           (ghi ? '<select class="select" data-sua-sku="' + i + '" aria-label="Nhà">' + ['HA', 'KV', 'ML', PL.KHONG_NHAP].map(function (n) {
             return '<option value="' + n + '"' + (e.nha === n ? ' selected' : '') + '>' + (n === PL.KHONG_NHAP ? 'Không nhập' : n + ' · ' + PL.TEN_NHA[n]) + '</option>';
           }).join('') + '</select>' : A.badge(e.nha === PL.KHONG_NHAP ? 'Không nhập' : e.nha)) +
-          '</td><td class="nguon-' + A.esc(e.nguon) + '">' + (e.nguon === 'tay' ? '✋ gán tay' : '🤖 tự học') + '</td>' +
+          '</td><td class="nguon-' + A.esc(e.nguon) + '">' + (e.nguon === 'tay' ? '✋ gán tay' : e.nguon === 'web' ? '🌐 web' : '🤖 tự học') + '</td>' +
           '<td class="so">' + (e.gia_gan_nhat ? A.so(e.gia_gan_nhat) + '<div class="pl">' + A.esc(e.ngay_gia) + '</div>' : '<span class="muted">—</span>') + '</td>' +
           '<td class="pl">' + ngay(e.cap_nhat) + '</td><td><div class="actions">' +
           (choThay ? A.nutGhi('🔁 Thay mã tái bản', 'class="btn btn-sm" data-tai-ban="' + i + '"') : '') +

@@ -121,11 +121,13 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
 ## Sử dụng hằng ngày
 
 1. Xuất file đơn chờ giao:
-   - **Shopee:** Đơn hàng → Chờ lấy hàng → **Xuất** (file có sheet `orders`).
+   - **Shopee:** Đơn hàng → Chờ lấy hàng → **Xuất** (file có sheet `orders`) – hoặc xuất **tất cả trạng thái** (xem mục *Shopee: xuất file tất cả trạng thái* bên dưới).
    - **TikTok:** Đơn hàng → Chờ vận chuyển → **Xuất** (file có sheet `OrderSKUList`).
+   - **Web:** xuất file **"Danh sách lấy hàng"** trên website (xem mục *Đơn web* bên dưới).
    - Có nhiều gian hàng thì xuất mỗi gian 1 file.
 2. Mở app → **kéo thả** tất cả file vào ô có chú mèo (hoặc bấm **Chọn file**). Thả thêm file lúc nào cũng được.
-   - Mỗi file hiện 1 chip: sàn, tên file, **số đơn mới**, số dòng.
+   - Mỗi file hiện 1 chip: nguồn (**TikTok / Shopee / Web**), tên file, **số đơn mới**, số dòng.
+     File Shopee có thêm *"n dòng cần lấy / m dòng bỏ qua (trạng thái khác)"*; file web ghi số dòng sách và thời gian xuất.
    - **Chống cộng trùng:** nếu file sau có đơn (cùng mã đơn) đã có ở file trước → đơn đó bị bỏ qua, chip ghi *"bỏ qua n đơn trùng"*.
      Trong cùng 1 file, 1 đơn nhiều sản phẩm vẫn tính đủ.
    - Bấm **×** trên chip để gỡ file đó ra, app tự tính lại.
@@ -150,16 +152,16 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
 
    **Nhắc trước khi tải** (chỉ hiện khi có vấn đề; ổn hết thì tải luôn):
    - Còn **combo chưa khai báo / sách chưa rõ nhà** → các dòng này sẽ KHÔNG có trong file.
-   - Trong nhà đang tải có **cùng SKU nhưng giá khác nhau**, hoặc **dòng thiếu SKU** → app liệt kê để bạn kiểm tra.
+   - Trong nhà đang tải có **cùng SKU nhưng giá khác nhau** → app liệt kê để bạn kiểm tra.
    - Tải 1 nhà thì chỉ nhắc vấn đề của nhà đó (kể cả combo đoán được thuộc nhà đó). Tải cả 3 thì nhắc tất cả.
    - Bấm **🔍 Xem lại** để app mở đúng tab cần xử lý, hoặc **⬇️ Vẫn tải**.
 
-   **Nội dung file đơn đặt hàng** (1 sheet, tên sheet = tên nhà):
-   - Tiêu đề **ĐƠN ĐẶT HÀNG – HỒNG ÂN**, ngày, bên đặt (tên shop – SĐT), địa chỉ nhận hàng – lấy từ màn **Cài đặt** (ô nào trống thì không in).
-   - Bảng **STT | SKU | Tên sách | Giá bìa | Số lượng | Thành tiền**, sắp xếp theo tên A→Z. *Thành tiền* là **công thức** Giá bìa × Số lượng; dòng **TỔNG CỘNG** dùng công thức SUM – sửa số lượng trong Excel là tự tính lại.
-   - Ghi chú cuối đơn (nếu có cài đặt).
+   **Nội dung file gửi nhà** (1 sheet, tên sheet = tên nhà) – chỉ **4 cột**:
+   - **STT | Tên sách | Giá bìa | Số lượng**. Dòng 1 là tiêu đề cột, dữ liệu từ dòng 2, sắp xếp theo tên A→Z.
+   - Không có SKU/barcode, thành tiền, dòng tiêu đề đơn, thông tin shop hay dòng tổng.
+   - Hai barcode khác nhau nhưng **cùng tên (đã làm gọn) và cùng giá bìa** → gộp 1 dòng, cộng số lượng. Khác giá bìa thì để 2 dòng.
    - In sẵn khổ **A4 dọc**, vừa 1 trang chiều ngang, sang trang tự lặp lại dòng tiêu đề cột.
-   - Đã cộng cả 2 sàn, phần tách từ combo và combo "xuất nguyên".
+   - Đã cộng cả Shopee, TikTok, web, phần tách từ combo và combo "xuất nguyên".
 
 **Tên sách được làm gọn:** bỏ phần loại sách ở đầu ("Sách -", "Sách Tham Khảo -"…) và phần mã nhà, tên shop, tác giả ở cuối ("- HA - Newshop", "(HA)", "- KV - Tác Giả …"). Ví dụ
 "Sách Tham Khảo - Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối) - HA - Newshop" → "Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối)".
@@ -169,6 +171,25 @@ Trên màn hình app cũng hiện tên gọn; **rê chuột vào tên** để xe
 - 🟧 **Ô SKU màu cam:** SKU trống hoặc không phải mã vạch – app nhận diện bằng tên + phân loại.
 - 🟨 **Cả dòng màu vàng:** cùng SKU nhưng giá gốc khác nhau (để 2 dòng riêng cho bạn kiểm tra).
 - 🟦 **Ô SKU màu xanh dương nhạt:** có đơn còn dùng **mã cũ** của sách đã tái bản – app đã tính vào mã mới. Nên sửa SKU của listing đó trên sàn (xem mục *"Mã cũ trên sàn – nên sửa listing"* trên màn hình).
+
+### Đơn web 🌐 (file "Danh sách lấy hàng" của website)
+- Thả file **Danh_Sach_Lay_Hang…xlsx** vào cùng chỗ với file Shopee/TikTok. App tự nhận ra, chip hiện nhãn **Web**.
+- App tự tìm dòng tiêu đề (STT | Barcode | Tên sản phẩm | SL | Giá bìa | … | Nhà cung cấp | …), đọc các dòng có STT là số, dừng ở dòng trống / dòng "Nhân viên lấy hàng".
+- File web **đã cộng gộp theo sách** (không có mã đơn): mỗi dòng = 1 cuốn, **SL** = số lượng cần. Cột **"Trong kho" được bỏ qua** – luôn đặt đủ SL.
+- **Nhà theo cột "Nhà cung cấp"** (ưu tiên hơn mọi quy tắc khác):
+  - chứa "Hồng Ân" → **HA**, "Khang Việt" → **KV**, "Minh Long" → **ML** (không phân biệt hoa thường, dấu cách thừa);
+  - nhà cung cấp khác (MegaBook, Việt Thư Books, Newshop.vn…) → **Đã bỏ qua** (nhà khác);
+  - trống → xử lý như bình thường (danh mục, mã trong tên); không ra thì vào **Chưa rõ nhà**.
+- **Tự học từ web:** dòng có barcode + nhà cung cấp HA/KV/ML được ghi vào danh mục với nguồn **🌐 web**. Lần sau gặp barcode đó ở Shopee/TikTok, dù tên thiếu mã nhà, app vẫn nhận đúng.
+  Thứ tự ưu tiên: **gán tay > web > tự học** (web không bao giờ đè gán tay).
+- **Chống trùng:** thả lại **đúng file web đã thả** (cùng "Thời gian xuất" và cùng nội dung) → app báo *"File web này đã được thả"* và bỏ qua. Hai file web khác nhau thì cộng dồn.
+
+### Shopee: xuất file tất cả trạng thái 🛍️
+- Có thể xuất file Shopee **tất cả trạng thái** (vd `Order.all.….xlsx`) để lấy cả đơn thiếu từ hôm trước còn treo.
+- App chỉ lấy dòng có **"Trạng Thái Đơn Hàng"** đúng là **"Chờ giao hàng"** hoặc **"Chờ xác nhận"**; các trạng thái khác (Đang giao, Đã giao, Đã hủy, Người mua xác nhận…) đều bỏ.
+  Danh sách trạng thái sửa được ở **Cài đặt → Trạng thái đơn Shopee cần lấy** (mỗi dòng 1 trạng thái).
+- Chip file hiện *"n dòng cần lấy / m dòng bỏ qua (trạng thái khác)"*.
+- File "Chờ lấy hàng" kiểu cũ vẫn dùng bình thường. Thả cả file cũ lẫn file tất cả trạng thái cùng ngày **không bị cộng 2 lần** (chống trùng theo mã đơn).
 
 ### Mèo tự học 🐾
 Mỗi lần tách đơn, sách lẻ có mã vạch và có đúng 1 mã nhà trong tên (vd "… - HA - Newshop") sẽ được tự ghi vào danh mục (nguồn **tự học**).
@@ -214,7 +235,8 @@ Khi thay mã cũ **X** → mã mới **Y**, app làm một lần:
 - **URL Apps Script** (xem Phần D, F).
 - **Mã nhà khác:** các mã sẽ bị bỏ qua (mặc định `MEGA, VT, HH, NS, QB, TN, HT`). Có nhà mới thì thêm vào, cách nhau dấu phẩy.
 - **Kiểm tra kết nối.**
-- **Thông tin trên đơn đặt hàng:** Tên shop, SĐT, Địa chỉ nhận hàng, Ghi chú cuối đơn (vd *"Vui lòng giao trước 10h"*). Đều không bắt buộc, lưu trên từng máy giống URL Apps Script.
+- **Trạng thái đơn Shopee cần lấy:** mỗi dòng 1 trạng thái (mặc định *Chờ giao hàng*, *Chờ xác nhận*). Ghi đúng như cột "Trạng Thái Đơn Hàng" trong file Shopee.
+- **Mã nhà khác:** có nhà mới (vd sách ghi "(STK)") thì tự thêm vào ô này – app không tự thêm.
 
 ---
 
@@ -235,9 +257,9 @@ Khi thay mã cũ **X** → mã mới **Y**, app làm một lần:
 
 ```
 index.html, style.css      giao diện
-js/docfile.js              đọc file Shopee/TikTok, gộp nhiều file + chống trùng đơn
+js/docfile.js              đọc file Shopee/TikTok/web, lọc trạng thái Shopee, gộp nhiều file + chống trùng đơn
 js/phanloai.js             quy tắc phân loại nhà, combo, tự học
-js/xuatfile.js             xuất đơn đặt hàng mỗi nhà 1 file + kiểm tra trước khi tải (ExcelJS)
+js/xuatfile.js             xuất file gửi nhà (4 cột, mỗi nhà 1 file) + kiểm tra trước khi tải (ExcelJS)
 js/danhmuc.js              gọi Apps Script, cache danh mục, cài đặt (localStorage)
 js/danhmuc-excel.js        xuất / nạp danh mục bằng Excel, file mẫu
 js/app.js, khaibao.js, mandanhmuc.js, caidat.js, linhvat.js   các màn hình
@@ -251,5 +273,6 @@ Chạy kiểm thử (cần Node.js):
 node test/kiemtra.js              # cần 2 file mẫu thật trong thư mục mau/ (không có trên repo)
 node test/kiemtra-appscript.js    # kiểm thử Code.gs bằng môi trường giả lập
 node test/kiemtra-taiban.js        # giá gần nhất + thay mã tái bản (Code.gs giả lập + phân loại, cần file mẫu)
+node test/kiemtra-web.js           # đơn web + Shopee tất cả trạng thái (cần mau/web.xlsx, mau/shopee-all.xlsx)
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

@@ -41,7 +41,7 @@
         <div class="drop-cat" id="drop-cat" aria-hidden="true"></div>
         <div class="drop-text">
           <h2>Thả file đơn hàng vào đây nha</h2>
-          <p id="drop-mota">File <b>.xlsx</b> xuất từ <b>Shopee</b> và <b>TikTok</b> – thả 1 hoặc 2 file cùng lúc.<br>
+          <p id="drop-mota">File <b>.xlsx</b> xuất từ <b>Shopee</b>, <b>TikTok</b> và <b>Danh sách lấy hàng</b> của web – thả nhiều file cùng lúc.<br>
             File chỉ được đọc trên máy này, không gửi đi đâu cả 🔒</p>
           <span class="btn btn-primary">Chọn file</span>
         </div>
@@ -120,6 +120,13 @@
           <input class="input" id="cd-makhac" type="text">
           <small>Cách nhau bằng dấu phẩy. Sách có các mã này (và không có HA/KV/ML) sẽ bị bỏ qua.</small>
         </label>
+        <label class="field">
+          <span>Trạng thái đơn Shopee cần lấy</span>
+          <textarea class="input" id="cd-trangthai" rows="3"></textarea>
+          <small>Mỗi dòng 1 trạng thái, ghi đúng như cột “Trạng Thái Đơn Hàng” trong file Shopee. Dòng có trạng thái khác (Đang giao, Đã giao, Đã hủy…) sẽ bị bỏ qua.
+            Để trống = mặc định “Chờ giao hàng” và “Chờ xác nhận”.</small>
+        </label>
+        <div hidden><!-- Thông tin trên đơn đặt hàng: không còn dùng (file nhà chỉ còn 4 cột) -->
         <h2 class="h-phu">Thông tin trên đơn đặt hàng</h2>
         <p class="muted" style="margin:0">In ở đầu / cuối file đơn đặt hàng gửi nhà. Không bắt buộc – ô nào trống thì không in. Chỉ lưu trên máy này.</p>
         <div class="grid-2">
@@ -128,6 +135,7 @@
         </div>
         <label class="field"><span>Địa chỉ nhận hàng</span><input class="input" id="cd-diachi" type="text"></label>
         <label class="field"><span>Ghi chú cuối đơn</span><input class="input" id="cd-ghichu" type="text" placeholder="Ví dụ: Vui lòng giao trước 10h"></label>
+        </div>
         <div class="form-actions">
           <button class="btn btn-primary" type="submit">💾 Lưu cài đặt</button>
           <button class="btn" type="button" id="cd-kiemtra">🔌 Kiểm tra kết nối</button>

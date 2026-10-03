@@ -99,9 +99,10 @@ check('Mã phụ không bị coi là "tái bản mới"', kq.taiBan.length === 0
 
 var wb = XuatFile.buildDonDatHang(kq, 'HA', {}, ExcelJS);
 var ws = wb.getWorksheet('Hồng Ân'), dongY = null;
-ws.eachRow(function (row) { if (row.getCell(2).value === Y) dongY = row; });
-check('Đơn đặt hàng: dòng mã mới có mặt, ô SKU KHÔNG tô màu nội bộ (cảnh báo chỉ hiện trên app)', dongY && !dongY.getCell(2).fill && dongY.getCell(5).value === 13,
-  dongY && [dongY.getCell(2).fill, dongY.getCell(5).value]);
+var mauNB = 0;
+ws.eachRow(function (row, n) { if (n > 1) row.eachCell(function (c) { if (c.fill) mauNB++; }); if (row.getCell(2).value === 'Tập Viết Tiếng Nhật Katakana' && row.getCell(3).value === 30000) dongY = row; });
+check('File gửi nhà: Katakana (mã mới) có mặt, SL 13, không tô màu nội bộ (cảnh báo chỉ hiện trên app)', dongY && dongY.getCell(4).value === 13 && mauNB === 0,
+  dongY && dongY.values);
 
 var lsDong = lichSu(m)[0].dong;
 r = m.post('hoanTacTaiBan', { dong: lsDong });

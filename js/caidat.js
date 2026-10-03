@@ -13,12 +13,17 @@
     $('cd-sdt').value = c.sdt || '';
     $('cd-diachi').value = c.diaChi || '';
     $('cd-ghichu').value = c.ghiChu || '';
+    $('cd-trangthai').value = (c.trangThaiShopee || root.DocFile.TRANG_THAI_MAC_DINH).join('\n');
   }
 
   function docForm() {
     var maKhac = $('cd-makhac').value.split(/[,;\s]+/).map(function (s) { return s.trim().toUpperCase(); })
       .filter(function (s) { return s && PL.NHA.indexOf(s) < 0; });
     return { url: $('cd-url').value.trim(), maKhac: maKhac,
+      trangThaiShopee: (function () {
+        var ds = $('cd-trangthai').value.split(/\n/).map(function (x) { return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+        return ds.length ? ds : root.DocFile.TRANG_THAI_MAC_DINH.slice();
+      })(),
       tenShop: $('cd-tenshop').value.trim(), sdt: $('cd-sdt').value.trim(), diaChi: $('cd-diachi').value.trim(), ghiChu: $('cd-ghichu').value.trim() };
   }
 

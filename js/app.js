@@ -82,7 +82,12 @@
       ds.forEach(function (p) {
         // Nhiều file cùng sàn (mỗi gian hàng 1 file) → cộng thêm, không thay file cũ
         S.files = S.files.filter(function (x) { return !(x.error && x.file === p.file); });
-        if (!p.error) { p.rowsGoc = p.rows; p.id = ++S.demFile; }
+        // File web không có mã đơn: thả lại đúng file cũ (cùng thời gian xuất + nội dung) thì bỏ qua
+        if (p.san === 'Web' && S.files.some(function (x) { return x.webKey === p.webKey; })) {
+          toast('🌐 File web "' + p.file + '" này đã được thả rồi – bỏ qua để không cộng 2 lần.', 'loi');
+          return;
+        }
+        if (!p.error) p.id = ++S.demFile;
         S.files.push(p);
       });
       gop();
@@ -101,7 +106,11 @@
   }
 
   /* Tính lại chống trùng đơn giữa các file (theo thứ tự thả) */
-  function gop() { root.DocFile.gopFile(S.files); }
+  function gop() {
+    // Shopee: chỉ lấy các trạng thái trong Cài đặt (mặc định "Chờ giao hàng", "Chờ xác nhận")
+    S.files.forEach(function (p) { if (!p.error) root.DocFile.locTrangThai(p, DM.caiDat.trangThaiShopee); });
+    root.DocFile.gopFile(S.files);
+  }
 
   function veChips() {
     $('chips').innerHTML = S.files.map(function (p, i) {
@@ -109,7 +118,13 @@
         return '<li class="chip is-error">😿 <b>' + esc(p.file) + '</b>: ' + esc(p.error) +
           ' <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';
       }
-      return '<li class="chip"><span class="tag tag-' + p.san + '">' + p.san + '</span> ' + esc(p.file) +
+      var dau = '<li class="chip"><span class="tag tag-' + p.san + '">' + p.san + '</span> ' + esc(p.file);
+      if (p.san === 'Web') {
+        return dau + ' · <b>' + so(p.rows.length) + '</b> dòng sách' + (p.thoiGianXuat ? ' <span class="muted">(xuất ' + esc(p.thoiGianXuat) + ')</span>' : '') +
+          ' <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';
+      }
+      return dau +
+        (p.coCotTrangThai ? ' · <b>' + so(p.soDongLay) + '</b> dòng cần lấy / <span title="Đơn đang giao, đã giao, đã hủy… – không lấy">' + so(p.soDongBoQuaTrangThai) + ' dòng bỏ qua (trạng thái khác)</span>' : '') +
         ' · <b>' + so(p.soDonMoi) + '</b> đơn mới (' + so(p.rows.length) + ' dòng)' +
         (p.soDonTrung ? ' · <span class="chip-trung" title="Các đơn này đã có trong file thả trước nên không cộng lại">bỏ qua ' + so(p.soDonTrung) + ' đơn trùng</span>' : '') +
         ' <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';
@@ -497,7 +512,7 @@
   }
 
   function veLai() {
-    if (S.files.length) xuLy(false);
+    if (S.files.length) { gop(); xuLy(false); }
     if (root.ManDanhMuc && !$('man-danhmuc').hidden) root.ManDanhMuc.ve();
   }
 

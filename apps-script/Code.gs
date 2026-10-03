@@ -160,14 +160,16 @@ function chuoi_(v) { return v === null || v === undefined ? '' : String(v).repla
 function upsertSku_(cat, d, ctx, choGhiDeTay) {
   var key = chuoi_(d.key);
   var nha = chuoi_(d.nha).toUpperCase();
-  var nguon = chuoi_(d.nguon) === 'tu_hoc' ? 'tu_hoc' : 'tay';
+  // Nguồn: tay (gán tay) > web (nhà cung cấp trên đơn web) > tu_hoc (đoán từ mã trong tên)
+  var nguon = ['tu_hoc', 'web'].indexOf(chuoi_(d.nguon)) >= 0 ? chuoi_(d.nguon) : 'tay';
   if (!key) throw new Error('Thiếu khóa (key).');
   if (!/^(sku|ten):/.test(key)) throw new Error('Khóa không hợp lệ: ' + key);
   if (NHA_SKU.indexOf(nha) < 0) throw new Error('Nhà không hợp lệ: ' + d.nha);
   var i = timViTri_(cat.skus, 'key', key);
   var cu = i >= 0 ? cat.skus[i] : null;
   // Nhãn "tay" luôn ưu tiên hơn "tu_hoc": tự học không bao giờ ghi đè gán tay
-  if (cu && cu.nguon === 'tay' && nguon === 'tu_hoc') return false;
+  if (cu && cu.nguon === 'tay' && nguon !== 'tay') return false;
+  if (cu && cu.nguon === 'web' && nguon === 'tu_hoc') return false;
   if (!choGhiDeTay && cu && cu.nguon === 'tay') return false;
   // Giữ các cột khác (giá gần nhất, mã tái bản…) của dòng cũ
   var moi = Object.assign({}, cu || {}, { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten) || (cu ? cu.ten : ''), nha: nha, nguon: nguon, cap_nhat: ctx.now });

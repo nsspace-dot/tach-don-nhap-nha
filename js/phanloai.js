@@ -85,7 +85,19 @@
   }
 
   /* ---------- Không phải sách ---------- */
-  var RE_KHONG_PHAI_SACH = /lịch(?!\s*sử)|bloc|tranh|khung|trà |thời khóa biểu|bài vị/u;
+  var RE_KHONG_PHAI_SACH = /lịch(?!\s*sử)|bloc|tranh|khung|trà |thời khóa biểu|bài vị|decal/u;
+
+  /* ---------- Nhà cung cấp (cột "Nhà cung cấp" của đơn web) ---------- */
+  function boDau(s) { return clean(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase(); }
+  /* "Nhà Sách Hồng Ân" → HA, "Nhà Sách Khang Việt" → KV, "Minh Long Book" → ML ; NCC khác → 'KHAC' ; trống → '' */
+  function nhaTheoNcc(ncc) {
+    var t = boDau(ncc).replace(/\s+/g, ' ');
+    if (!t) return '';
+    if (/hong an/.test(t)) return 'HA';
+    if (/khang viet/.test(t)) return 'KV';
+    if (/minh long/.test(t)) return 'ML';
+    return 'KHAC';
+  }
   function isNotBook(ten) {
     var t = norm(ten);
     if (/^(sách|vở|truyện)/u.test(t)) return false;
@@ -179,6 +191,16 @@
     var cr = comboReason(row);
     var res = { row: row, key: rowKey(row, !!cr), isCombo: !!cr, comboLyDo: cr, nha: '', ghiChu: '', lyDo: '' };
     res.tronNha = findCodes(text, reKhac).length > 0;
+
+    // Bước 0: đơn web có cột "Nhà cung cấp" → theo nhà cung cấp (ưu tiên hơn mọi quy tắc khác). Mỗi dòng web = 1 cuốn sách.
+    var ncc = row.san === 'Web' ? nhaTheoNcc(row.ncc) : '';
+    if (ncc) {
+      res.isCombo = false; res.comboLyDo = ''; res.tronNha = false; res.key = rowKey(row, false);
+      if (ncc === 'KHAC') { res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + clean(row.ncc) + ')'; return res; }
+      res.loai = 'nha'; res.nha = ncc; res.nguonNha = 'nhà cung cấp (web)';
+      if (isBarcode(row.sku)) res.hocWeb = true;
+      return res;
+    }
 
     // Bước 1: combo đã khai báo (chỉ xét dòng có dấu hiệu combo)
     var combo = res.isCombo ? lookup(idx.combo, row, true) : null;
@@ -304,7 +326,7 @@
     });
 
     rows = rows.map(function (row) {
-      if (comboReason(row) || !isBarcode(row.sku)) return row;
+      if ((comboReason(row) && !(row.san === 'Web' && nhaTheoNcc(row.ncc))) || !isBarcode(row.sku)) return row;
       // Đơn còn dùng mã cũ (mã phụ) → tính như mã mới nhất
       var moi = maMoiNhat(idx, row.sku);
       var r = row;
@@ -372,9 +394,15 @@
         case 'nha':
           addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, maCu: r.skuCu,
             src: { san: r.san, row: r } }, maKhac);
-          if (ln.hocSku && !maTaiBan[r.sku]) {
+          if (ln.hocWeb) {
+            // Đơn web: nhà theo nhà cung cấp → nguồn "web" (mạnh hơn tự học, không đè gán tay)
+            var kw = skuKey(r.sku), cw = hoc.get(kw);
+            if (cw && cw.nguon === 'web' && cw.nha !== ln.nha) hocXungDot[kw] = true;
+            else hoc.set(kw, { key: kw, sku: r.sku, ten: (cw && cw.nguon !== 'web' && cw.ten) || r.ten, nha: ln.nha, nguon: 'web', san: r.san, gia_gan_nhat: giaFile[r.sku] || '' });
+          } else if (ln.hocSku && !maTaiBan[r.sku]) {
             var k = skuKey(r.sku), old = hoc.get(k);
-            if (old && old.nha !== ln.nha) hocXungDot[k] = true;
+            if (old && old.nguon === 'web') { /* web đã có → bỏ qua tự học */ }
+            else if (old && old.nha !== ln.nha) hocXungDot[k] = true;
             else if (!old || (r.san === 'TikTok' && old.san !== 'TikTok'))
               hoc.set(k, { key: k, sku: r.sku, ten: r.ten, nha: ln.nha, nguon: 'tu_hoc', san: r.san, gia_gan_nhat: giaFile[r.sku] || '' });
           }
@@ -385,12 +413,13 @@
       }
     });
 
-    // Danh sách tự học: bỏ SKU xung đột, bỏ SKU đã có đúng nhà, không đè gán tay
+    // Danh sách tự học: bỏ SKU xung đột, bỏ SKU đã có đúng nhà, không đè nguồn mạnh hơn (tay > web > tự học)
+    var HANG = { tu_hoc: 1, web: 2, tay: 3 };
     var hocList = [];
     hoc.forEach(function (h, k) {
       if (hocXungDot[k]) return;
       var e = idx.sku.get(k);
-      if (e && (e.nguon === 'tay' || e.nha === h.nha)) return;
+      if (e && (e.nguon === 'tay' || (HANG[e.nguon] || 3) > HANG[h.nguon] || (e.nha === h.nha && (HANG[e.nguon] || 3) >= HANG[h.nguon]))) return;
       delete h.san;
       hocList.push(h);
     });
@@ -436,7 +465,7 @@
     classify: classify, classifyRow: classifyRow, buildIndex: buildIndex,
     comboReason: comboReason, isNotBook: isNotBook, isBarcode: isBarcode,
     findCodes: findCodes, codeRegex: codeRegex, RE_NHA: RE_NHA,
-    maMoiNhat: maMoiNhat, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
+    maMoiNhat: maMoiNhat, nhaTheoNcc: nhaTheoNcc, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
     skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };

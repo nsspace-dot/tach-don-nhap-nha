@@ -74,6 +74,23 @@
     }
   };
 
+  /* Đơn web (file "Danh sách lấy hàng" của website): đã cộng gộp theo sách, không có mã đơn */
+  FORMATS.Web = {
+    need: ['Barcode', 'Tên sản phẩm', 'SL'],
+    read: function (get) {
+      if (!/^\d+$/.test(clean(get('STT')))) return null;
+      return {
+        orderId: '',
+        sku: clean(get('Barcode')),
+        ten: clean(get('Tên sản phẩm')),
+        phanLoai: '',
+        gia: toNum(get('Giá bìa')),
+        sl: toNum(get('SL')),
+        ncc: clean(get('Nhà cung cấp'))   // "Nhà Sách Hồng Ân", "Minh Long Book"… (cột "Trong kho" bỏ qua)
+      };
+    }
+  };
+
   function detect(headers) {
     var set = {};
     headers.forEach(function (h) { set[h] = true; });
@@ -83,34 +100,73 @@
     return null;
   }
 
-  /* Trả về { san, sheetName, rows, error } */
+  var TRANG_THAI_SHOPEE = 'Trạng Thái Đơn Hàng';
+
+  /* Trả về { san, sheetName, rows, error, ... }
+   * Tự tìm dòng tiêu đề trong 30 dòng đầu (file web có 11 dòng thông tin công ty phía trên). */
   function parseWorkbook(wb, XLSX, fileName) {
     for (var i = 0; i < wb.SheetNames.length; i++) {
       var name = wb.SheetNames[i];
       var ws = wb.Sheets[name];
       if (!ws || !fixRef(ws, XLSX)) continue;
-      var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
-      if (!aoa.length) continue;
-      var headers = aoa[0].map(clean);
-      var san = detect(headers);
+      var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: true });
+      var hRow = -1, san = null, headers = null;
+      for (var h = 0; h < Math.min(aoa.length, 30) && !san; h++) {
+        headers = (aoa[h] || []).map(clean);
+        san = detect(headers);
+        if (san) hRow = h;
+      }
       if (!san) continue;
       var idx = {};
-      headers.forEach(function (h, c) { if (h && !(h in idx)) idx[h] = c; });
+      headers.forEach(function (x, c) { if (x && !(x in idx)) idx[x] = c; });
       var rows = [];
-      for (var r = 1; r < aoa.length; r++) {
-        var line = aoa[r];
-        var row = FORMATS[san].read(function (h) { return h in idx ? line[idx[h]] : ''; });
+      for (var r = hRow + 1; r < aoa.length; r++) {
+        var line = aoa[r] || [];
+        if (san === 'Web') {
+          // Dừng khi gặp dòng trống hoặc dòng "Nhân viên lấy hàng"
+          if (!line.some(function (x) { return clean(x); })) break;
+          if (/^nhân viên lấy hàng/i.test(clean(line[0]))) break;
+        }
+        var get = function (k) { return k in idx ? line[idx[k]] : ''; };
+        var row = FORMATS[san].read(get);
         if (!row) continue;
+        if (san === 'Shopee' && TRANG_THAI_SHOPEE in idx) row.trangThai = clean(get(TRANG_THAI_SHOPEE));
         row.san = san;
         row.file = fileName || '';
         rows.push(row);
       }
-      return { san: san, sheetName: name, rows: rows, error: null };
+      var out = { san: san, sheetName: name, rows: rows, error: null };
+      if (san === 'Web') {
+        // "Thời gian xuất: 03/10/2026 17:12" ở phần đầu file → dùng để nhận ra file thả lại
+        for (var t = 0; t < hRow; t++) {
+          var m = /Thời gian xuất\s*:\s*(.+)$/i.exec(clean((aoa[t] || []).join(' ')));
+          if (m) { out.thoiGianXuat = clean(m[1]); break; }
+        }
+        out.webKey = (out.thoiGianXuat || '') + '#' + rows.map(function (x) { return [x.sku, x.ten, x.sl, x.gia, x.ncc].join('|'); }).join('¦');
+      }
+      return out;
     }
     return {
       san: null, sheetName: null, rows: [],
-      error: 'File này không giống file đơn hàng Shopee hoặc TikTok (không tìm thấy các cột như "Mã đơn hàng" / "Order ID").'
+      error: 'File này không giống file đơn hàng Shopee, TikTok hoặc "Danh sách lấy hàng" của web (không tìm thấy các cột như "Mã đơn hàng" / "Order ID" / "Barcode").'
     };
+  }
+
+  var TRANG_THAI_MAC_DINH = ['Chờ giao hàng', 'Chờ xác nhận'];
+
+  /* Shopee: chỉ lấy các trạng thái trong danh sách (so khớp đúng sau khi bỏ khoảng trắng thừa).
+   * File không có cột trạng thái → lấy hết. Ghi vào p: rowsGoc, soDongLay, soDongBoQuaTrangThai. */
+  function locTrangThai(p, dsTrangThai) {
+    var tatCa = p.rowsTatCa || p.rows;
+    p.rowsTatCa = tatCa;
+    var ds = (dsTrangThai && dsTrangThai.length ? dsTrangThai : TRANG_THAI_MAC_DINH).map(function (x) { return clean(x).toLowerCase(); });
+    var coCot = tatCa.some(function (r) { return r.trangThai !== undefined; });
+    p.rowsGoc = p.san !== 'Shopee' || !coCot ? tatCa
+      : tatCa.filter(function (r) { return ds.indexOf(clean(r.trangThai).toLowerCase()) >= 0; });
+    p.coCotTrangThai = p.san === 'Shopee' && coCot;
+    p.soDongLay = p.rowsGoc.length;
+    p.soDongBoQuaTrangThai = tatCa.length - p.rowsGoc.length;
+    return p;
   }
 
   /* Gộp nhiều file (kể cả nhiều file cùng sàn – mỗi gian hàng 1 file).
@@ -139,5 +195,5 @@
     return files;
   }
 
-  return { parseWorkbook: parseWorkbook, gopFile: gopFile, fixRef: fixRef, toNum: toNum, clean: clean };
+  return { parseWorkbook: parseWorkbook, gopFile: gopFile, locTrangThai: locTrangThai, TRANG_THAI_MAC_DINH: TRANG_THAI_MAC_DINH, fixRef: fixRef, toNum: toNum, clean: clean };
 });

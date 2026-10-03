@@ -118,7 +118,7 @@
       else if (PL.isBarcode(sku) || (sku && !ten)) key = PL.skuKey(sku);
       else if (ten) key = PL.tenKey(ten, r.phan_loai);
       else { loi.push('SKU_NHA dòng ' + (i + 2) + ': thiếu SKU và tên.'); return; }
-      var nguon = PL.clean(r.nguon) === 'tu_hoc' ? 'tu_hoc' : 'tay';
+      var nguon = ['tu_hoc', 'web'].indexOf(PL.clean(r.nguon)) >= 0 ? PL.clean(r.nguon) : 'tay';
       var e = { key: key, sku: sku, ten: ten, nha: nha, nguon: nguon };
       if (Number(r.gia_gan_nhat) > 0) { e.gia_gan_nhat = Number(r.gia_gan_nhat); e.ngay_gia = PL.clean(r.ngay_gia); }
       if (PL.clean(r.ma_moi)) e.ma_moi = PL.clean(r.ma_moi).toUpperCase();
