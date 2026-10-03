@@ -17,7 +17,8 @@
     try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* hết chỗ / chế độ riêng tư */ }
   }
 
-  var caiDat = Object.assign({ url: '', maKhac: root.PhanLoai.MA_KHAC_MAC_DINH.slice() }, docLS(LS_CAIDAT, {}));
+  var caiDat = Object.assign({ url: '', maKhac: root.PhanLoai.MA_KHAC_MAC_DINH.slice(), tenShop: '', sdt: '', diaChi: '', ghiChu: '' },
+    docLS(LS_CAIDAT, {}));
   if ('pin' in caiDat) { delete caiDat.pin; ghiLS(LS_CAIDAT, caiDat); } // bản cũ có PIN – không dùng nữa
   var cache = docLS(LS_DANHMUC, null);
   var catalog = chuanHoa(cache && cache.catalog);

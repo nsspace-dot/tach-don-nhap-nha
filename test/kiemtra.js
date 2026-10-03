@@ -233,27 +233,83 @@ check('Nạp combo "nguyen" thiếu nhà → báo lỗi', napLoi.combos.length =
 var xuatLai = DX.nap(XLSX.read(XLSX.write(DX.xuat({ skus: mauNap.skus, combos: mauNap.combos }, XLSX), { type: 'buffer', bookType: 'xlsx' })), XLSX);
 check('Xuất danh mục rồi nạp lại giữ nguyên', JSON.stringify(xuatLai.skus) === JSON.stringify(mauNap.skus) && JSON.stringify(xuatLai.combos) === JSON.stringify(mauNap.combos));
 
-console.log('\n7. Xuất Excel');
-var wb = XuatFile.buildWorkbook(kqN, ExcelJS); // có combo Katakana+Hiragana (tách) và 55889 (xuất nguyên)
-check('Có đủ 5 sheet đúng thứ tự', wb.worksheets.map(function (w) { return w.name; }).join(',') === 'Hồng Ân,Khang Việt,Minh Long,Combo,Chưa rõ nhà');
-check('Tên file đúng mẫu', XuatFile.fileName(new Date(2026, 9, 3)) === 'Don-nhap-nha_03-10-2026.xlsx');
-var empty = XuatFile.buildWorkbook(PL.classify([], {}), ExcelJS);
-check('Sheet trống vẫn có tiêu đề', empty.getWorksheet('Minh Long').getRow(1).getCell(1).value === 'SKU');
+console.log('\n7. Xuất đơn đặt hàng (mỗi nhà 1 file)');
+var NGAY = new Date(2026, 9, 3);
+var INFO = { tenShop: 'Newshop', sdt: '09xx xxx xxx', diaChi: '(Địa chỉ nhận hàng của shop)', ghiChu: 'Vui lòng giao trước 10h' };
+check('Danh mục rỗng: chỉ Hồng Ân và Khang Việt có hàng (Minh Long 0 cuốn → không xuất)', XuatFile.nhaCoHang(kq).join(',') === 'HA,KV', XuatFile.nhaCoHang(kq));
+check('Tên file: Don-dat-hang_Hong-An / Khang-Viet / Minh-Long_dd-mm-yyyy.xlsx',
+  XuatFile.fileName('HA', NGAY) === 'Don-dat-hang_Hong-An_03-10-2026.xlsx' && XuatFile.fileName('KV', NGAY) === 'Don-dat-hang_Khang-Viet_03-10-2026.xlsx' &&
+  XuatFile.fileName('ML', NGAY) === 'Don-dat-hang_Minh-Long_03-10-2026.xlsx');
+var kt1 = XuatFile.kiemTraTruocKhiTai(kq, ['HA']), kt3 = XuatFile.kiemTraTruocKhiTai(kq, ['HA', 'KV', 'ML']);
+check('Nhắc trước khi tải Hồng Ân: combo HA chưa khai báo, 4 dòng thiếu SKU, không tính "Liễu Phàm" (chưa rõ, không đoán được nhà)',
+  kt1.combo.length > 0 && kt1.combo.every(function (g) { return g.nha === 'HA'; }) && kt1.chuaRo.length === 0 && kt1.thieuSku.length === 4 && kt1.coVanDe,
+  [kt1.combo.length, kt1.chuaRo.length, kt1.thieuSku.length]);
+check('Tải cả 3 nhà: nhắc cả sách chưa rõ nhà', kt3.chuaRo.length === 1 && kt3.combo.length === kq.combo.length);
+var ktKV = XuatFile.kiemTraTruocKhiTai(kq, ['KV']);
+check('Khang Việt không có vấn đề → tải luôn, không nhắc', !ktKV.coVanDe, ktKV);
+var ktGia = XuatFile.kiemTraTruocKhiTai({ nha: { HA: [{ sku: '1234567', ten: 'A', gia: 1, sl: 1, canhBaoGia: true }, { sku: '1234567', ten: 'A', gia: 2, sl: 1, canhBaoGia: true }] }, combo: [], chuaRo: [] }, ['HA']);
+check('Nhắc cùng SKU nhưng giá khác nhau', ktGia.giaKhac.length === 1 && ktGia.giaKhac[0].gia.join('/') === '1/2');
 
-wb.xlsx.writeBuffer().then(function (buf) {
-  var out = path.join(MAU, 'ket-qua-kiem-thu.xlsx');
-  fs.writeFileSync(out, Buffer.from(buf));
-  var back = XLSX.read(fs.readFileSync(out), { type: 'buffer' });
-  var ha = XLSX.utils.sheet_to_json(back.Sheets['Hồng Ân']);
-  check('Đọc lại file xuất: Hồng Ân có ' + kqN.nha.HA.length + ' dòng, cột số là kiểu số',
-    ha.length === kqN.nha.HA.length && typeof ha[0]['Số lượng'] === 'number' && typeof ha[0]['Giá gốc'] === 'number');
-  check('Việc 1: tên trong file xuất đã làm gọn (không còn "Sách -", "- HA", "Newshop")', ha.every(function (r) {
-    return !/^Sách\b.* - /.test(r['Tên sản phẩm']) && !/(?<![\p{L}\p{N}])(HA|KV|ML)(?![\p{L}\p{N}])/u.test(r['Tên sản phẩm']) && !/newshop/i.test(r['Tên sản phẩm']);
-  }), ha.map(function (r) { return r['Tên sản phẩm']; }).filter(function (t) { return /HA|Newshop|^Sách/.test(t); }));
-  check('Việc 1: sheet Combo và Chưa rõ nhà cũng dùng tên gọn', XLSX.utils.sheet_to_json(back.Sheets['Chưa rõ nhà'])[0]['Tên sản phẩm'] === 'Liễu Phàm Tứ Huấn' &&
-    XLSX.utils.sheet_to_json(back.Sheets['Combo']).every(function (r) { return !/newshop/i.test(r['Tên sản phẩm']); }));
-  check('Việc 2: dòng 55889 trong file xuất ở sheet Hồng Ân', ha.some(function (r) { return String(r.SKU) === '55889' && r['Số lượng'] === 1; }) &&
-    !XLSX.utils.sheet_to_json(back.Sheets['Combo']).some(function (r) { return String(r.SKU) === '55889'; }));
-  console.log('\nKẾT QUẢ: ' + dat + ' đạt, ' + loi + ' lỗi.  File xuất thử: mau/ket-qua-kiem-thu.xlsx');
+var docLai = function (wbX) {
+  return wbX.xlsx.writeBuffer().then(function (buf) { var w = new ExcelJS.Workbook(); return w.xlsx.load(buf).then(function () { return { w: w, buf: buf }; }); });
+};
+var gtri = function (c) { var v = c.value; return v && v.formula ? v : v; };
+var nhaXuat = XuatFile.nhaCoHang(kqN);
+check('Có combo đã khai báo: vẫn chỉ HA, KV có file', nhaXuat.join(',') === 'HA,KV');
+Promise.all(nhaXuat.map(function (n) { return docLai(XuatFile.buildDonDatHang(kqN, n, INFO, ExcelJS, NGAY)); })).then(function (ds) {
+  ds.forEach(function (x, i) {
+    var n = nhaXuat[i], ws = x.w.worksheets[0], ten = XuatFile.TEN_NHA[n];
+    fs.writeFileSync(path.join(MAU, XuatFile.fileName(n, NGAY)), Buffer.from(x.buf));
+    check('[' + n + '] 1 sheet, tên sheet = ' + ten, x.w.worksheets.length === 1 && ws.name === ten);
+    check('[' + n + '] Tiêu đề "ĐƠN ĐẶT HÀNG – ' + ten.toUpperCase() + '", in đậm, căn giữa', ws.getCell('A1').value === 'ĐƠN ĐẶT HÀNG – ' + ten.toUpperCase() &&
+      ws.getCell('A1').font.bold && ws.getCell('A1').alignment.horizontal === 'center');
+    check('[' + n + '] Dòng thông tin: Ngày / Bên đặt / Địa chỉ', ws.getCell('A2').value === 'Ngày: 03/10/2026' &&
+      ws.getCell('A3').value === 'Bên đặt: Newshop – SĐT: 09xx xxx xxx' && ws.getCell('A4').value === 'Địa chỉ nhận hàng: (Địa chỉ nhận hàng của shop)');
+    var hd = 0;
+    ws.eachRow(function (r, k) { if (r.getCell(1).value === 'STT') hd = k; });
+    check('[' + n + '] Cột: STT | SKU | Tên sách | Giá bìa | Số lượng | Thành tiền (đậm, nền nhạt, kẻ khung)',
+      ws.getRow(hd).values.slice(1).join('|') === 'STT|SKU|Tên sách|Giá bìa|Số lượng|Thành tiền' && ws.getCell(hd, 3).font.bold &&
+      ws.getCell(hd, 3).fill.fgColor.argb === 'FFEFEFEF' && ws.getCell(hd, 3).border.top.style === 'thin');
+    var soDong = kqN.nha[n].length, cuoi = hd + soDong, tong = ws.getRow(cuoi + 1);
+    var ok = true, tongSl = 0, tongTien = 0, tenDs = [];
+    for (var k = hd + 1; k <= cuoi; k++) {
+      var r = ws.getRow(k), f = r.getCell(6).value;
+      if (!(f && f.formula === 'D' + k + '*E' + k)) ok = false;
+      if (r.getCell(4).numFmt !== '#,##0' || !r.getCell(3).alignment.wrapText) ok = false;
+      tongSl += r.getCell(5).value; tongTien += r.getCell(4).value * r.getCell(5).value; tenDs.push(r.getCell(3).value);
+    }
+    check('[' + n + '] ' + soDong + ' dòng; Thành tiền = công thức D×E, số có phân cách nghìn, tên tự xuống dòng', ok);
+    check('[' + n + '] Dòng TỔNG: SUM số lượng và SUM thành tiền, in đậm', tong.getCell(1).value === 'TỔNG CỘNG' &&
+      tong.getCell(5).value.formula === 'SUM(E' + (hd + 1) + ':E' + cuoi + ')' && tong.getCell(6).value.formula === 'SUM(F' + (hd + 1) + ':F' + cuoi + ')' &&
+      tong.getCell(5).value.result === tongSl && tong.getCell(6).value.result === tongTien && tong.getCell(6).font.bold, [tong.getCell(5).value, tong.getCell(6).value]);
+    var sx = tenDs.slice().sort(function (a, b) { return a.localeCompare(b, 'vi', { sensitivity: 'base' }); });
+    check('[' + n + '] Sắp xếp theo tên A→Z', JSON.stringify(sx) === JSON.stringify(tenDs));
+    check('[' + n + '] Tên sách đã làm gọn', tenDs.every(function (t) {
+      return !/^Sách\b.* - /.test(t) && !/(?<![\p{L}\p{N}])(HA|KV|ML)(?![\p{L}\p{N}])/u.test(t) && !/newshop/i.test(t);
+    }), tenDs.filter(function (t) { return /HA|KV|Newshop|^Sách/.test(t); }));
+    var mauNoiBo = [];
+    ws.eachRow(function (r) { r.eachCell(function (c) {
+      if (c.fill && c.fill.fgColor && c.fill.fgColor.argb !== 'FFEFEFEF') mauNoiBo.push(c.address + ':' + c.fill.fgColor.argb);
+    }); });
+    check('[' + n + '] Không còn màu nội bộ (cam SKU, vàng lệch giá, xanh mã cũ)', mauNoiBo.length === 0, mauNoiBo);
+    check('[' + n + '] Ghi chú cuối đơn', ws.getCell(cuoi + 3, 1).value === 'Ghi chú: Vui lòng giao trước 10h', ws.getCell(cuoi + 3, 1).value);
+    var ps = ws.pageSetup;
+    check('[' + n + '] In: A4 dọc, vừa 1 trang ngang, lặp dòng tiêu đề cột', ps.paperSize === 9 && ps.orientation === 'portrait' && ps.fitToPage &&
+      ps.fitToWidth === 1 && ps.fitToHeight === 0 && ps.printTitlesRow === hd + ':' + hd, [ps.paperSize, ps.orientation, ps.fitToWidth, ps.fitToHeight, ps.printTitlesRow]);
+    check('[' + n + '] SKU mã vạch giữ dạng chữ', ws.getRow(hd + 1).getCell(2).type === ExcelJS.ValueType.String);
+    if (n === 'HA') {
+      var d55889 = null, d55252 = null;
+      for (var j = hd + 1; j <= cuoi; j++) { var sku = ws.getRow(j).getCell(2).value; if (sku === '55889') d55889 = ws.getRow(j); if (sku === '55252') d55252 = 1; }
+      check('[HA] Combo 55889 "xuất nguyên" có trong đơn Hồng Ân, SL 1; combo chưa khai báo không có', d55889 && d55889.getCell(5).value === 1 && !d55252);
+      check('[HA] Combo Katakana + Hiragana đã tách thành từng cuốn', tenDs.indexOf('Tập Viết Tiếng Nhật Katakana') >= 0 && tenDs.indexOf('Tập Viết Tiếng Nhật Hiragana') >= 0);
+    }
+  });
+  return docLai(XuatFile.buildDonDatHang(kqN, 'KV', {}, ExcelJS, NGAY));
+}).then(function (x) {
+  var ws = x.w.worksheets[0], chu = [];
+  ws.eachRow(function (r) { r.eachCell(function (c) { if (typeof c.value === 'string') chu.push(c.value); }); });
+  check('Cài đặt trống → bỏ dòng Bên đặt / Địa chỉ / Ghi chú', ws.getCell('A2').value === 'Ngày: 03/10/2026' &&
+    !chu.some(function (t) { return /^(Bên đặt|Địa chỉ|Ghi chú)/.test(t); }));
+  console.log('\nKẾT QUẢ: ' + dat + ' đạt, ' + loi + ' lỗi.  File xuất thử: mau/' + XuatFile.fileName('HA', NGAY) + ', mau/' + XuatFile.fileName('KV', NGAY));
   process.exit(loi ? 1 : 0);
-});
+}).catch(function (e) { console.log('LỖI', e); process.exit(1); });

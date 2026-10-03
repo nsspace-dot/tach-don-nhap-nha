@@ -1,7 +1,7 @@
 # Hướng dẫn cài đặt & sử dụng "Tách đơn nhập nhà" 🐱📚
 
 App giúp lọc file đơn hàng **Shopee** + **TikTok** thành danh sách nhập hàng cho 3 nhà:
-**Hồng Ân (HA)** · **Khang Việt (KV)** · **Minh Long (ML)**, rồi xuất 1 file Excel 5 sheet.
+**Hồng Ân (HA)** · **Khang Việt (KV)** · **Minh Long (ML)**, rồi xuất **đơn đặt hàng Excel riêng cho từng nhà**.
 
 - File đơn hàng chỉ được đọc **trên máy của bạn**, không gửi lên đâu cả.
 - Phần "trí nhớ" (SKU nào thuộc nhà nào, combo gồm những cuốn nào) lưu trên **Google Sheets** để mọi máy dùng chung.
@@ -137,23 +137,35 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
      - **🔗 Đây là combo đã có:** cùng 1 combo nhưng sàn khác đặt mã khác → chọn combo có sẵn để gắn thêm mã.
      - **📦 Xuất nguyên combo:** dùng cho sách mà hệ thống lên đơn của shop **chỉ có dạng combo**, không có từng cuốn lẻ.
        Chọn **Nhà**, có thể điền **Mã trên hệ thống** (mã combo trên website lên đơn; để trống = dùng SKU của sàn) và **Tên xuất** (để trống = tên combo đã làm gọn).
-       Không cần nhập thành phần. File Excel sẽ có **1 dòng** cho combo đó trong sheet nhà: giá gốc = giá combo trên sàn, số lượng = số combo (cộng cả 2 sàn nếu đã gắn mã của cả 2 sàn).
+       Không cần nhập thành phần. Đơn đặt hàng của nhà đó sẽ có **1 dòng** cho combo: giá gốc = giá combo trên sàn, số lượng = số combo (cộng cả 2 sàn nếu đã gắn mã của cả 2 sàn).
        Combo **trộn nhà khác** (có MEGA, TN…) thì không chọn được "Xuất nguyên" – phải tách để chỉ lấy phần HA/KV/ML.
-     - Khai báo xong, combo tự tách thành từng cuốn và cộng vào sheet nhà – không cần thả file lại.
+     - Khai báo xong, combo tự tách thành từng cuốn và cộng vào đơn của nhà – không cần thả file lại.
    - **🙈 Đã bỏ qua:** lịch, tranh, trà… và sách nhà khác. Nếu bị bỏ nhầm thì chọn lại nhà ở cột cuối.
-5. Bấm **⬇️ Tải file Excel** → được file `Don-nhap-nha_dd-mm-yyyy.xlsx`:
+5. **Tải đơn đặt hàng gửi nhà** – mỗi nhà 1 file riêng:
+   - Mỗi thẻ **Hồng Ân / Khang Việt / Minh Long** có nút **⬇️ Tải file** (nhà 0 cuốn thì nút mờ).
+   - Nút lớn **⬇️ Tải cả 3 nhà** tải lần lượt file của các nhà có hàng, bỏ qua nhà 0 cuốn.
+     (Lần đầu Chrome/Edge có thể hỏi *"Cho phép tải nhiều tệp"* → chọn **Cho phép**.)
+   - Tên file: `Don-dat-hang_Hong-An_dd-mm-yyyy.xlsx`, `Don-dat-hang_Khang-Viet_…`, `Don-dat-hang_Minh-Long_…`.
+   - Sheet Combo và Chưa rõ nhà **không còn** trong file – hãy xử lý xong trên app trước khi tải.
 
-| Sheet | Nội dung |
-|---|---|
-| Hồng Ân / Khang Việt / Minh Long | SKU, Tên, Giá gốc, Số lượng – đã cộng cả 2 sàn và phần tách từ combo |
-| Combo | Combo chưa khai báo (cần khai báo để lần sau tự tách) |
-| Chưa rõ nhà | Dòng chưa biết nhà |
+   **Nhắc trước khi tải** (chỉ hiện khi có vấn đề; ổn hết thì tải luôn):
+   - Còn **combo chưa khai báo / sách chưa rõ nhà** → các dòng này sẽ KHÔNG có trong file.
+   - Trong nhà đang tải có **cùng SKU nhưng giá khác nhau**, hoặc **dòng thiếu SKU** → app liệt kê để bạn kiểm tra.
+   - Tải 1 nhà thì chỉ nhắc vấn đề của nhà đó (kể cả combo đoán được thuộc nhà đó). Tải cả 3 thì nhắc tất cả.
+   - Bấm **🔍 Xem lại** để app mở đúng tab cần xử lý, hoặc **⬇️ Vẫn tải**.
 
-**Tên sản phẩm trong file Excel được làm gọn:** bỏ phần loại sách ở đầu ("Sách -", "Sách Tham Khảo -"…) và phần mã nhà, tên shop, tác giả ở cuối ("- HA - Newshop", "(HA)", "- KV - Tác Giả …"). Ví dụ
+   **Nội dung file đơn đặt hàng** (1 sheet, tên sheet = tên nhà):
+   - Tiêu đề **ĐƠN ĐẶT HÀNG – HỒNG ÂN**, ngày, bên đặt (tên shop – SĐT), địa chỉ nhận hàng – lấy từ màn **Cài đặt** (ô nào trống thì không in).
+   - Bảng **STT | SKU | Tên sách | Giá bìa | Số lượng | Thành tiền**, sắp xếp theo tên A→Z. *Thành tiền* là **công thức** Giá bìa × Số lượng; dòng **TỔNG CỘNG** dùng công thức SUM – sửa số lượng trong Excel là tự tính lại.
+   - Ghi chú cuối đơn (nếu có cài đặt).
+   - In sẵn khổ **A4 dọc**, vừa 1 trang chiều ngang, sang trang tự lặp lại dòng tiêu đề cột.
+   - Đã cộng cả 2 sàn, phần tách từ combo và combo "xuất nguyên".
+
+**Tên sách được làm gọn:** bỏ phần loại sách ở đầu ("Sách -", "Sách Tham Khảo -"…) và phần mã nhà, tên shop, tác giả ở cuối ("- HA - Newshop", "(HA)", "- KV - Tác Giả …"). Ví dụ
 "Sách Tham Khảo - Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối) - HA - Newshop" → "Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối)".
 Trên màn hình app cũng hiện tên gọn; **rê chuột vào tên** để xem tên gốc. Dữ liệu gốc và danh mục không bị đổi.
 
-Ý nghĩa màu trong file Excel:
+Ý nghĩa màu **trên màn hình app** (file gửi nhà KHÔNG tô các màu này):
 - 🟧 **Ô SKU màu cam:** SKU trống hoặc không phải mã vạch – app nhận diện bằng tên + phân loại.
 - 🟨 **Cả dòng màu vàng:** cùng SKU nhưng giá gốc khác nhau (để 2 dòng riêng cho bạn kiểm tra).
 - 🟦 **Ô SKU màu xanh dương nhạt:** có đơn còn dùng **mã cũ** của sách đã tái bản – app đã tính vào mã mới. Nên sửa SKU của listing đó trên sàn (xem mục *"Mã cũ trên sàn – nên sửa listing"* trên màn hình).
@@ -202,6 +214,7 @@ Khi thay mã cũ **X** → mã mới **Y**, app làm một lần:
 - **URL Apps Script** (xem Phần D, F).
 - **Mã nhà khác:** các mã sẽ bị bỏ qua (mặc định `MEGA, VT, HH, NS, QB, TN, HT`). Có nhà mới thì thêm vào, cách nhau dấu phẩy.
 - **Kiểm tra kết nối.**
+- **Thông tin trên đơn đặt hàng:** Tên shop, SĐT, Địa chỉ nhận hàng, Ghi chú cuối đơn (vd *"Vui lòng giao trước 10h"*). Đều không bắt buộc, lưu trên từng máy giống URL Apps Script.
 
 ---
 
@@ -224,7 +237,7 @@ Khi thay mã cũ **X** → mã mới **Y**, app làm một lần:
 index.html, style.css      giao diện
 js/docfile.js              đọc file Shopee/TikTok, gộp nhiều file + chống trùng đơn
 js/phanloai.js             quy tắc phân loại nhà, combo, tự học
-js/xuatfile.js             xuất Excel 5 sheet (ExcelJS)
+js/xuatfile.js             xuất đơn đặt hàng mỗi nhà 1 file + kiểm tra trước khi tải (ExcelJS)
 js/danhmuc.js              gọi Apps Script, cache danh mục, cài đặt (localStorage)
 js/danhmuc-excel.js        xuất / nạp danh mục bằng Excel, file mẫu
 js/app.js, khaibao.js, mandanhmuc.js, caidat.js, linhvat.js   các màn hình

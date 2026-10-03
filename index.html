@@ -59,7 +59,7 @@
         <div class="xong" id="xong">
           <div class="xong-cat" id="xong-cat" aria-hidden="true"></div>
           <div class="xong-text" id="xong-text"></div>
-          <button class="btn btn-big" id="btn-tai" type="button">⬇️ Tải file Excel</button>
+          <button class="btn btn-big" id="btn-tai" type="button" title="Tải đơn đặt hàng của các nhà có hàng (bỏ qua nhà 0 cuốn)">⬇️ Tải cả 3 nhà</button>
         </div>
 
         <div class="tai-ban" id="tai-ban" hidden></div>
@@ -120,6 +120,14 @@
           <input class="input" id="cd-makhac" type="text">
           <small>Cách nhau bằng dấu phẩy. Sách có các mã này (và không có HA/KV/ML) sẽ bị bỏ qua.</small>
         </label>
+        <h2 class="h-phu">Thông tin trên đơn đặt hàng</h2>
+        <p class="muted" style="margin:0">In ở đầu / cuối file đơn đặt hàng gửi nhà. Không bắt buộc – ô nào trống thì không in. Chỉ lưu trên máy này.</p>
+        <div class="grid-2">
+          <label class="field"><span>Tên shop</span><input class="input" id="cd-tenshop" type="text" placeholder="Ví dụ: Newshop"></label>
+          <label class="field"><span>SĐT</span><input class="input" id="cd-sdt" type="tel" placeholder="Ví dụ: 0900 000 000"></label>
+        </div>
+        <label class="field"><span>Địa chỉ nhận hàng</span><input class="input" id="cd-diachi" type="text"></label>
+        <label class="field"><span>Ghi chú cuối đơn</span><input class="input" id="cd-ghichu" type="text" placeholder="Ví dụ: Vui lòng giao trước 10h"></label>
         <div class="form-actions">
           <button class="btn btn-primary" type="submit">💾 Lưu cài đặt</button>
           <button class="btn" type="button" id="cd-kiemtra">🔌 Kiểm tra kết nối</button>
@@ -215,7 +223,7 @@
       <h2 id="dlg-hoi-title">Chắc chưa nè?</h2>
       <p id="hoi-noidung"></p>
       <div class="dlg-actions">
-        <button class="btn" value="no">Thôi</button>
+        <button class="btn" value="no" id="hoi-huy">Thôi</button>
         <button class="btn btn-danger" value="yes" id="hoi-ok">Đồng ý</button>
       </div>
     </form>

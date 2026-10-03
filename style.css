@@ -152,6 +152,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .xong-text b { font-family: var(--font-head); font-size: 22px; color: var(--brand-dark); display: block; }
 
 .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.card-o { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card-o .card { flex: 1; }
+.tai-nha { align-self: stretch; }
 .card {
   text-align: left; font: inherit; color: var(--c-ink); cursor: pointer;
   background: var(--c-bg); border: 3px solid transparent; border-radius: var(--r-lg);
@@ -258,6 +261,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span { font-weight: 700; }
 .field small { color: var(--muted); font-weight: 500; }
+.h-phu { margin-top: 10px; padding-top: 14px; border-top: 2px dashed var(--line); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 680px) { .grid-2 { grid-template-columns: 1fr; } }
 .pin-row { display: flex; gap: 8px; }
 .form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .ketqua-kt { margin: 0; min-height: 1.5em; }

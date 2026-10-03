@@ -97,10 +97,11 @@ check('Gợi ý listing cần sửa (sàn, tên, mã cũ → mã mới)', kq.lis
   kq.listingCanSua[0].maCu === KATA && kq.listingCanSua[0].maMoi === Y, kq.listingCanSua);
 check('Mã phụ không bị coi là "tái bản mới"', kq.taiBan.length === 0, kq.taiBan);
 
-var wb = XuatFile.buildWorkbook(kq, ExcelJS);
-var ws = wb.getWorksheet('Hồng Ân'), xanh = null;
-ws.eachRow(function (row, n) { if (n > 1 && row.getCell(1).value === Y) xanh = row.getCell(1); });
-check('Excel: ô SKU tô xanh dương nhạt + ghi chú', xanh && xanh.fill && xanh.fill.fgColor.argb === 'FFCFE5FF' && /mã cũ 8935092825731/.test(xanh.note), xanh && xanh.fill);
+var wb = XuatFile.buildDonDatHang(kq, 'HA', {}, ExcelJS);
+var ws = wb.getWorksheet('Hồng Ân'), dongY = null;
+ws.eachRow(function (row) { if (row.getCell(2).value === Y) dongY = row; });
+check('Đơn đặt hàng: dòng mã mới có mặt, ô SKU KHÔNG tô màu nội bộ (cảnh báo chỉ hiện trên app)', dongY && !dongY.getCell(2).fill && dongY.getCell(5).value === 13,
+  dongY && [dongY.getCell(2).fill, dongY.getCell(5).value]);
 
 var lsDong = lichSu(m)[0].dong;
 r = m.post('hoanTacTaiBan', { dong: lsDong });
@@ -157,6 +158,6 @@ check('Đổi nhà không làm mất giá gần nhất', Number(m2.get().skus[0]
 // File Excel xuất thử của bước 2 (sau khi thay mã, còn đơn dùng mã cũ) – chỉ lưu trong mau/
 wb.xlsx.writeBuffer().then(function (buf) {
   fs.writeFileSync(path.join(MAU, 'ket-qua-tai-ban.xlsx'), Buffer.from(buf));
-  console.log('\nKẾT QUẢ: ' + dat + ' đạt, ' + loi + ' lỗi.  File xuất thử: mau/ket-qua-tai-ban.xlsx');
+  console.log('\nKẾT QUẢ: ' + dat + ' đạt, ' + loi + ' lỗi.  File xuất thử (đơn Hồng Ân): mau/ket-qua-tai-ban.xlsx');
   process.exit(loi ? 1 : 0);
 });

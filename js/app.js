@@ -21,11 +21,16 @@
     $('toasts').appendChild(t);
     setTimeout(function () { t.remove(); }, loai === 'loi' ? 7000 : 4000);
   }
-  function hoi(noiDung, nutOk) {
+  /* Hộp xác nhận. opt.huy: chữ nút hủy ; opt.nhe: nút đồng ý màu chính (không phải màu đỏ) */
+  function hoi(noiDung, nutOk, opt) {
+    opt = opt || {};
     return new Promise(function (resolve) {
       var d = $('dlg-hoi');
       $('hoi-noidung').textContent = noiDung;
       $('hoi-ok').textContent = nutOk || 'Đồng ý';
+      $('hoi-ok').className = 'btn ' + (opt.nhe ? 'btn-primary' : 'btn-danger');
+      $('hoi-huy').textContent = opt.huy || 'Thôi';
+      $('dlg-hoi-title').textContent = opt.tieuDe || 'Chắc chưa nè?';
       d.returnValue = '';
       d.addEventListener('close', function f() { d.removeEventListener('close', f); resolve(d.returnValue === 'yes'); });
       d.showModal();
@@ -187,16 +192,20 @@
     }
     $('cards').innerHTML = THE.map(function (t) {
       var tg = PL.tong(listTheo(t.k));
-      var on = S.tab === t.k;
-      return '<button class="card" role="tab" data-k="' + t.k + '" aria-selected="' + on + '"' + (on ? ' tabindex="0"' : ' tabindex="-1"') + '>' +
+      var on = S.tab === t.k, laNha = PL.NHA.indexOf(t.k) >= 0;
+      return '<div class="card-o"><button class="card" role="tab" data-k="' + t.k + '" aria-selected="' + on + '"' + (on ? ' tabindex="0"' : ' tabindex="-1"') + '>' +
         '<span class="card-emoji" aria-hidden="true">' + t.emoji + '</span>' +
         '<span class="card-ten">' + t.ten + '</span>' +
         '<div class="card-so">' + so(tg.cuon) + ' <small>cuốn</small></div>' +
-        '<div class="card-phu">' + so(tg.dong) + ' dòng</div></button>';
+        '<div class="card-phu">' + so(tg.dong) + ' dòng</div></button>' +
+        (laNha ? '<button type="button" class="btn btn-sm tai-nha" data-tai-nha="' + t.k + '"' +
+          (tg.cuon ? ' title="Tải đơn đặt hàng ' + t.ten + '"' : ' disabled title="' + t.ten + ' không có cuốn nào"') + '>⬇️ Tải file</button>' : '') +
+        '</div>';
     }).join('');
+    $('btn-tai').disabled = !root.XuatFile.nhaCoHang(kq).length;
     veTaiBan();
     veListing();
-    Array.prototype.forEach.call($('cards').children, function (b) { b.classList.toggle('is-active', b.dataset.k === S.tab); });
+    $('cards').querySelectorAll('.card').forEach(function (b) { b.classList.toggle('is-active', b.dataset.k === S.tab); });
     veBang();
     veBoQua();
   }
@@ -392,18 +401,65 @@
   }
 
   /* ---------- Xuất Excel ---------- */
-  function taiExcel() {
+  /* ---------- Tải đơn đặt hàng (mỗi nhà 1 file) ---------- */
+  var XF = function () { return root.XuatFile; };
+  function cho(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* Nội dung nhắc trước khi tải; rỗng = không có vấn đề */
+  function noiDungNhac(kt) {
+    var dong = [];
+    var conLai = [];
+    if (kt.combo.length) conLai.push(kt.combo.length + ' combo chưa khai báo');
+    if (kt.chuaRo.length) conLai.push(kt.chuaRo.length + ' sách chưa rõ nhà');
+    if (conLai.length) dong.push('Còn ' + conLai.join(', ') + ' — các dòng này sẽ KHÔNG có trong file.');
+    var liet = function (ds, f) { return ds.slice(0, 6).map(f).join('\n') + (ds.length > 6 ? '\n  … và ' + (ds.length - 6) + ' dòng nữa' : ''); };
+    if (kt.giaKhac.length) {
+      dong.push('Cùng SKU nhưng giá khác nhau (' + kt.giaKhac.length + '):\n' + liet(kt.giaKhac, function (x) {
+        return '  · [' + x.nha + '] ' + x.ten + ' (' + x.sku + '): ' + x.gia.map(so).join(' / ');
+      }));
+    }
+    if (kt.thieuSku.length) {
+      dong.push('Dòng thiếu SKU (' + kt.thieuSku.length + '):\n' + liet(kt.thieuSku, function (x) { return '  · [' + x.nha + '] ' + x.ten + ' × ' + x.sl; }));
+    }
+    return dong.length ? dong.join('\n\n') + '\n\nVẫn tải?' : '';
+  }
+
+  function taiNha(nhas, btn) {
     if (!S.kq) return;
     if (!root.ExcelJS) { toast('Thư viện Excel chưa tải xong, thử lại sau 1 giây nha.', 'loi'); return; }
-    var btn = $('btn-tai');
-    btn.disabled = true;
-    root.XuatFile.buildWorkbook(S.kq, root.ExcelJS).xlsx.writeBuffer()
-      .then(function (buf) {
-        taiVe(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), root.XuatFile.fileName());
-        toast('📥 Đã tải file ' + root.XuatFile.fileName(), 'ok');
-      })
-      .catch(function (e) { toast('Lỗi tạo file Excel: ' + e.message, 'loi'); })
-      .then(function () { btn.disabled = false; });
+    var coHang = XF().nhaCoHang(S.kq);
+    nhas = nhas.filter(function (n) { return coHang.indexOf(n) >= 0; });
+    if (!nhas.length) { toast('Không có nhà nào có hàng để tải.', 'loi'); return; }
+    var kt = XF().kiemTraTruocKhiTai(S.kq, nhas.length === 1 ? nhas : XF().NHA);
+    var msg = noiDungNhac(kt);
+    var buoc = msg ? hoi(msg, '⬇️ Vẫn tải', { huy: '🔍 Xem lại', nhe: true, tieuDe: 'Kiểm tra trước khi tải' }) : Promise.resolve(true);
+    buoc.then(function (ok) {
+      if (!ok) {
+        // Xem lại: mở tab có vấn đề đầu tiên
+        S.tab = kt.combo.length ? 'combo' : kt.chuaRo.length ? 'chuaRo'
+          : (kt.giaKhac[0] || kt.thieuSku[0] || { nha: nhas[0] }).nha;
+        veKetQua(false);
+        $('panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (btn) btn.disabled = true;
+      var info = { tenShop: DM.caiDat.tenShop, sdt: DM.caiDat.sdt, diaChi: DM.caiDat.diaChi, ghiChu: DM.caiDat.ghiChu };
+      var ngay = new Date();
+      // Tải lần lượt từng nhà (cách nhau một chút để trình duyệt không chặn)
+      return nhas.reduce(function (p, n, i) {
+        return p.then(function () {
+          return XF().buildDonDatHang(S.kq, n, info, root.ExcelJS, ngay).xlsx.writeBuffer().then(function (buf) {
+            taiVe(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), XF().fileName(n, ngay));
+            return i < nhas.length - 1 ? cho(600) : null;
+          });
+        });
+      }, Promise.resolve())
+        .then(function () {
+          toast('📥 Đã tải ' + nhas.length + ' đơn đặt hàng: ' + nhas.map(function (n) { return PL.TEN_NHA[n]; }).join(', '), 'ok');
+        })
+        .catch(function (e) { toast('Lỗi tạo file Excel: ' + e.message, 'loi'); })
+        .then(function () { if (btn) btn.disabled = false; });
+    });
   }
 
   /* ---------- Thanh trạng thái, banner, điều hướng ---------- */
@@ -476,6 +532,8 @@
     });
 
     $('cards').addEventListener('click', function (e) {
+      var t = e.target.closest('[data-tai-nha]');
+      if (t) { if (!t.disabled) taiNha([t.dataset.taiNha], t); return; }
       var b = e.target.closest('.card');
       if (!b) return;
       S.tab = b.dataset.k;
@@ -512,7 +570,7 @@
       ganNha(S.kq.boQua[+s.dataset.ganBq], s.value);
     });
 
-    $('btn-tai').addEventListener('click', taiExcel);
+    $('btn-tai').addEventListener('click', function () { taiNha(PL.NHA.slice(), $('btn-tai')); });
     $('tai-ban').addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b || b.disabled) return;

@@ -1,4 +1,4 @@
-/* Màn Cài đặt: URL Apps Script, mã nhà khác, kiểm tra kết nối.
+/* Màn Cài đặt: URL Apps Script, mã nhà khác, kiểm tra kết nối, thông tin trên đơn đặt hàng.
  * URL chỉ lưu trong localStorage của máy này – không ghi vào code hay repo. */
 (function (root) {
   'use strict';
@@ -9,12 +9,17 @@
     var c = DM.caiDat;
     $('cd-url').value = c.url || '';
     $('cd-makhac').value = (c.maKhac || []).join(', ');
+    $('cd-tenshop').value = c.tenShop || '';
+    $('cd-sdt').value = c.sdt || '';
+    $('cd-diachi').value = c.diaChi || '';
+    $('cd-ghichu').value = c.ghiChu || '';
   }
 
   function docForm() {
     var maKhac = $('cd-makhac').value.split(/[,;\s]+/).map(function (s) { return s.trim().toUpperCase(); })
       .filter(function (s) { return s && PL.NHA.indexOf(s) < 0; });
-    return { url: $('cd-url').value.trim(), maKhac: maKhac };
+    return { url: $('cd-url').value.trim(), maKhac: maKhac,
+      tenShop: $('cd-tenshop').value.trim(), sdt: $('cd-sdt').value.trim(), diaChi: $('cd-diachi').value.trim(), ghiChu: $('cd-ghichu').value.trim() };
   }
 
   function ketQua(msg, ok) {
