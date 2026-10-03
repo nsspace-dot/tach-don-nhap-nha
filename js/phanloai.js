@@ -23,12 +23,18 @@
   /* ---------- Khóa nhận diện ---------- */
   function skuKey(sku) { return 'sku:' + clean(sku).toUpperCase(); }
   function tenKey(ten, phanLoai) { return 'ten:' + norm(ten) + '|' + norm(phanLoai); }
-  /* Khóa chính của 1 dòng: có SKU thì theo SKU, không thì theo tên|phân loại */
-  function rowKey(row) { return clean(row.sku) ? skuKey(row.sku) : tenKey(row.ten, row.phanLoai); }
-  function rowKeys(row) {
-    var k = [];
-    if (clean(row.sku)) k.push(skuKey(row.sku));
-    k.push(tenKey(row.ten, row.phanLoai));
+  /* Khóa chính của 1 dòng:
+   * - combo: có SKU thì theo SKU, không thì theo tên|phân loại
+   * - sách lẻ: SKU mã vạch thì theo SKU, SKU trống / dạng chữ thì theo tên|phân loại */
+  function rowKey(row, isCombo) {
+    if (isCombo === undefined) isCombo = !!comboReason(row);
+    var dungSku = isCombo ? !!clean(row.sku) : isBarcode(row.sku);
+    return dungSku ? skuKey(row.sku) : tenKey(row.ten, row.phanLoai);
+  }
+  function rowKeys(row, isCombo) {
+    var k = [rowKey(row, isCombo)];
+    var t = tenKey(row.ten, row.phanLoai);
+    if (k[0] !== t) k.push(t);
     return k;
   }
 
@@ -60,13 +66,10 @@
   }
 
   /* ---------- Sách lẻ hay combo ---------- */
+  /* Chỉ dựa vào tên + phân loại (không dựa vào SKU). "COMBO.HA" cũng là combo. */
   function comboReason(row) {
-    var sku = clean(row.sku);
-    if (!isBarcode(sku)) return sku ? 'SKU không phải mã vạch' : 'Không có SKU';
     var t = norm(row.ten + ' ' + row.phanLoai);
-    // "COMBO.HA", "COMBO HA 2025" chỉ là nhãn nhà khi SKU là mã vạch → không tính là combo
-    t = t.replace(/combo[\s._-]*(ha|kv|ml)(\s*\d{4})?(?![\p{L}\p{N}])/gu, ' ');
-    if (/combo/u.test(t)) return 'Tên có chữ "combo"';
+    if (/combo/u.test(t)) return 'Có chữ "combo"';
     var re = /(\d+)\s*(cuốn|tập|quyển)/gu, m;
     while ((m = re.exec(t))) if (parseInt(m[1], 10) >= 2) return 'Nhiều cuốn (' + m[0] + ')';
     if (/tập\s*\d+\s*\+\s*(tập\s*)?\d+/u.test(t)) return 'Nhiều tập (Tập 1 + 2)';
@@ -88,8 +91,8 @@
     });
     return { sku: sku, combo: combo };
   }
-  function lookup(map, row) {
-    var keys = rowKeys(row);
+  function lookup(map, row, isCombo) {
+    var keys = rowKeys(row, isCombo);
     for (var i = 0; i < keys.length; i++) if (map.has(keys[i])) return map.get(keys[i]);
     return null;
   }
@@ -99,18 +102,19 @@
   function classifyRow(row, idx, reKhac) {
     var text = row.ten + ' ' + row.phanLoai;
     var cr = comboReason(row);
-    var res = { row: row, key: rowKey(row), isCombo: !!cr, comboLyDo: cr, nha: '', ghiChu: '', lyDo: '' };
+    var res = { row: row, key: rowKey(row, !!cr), isCombo: !!cr, comboLyDo: cr, nha: '', ghiChu: '', lyDo: '' };
 
-    // Bước 1: combo đã khai báo
-    var combo = lookup(idx.combo, row);
+    // Bước 1: combo đã khai báo (chỉ xét dòng có dấu hiệu combo)
+    var combo = res.isCombo ? lookup(idx.combo, row, true) : null;
     if (combo) { res.loai = 'tach_combo'; res.combo = combo; res.nguonNha = 'combo đã khai báo'; return res; }
 
     // Bước 2: gán tay trong danh mục → coi là 1 cuốn sách của nhà đó
-    var e = lookup(idx.sku, row);
+    var e = lookup(idx.sku, row, res.isCombo);
     if (e && e.nguon === 'tay') {
       if (e.nha === KHONG_NHAP) { res.loai = 'bo_qua'; res.lyDo = 'Đã đánh dấu "Không nhập"'; return res; }
       if (NHA.indexOf(e.nha) >= 0) {
-        res.loai = 'nha'; res.nha = e.nha; res.isCombo = false; res.nguonNha = 'danh mục (gán tay)';
+        res.loai = 'nha'; res.nha = e.nha; res.isCombo = false; res.key = rowKey(row, false);
+        res.nguonNha = 'danh mục (gán tay)';
         return res;
       }
     }
@@ -148,15 +152,25 @@
   /* ---------- Gộp kết quả ---------- */
   var SAN_RANK = { TikTok: 0, combo: 1, Shopee: 2 }; // ưu tiên tên TikTok
 
+  /* Phân loại chung chung, không cần ghép vào tên */
+  var PL_CHUNG = /^(|lẻ|le|mặc định|not specified|default|1 cuốn)$/u;
+
+  /* SKU mã vạch → gộp theo SKU ; SKU trống / dạng chữ → gộp theo tên + phân loại */
   function addToHouse(map, item) {
-    var id = (clean(item.sku) ? skuKey(item.sku) : 'ten:' + norm(item.ten)) + '|' + (item.gia || 0);
+    var pl = clean(item.phanLoai);
+    var skuLa = !isBarcode(item.sku);
+    var hienPL = skuLa && !PL_CHUNG.test(norm(pl));
+    var ten = hienPL ? item.ten + ' (' + pl + ')' : item.ten;
+    var nhom = skuLa ? tenKey(item.ten, hienPL ? pl : '') : skuKey(item.sku);
+    var id = nhom + '|' + (item.gia || 0);
     var g = map.get(id);
     if (!g) {
-      g = { sku: clean(item.sku), ten: item.ten, gia: item.gia || 0, sl: 0, rank: 9, nguon: [], canhBaoGia: false };
+      g = { sku: clean(item.sku), ten: ten, gia: item.gia || 0, sl: 0, rank: 9, nhom: nhom,
+            skuLa: skuLa, key: skuLa ? tenKey(item.ten, pl) : skuKey(item.sku), nguon: [], canhBaoGia: false };
       map.set(id, g);
     }
     var rank = SAN_RANK[item.rankSan];
-    if (rank < g.rank) { g.rank = rank; g.ten = item.ten; }
+    if (rank < g.rank) { g.rank = rank; g.ten = ten; }
     g.sl += item.sl;
     g.nguon.push(item.src);
   }
@@ -168,7 +182,8 @@
     if (!g) {
       g = { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: 0, nha: line.nha || '',
             ghiChu: line.ghiChu || '', lyDo: line.lyDo || '', comboLyDo: line.comboLyDo || '',
-            isCombo: line.isCombo, key: line.key, keys: rowKeys(r), san: [], lines: [] };
+            isCombo: line.isCombo, key: line.key, keys: rowKeys(r, line.isCombo), skuLa: !isBarcode(r.sku),
+            san: [], lines: [] };
       map.set(id, g);
     }
     g.sl += r.sl;
@@ -198,14 +213,14 @@
           (ln.combo.thanh_phan || []).forEach(function (tp) {
             if (NHA.indexOf(tp.nha) < 0) return; // KHAC → bỏ qua
             addToHouse(houses[tp.nha], {
-              sku: tp.sku, ten: clean(tp.ten), gia: Number(tp.gia_goc) || 0,
+              sku: tp.sku, ten: clean(tp.ten), phanLoai: '', gia: Number(tp.gia_goc) || 0,
               sl: r.sl * (Number(tp.so_luong) || 1), rankSan: 'combo',
               src: { san: r.san, combo: ln.combo.ten_combo, row: r }
             });
           });
           break;
         case 'nha':
-          addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, gia: r.gia, sl: r.sl, rankSan: r.san, src: { san: r.san, row: r } });
+          addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, src: { san: r.san, row: r } });
           if (ln.hocSku) {
             var k = skuKey(r.sku), old = hoc.get(k);
             if (old && old.nha !== ln.nha) hocXungDot[k] = true;
@@ -232,9 +247,9 @@
     var out = { nha: {}, combo: [], chuaRo: [], boQua: [], hoc: hocList, lines: lines, dongTheoNha: dongTheoNha, tongDong: rows.length };
     NHA.forEach(function (n) {
       var list = Array.from(houses[n].values());
-      var bySku = {};
-      list.forEach(function (g) { if (g.sku) bySku[g.sku] = (bySku[g.sku] || 0) + 1; });
-      list.forEach(function (g) { g.canhBaoGia = !!(g.sku && bySku[g.sku] > 1); delete g.rank; });
+      var dem = {};
+      list.forEach(function (g) { dem[g.nhom] = (dem[g.nhom] || 0) + 1; });
+      list.forEach(function (g) { g.canhBaoGia = dem[g.nhom] > 1; delete g.rank; delete g.nhom; });
       out.nha[n] = list.sort(sortVi);
     });
     out.combo = Array.from(comboMap.values()).sort(sortVi);

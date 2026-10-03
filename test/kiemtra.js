@@ -69,7 +69,14 @@ check('"Lịch Sử 9 - KV" vẫn vào Khang Việt', kq.nha.KV.some(function (g
 var c55252 = kq.combo.filter(function (g) { return g.sku === '55252'; });
 check('Combo 55252 nằm ở sheet Combo', c55252.length > 0 && c55252.every(function (g) { return g.nha === 'HA'; }));
 check('"Vở Bài Tập Thực Hành Mĩ Thuật Các Lớp (HA)" vào Hồng Ân', kq.nha.HA.some(function (g) { return /Mĩ Thuật Các Lớp \(HA\)/.test(g.ten); }));
-check('"Tập Viết Tiếng Nhật Hiragana (HA)" (COMBO.HA) vào Hồng Ân', kq.nha.HA.some(function (g) { return g.sku === '8935092825724'; }));
+check('"Tập Viết Tiếng Nhật Hiragana (HA)" (COMBO.HA, SKU mã vạch) là combo, nhà HA',
+  kq.combo.some(function (g) { return g.sku === '8935092825724' && g.nha === 'HA' && g.phanLoai === 'COMBO.HA'; }) &&
+  !kq.nha.HA.some(function (g) { return g.sku === '8935092825724'; }));
+var gd = kq.nha.HA.filter(function (g) { return g.sku === 'GDĐĐKNSDCHSL6'; });
+check('SKU dạng chữ "GDĐĐKNSDCHSL6" (không dấu hiệu combo) là sách lẻ Hồng Ân, tô cam', gd.length === 1 && gd[0].skuLa && /^ten:/.test(gd[0].key));
+var tt25 = kq.nha.HA.filter(function (g) { return /Tuyển Tập 25 Năm/.test(g.ten); });
+check('SKU trống "Tuyển Tập 25 Năm…" (phân loại LẺ) là sách lẻ Hồng Ân, tô cam', tt25.length === 1 && tt25[0].skuLa && tt25[0].sku === '');
+check('Sheet Combo chỉ còn dòng có dấu hiệu combo', kq.combo.every(function (g) { return !!g.comboLyDo; }));
 var tron = kq.combo.filter(function (g) { return /Tập Viết Hiragana \(MEGA\)/.test(g.phanLoai); })[0];
 check('Combo trộn nhà "COMBO HA + … (MEGA)" thuộc HA, có ghi chú', tron && tron.nha === 'HA' && /trộn nhà/.test(tron.ghiChu), tron && tron.ghiChu);
 check('Có danh sách SKU tự học', kq.hoc.length > 0, kq.hoc.length);
@@ -80,23 +87,25 @@ var HIRA = '8935092825724', KATA = '8935092825731'; // KATA: SKU giả lập đ�
 var catalog = {
   skus: [],
   combos: [{
-    combo_id: 'C1', ten_combo: 'Combo Tập Viết Tiếng Nhật Katakana + Hiragana', khoa: ['sku:55252'],
+    combo_id: 'C1', ten_combo: 'Combo Tập Viết Tiếng Nhật Katakana + Hiragana',
+    khoa: ['sku:55252', 'sku:8935092825724'], // 55252 (TikTok + Shopee) và dòng Shopee "Hiragana (HA)" COMBO.HA
     thanh_phan: [
       { sku: KATA, ten: 'Sách - Tập Viết Tiếng Nhật Katakana (HA)', nha: 'HA', gia_goc: 25000, so_luong: 1 },
       { sku: HIRA, ten: 'Sách - Tập Viết Tiếng Nhật Hiragana (HA)', nha: 'HA', gia_goc: 25000, so_luong: 1 }
     ]
   }]
 };
-var so55252 = rows.filter(function (r) { return r.sku === '55252'; }).reduce(function (s, r) { return s + r.sl; }, 0);
-var hiraLe = rows.filter(function (r) { return r.sku === HIRA; }).reduce(function (s, r) { return s + r.sl; }, 0);
+var nCombo = function (san) { return rows.filter(function (r) { return r.san === san && (r.sku === '55252' || r.sku === HIRA); })
+  .reduce(function (s, r) { return s + r.sl; }, 0); };
+check('Có 11 đơn combo Katakana + Hiragana (9 TikTok + 2 Shopee)', nCombo('TikTok') === 9 && nCombo('Shopee') === 2, nCombo('TikTok') + '+' + nCombo('Shopee'));
 var kq2 = PL.classify(rows, catalog);
-check('55252 biến mất khỏi Combo', !kq2.combo.some(function (g) { return g.sku === '55252'; }));
+check('55252 và "Hiragana (HA)" COMBO.HA biến mất khỏi Combo', !kq2.combo.some(function (g) { return g.sku === '55252' || g.sku === HIRA; }));
 var kata = kq2.nha.HA.filter(function (g) { return g.sku === KATA; });
 var hira = kq2.nha.HA.filter(function (g) { return g.sku === HIRA; });
-check('Katakana trong Hồng Ân = ' + so55252, kata.length === 1 && kata[0].sl === so55252, JSON.stringify(kata.map(function (g) { return [g.gia, g.sl]; })));
-var hiraTong = hira.reduce(function (s, g) { return s + g.sl; }, 0);
-check('Hiragana trong Hồng Ân = ' + so55252 + ' (combo) + ' + hiraLe + ' (lẻ)', hiraTong === so55252 + hiraLe, hiraTong);
-check('Hiragana giá khác nhau → tách dòng + tô cảnh báo', hira.length === 1 || hira.every(function (g) { return g.canhBaoGia; }));
+check('Katakana trong Hồng Ân = 11', kata.length === 1 && kata[0].sl === 11, JSON.stringify(kata.map(function (g) { return [g.gia, g.sl]; })));
+check('Hiragana trong Hồng Ân = 11, chỉ 1 dòng', hira.length === 1 && hira[0].sl === 11, JSON.stringify(hira.map(function (g) { return [g.gia, g.sl]; })));
+check('Không còn dòng Hiragana giá 50.000', !hira.some(function (g) { return g.gia === 50000; }));
+check('Combo trộn nhà (không SKU) vẫn ở Combo vì chưa khai báo', kq2.combo.some(function (g) { return /MEGA/.test(g.phanLoai); }));
 
 console.log('\n5. Danh mục gán tay & tự học');
 var kq3 = PL.classify(rows, { skus: [{ key: 'sku:9786320103126', sku: '9786320103126', nha: 'ML', nguon: 'tay' }], combos: [] });
@@ -109,6 +118,9 @@ check('Gán tay thắng mã trong tên (HA → KV)', kq5.nha.KV.some(function (g
 check('Tự học không đè gán tay', !kq5.hoc.some(function (h) { return h.sku === '8935092845425'; }));
 var kq6 = PL.classify(rows, { skus: kq.hoc, combos: [] });
 check('Lần 2 (đã học) không học lại', kq6.hoc.length === 0, kq6.hoc.length);
+var k25 = PL.tenKey(tt25[0] ? 'Sách - Tuyển Tập 25 Năm Đề Thi Olympic 30 Tháng 4 Ngữ Văn 10 - HA - Newshop' : '', 'LẺ');
+var kq8 = PL.classify(rows, { skus: [{ key: k25, sku: '', nha: 'KV', nguon: 'tay' }], combos: [] });
+check('Gán tay theo tên + phân loại (SKU trống) có tác dụng', kq8.nha.KV.some(function (g) { return /Tuyển Tập 25 Năm/.test(g.ten); }));
 var blocRow = rows.filter(function (r) { return /KV07/.test(r.sku); })[0];
 var kq7 = PL.classify([blocRow], { skus: [{ key: PL.skuKey(blocRow.sku), sku: blocRow.sku, nha: 'KV', nguon: 'tu_hoc' }], combos: [] });
 check('Lịch KV07 vẫn bỏ qua dù danh mục tự học ghi nhầm KV', kq7.nha.KV.length === 0);
@@ -119,8 +131,10 @@ check('"(1 cuốn)" không phải combo', !cr('8935092825724', 'Sách X', 'X (1 
 check('"TẬP 1" không phải combo', !cr('8935092825724', 'Sách X', 'TẬP 1'));
 check('"Bộ 2 Cuốn" là combo', cr('8935092825724', 'Sách X (Bộ 2 Cuốn)'));
 check('"Tập 1 + 2" là combo', cr('8935092825724', 'Sách X - Tập 1 + 2'));
-check('SKU "55252" là combo', cr('55252', 'Sách X'));
-check('SKU trống là combo', cr('', 'Sách X'));
+check('"COMBO.HA" là combo dù SKU là mã vạch', cr('8935092825724', 'Sách - Tập Viết Hiragana (HA)', 'COMBO.HA'));
+check('SKU "55252" không có dấu hiệu combo → sách lẻ', !cr('55252', 'Sách X', 'LẺ'));
+check('SKU trống không có dấu hiệu combo → sách lẻ', !cr('', 'Sách X', 'LẺ'));
+check('"Lớp 1+2+3" không phải combo', !cr('8935092839820', 'Luyện Viết Tiếng Anh Lớp 1+2+3', 'LỚP 2'));
 
 console.log('\n7. Xuất Excel');
 var wb = XuatFile.buildWorkbook(kq2, ExcelJS);

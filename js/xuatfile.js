@@ -7,7 +7,8 @@
   'use strict';
 
   var MAU = { HA: 'FFF9D5CC', KV: 'FFCDEFE0', ML: 'FFFBEBB5', combo: 'FFE3D9F5', chuaRo: 'FFFFD8C2' };
-  var CANH_BAO = 'FFFFF2A8';
+  var CANH_BAO = 'FFFFF2A8';      // cùng SKU nhưng giá gốc khác nhau
+  var SKU_LA = 'FFFFB580';        // SKU trống / dạng chữ (không phải mã vạch)
   var SO = '#,##0';
 
   function fileName(date) {
@@ -36,6 +37,11 @@
       if (fill) row.eachCell({ includeEmpty: true }, function (cell) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
       });
+      if (r._skuLa) {
+        var c = row.getCell(cols.findIndex(function (x) { return x.k === 'sku'; }) + 1);
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SKU_LA } };
+        c.note = 'SKU trống hoặc không phải mã vạch – nhận diện bằng tên + phân loại';
+      }
     });
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
     return ws;
@@ -55,9 +61,9 @@
     { h: 'Giá gốc', k: 'gia', w: 12, so: true }, { h: 'Số lượng', k: 'sl', w: 10, so: true }
   ];
 
-  function pick(list, cols) {
+  function pick(list, cols, skuLa) {
     return list.map(function (g) {
-      var o = { _canhBao: g.canhBaoGia };
+      var o = { _canhBao: g.canhBaoGia, _skuLa: skuLa && g.skuLa };
       cols.forEach(function (c) { o[c.k] = g[c.k] === undefined ? '' : g[c.k]; });
       return o;
     });
@@ -69,11 +75,11 @@
     wb.creator = 'Tách đơn nhập nhà';
     wb.created = new Date();
     var canhBao = function (r) { return r._canhBao ? CANH_BAO : null; };
-    addSheet(wb, 'Hồng Ân', MAU.HA, COT_NHA, pick(result.nha.HA, COT_NHA), canhBao);
-    addSheet(wb, 'Khang Việt', MAU.KV, COT_NHA, pick(result.nha.KV, COT_NHA), canhBao);
-    addSheet(wb, 'Minh Long', MAU.ML, COT_NHA, pick(result.nha.ML, COT_NHA), canhBao);
+    addSheet(wb, 'Hồng Ân', MAU.HA, COT_NHA, pick(result.nha.HA, COT_NHA, true), canhBao);
+    addSheet(wb, 'Khang Việt', MAU.KV, COT_NHA, pick(result.nha.KV, COT_NHA, true), canhBao);
+    addSheet(wb, 'Minh Long', MAU.ML, COT_NHA, pick(result.nha.ML, COT_NHA, true), canhBao);
     addSheet(wb, 'Combo', MAU.combo, COT_COMBO, pick(result.combo, COT_COMBO));
-    addSheet(wb, 'Chưa rõ nhà', MAU.chuaRo, COT_CHUA_RO, pick(result.chuaRo, COT_CHUA_RO));
+    addSheet(wb, 'Chưa rõ nhà', MAU.chuaRo, COT_CHUA_RO, pick(result.chuaRo, COT_CHUA_RO, true));
     return wb;
   }
 
