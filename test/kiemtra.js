@@ -210,6 +210,14 @@ check('"Tập 1 + 2" là combo', cr('8935092825724', 'Sách X - Tập 1 + 2'));
 check('"COMBO.HA" là combo dù SKU là mã vạch', cr('8935092825724', 'Sách - Tập Viết Hiragana (HA)', 'COMBO.HA'));
 check('SKU "55252" không có dấu hiệu combo → sách lẻ', !cr('55252', 'Sách X', 'LẺ'));
 check('SKU trống không có dấu hiệu combo → sách lẻ', !cr('', 'Sách X', 'LẺ'));
+[['Sách - Toán 9 Tập 2 - HA', 'LẺ'], ['Sách - Vật Lí 10 Tập 1 - HA', ''], ['Sách - Hóa Học Hữu Cơ 12 Tập 1 - KV', 'Mặc định'],
+ ['Sách - Luyện Tập Toán 4 Quyển 1 - HA', ''], ['Sách - Bài Tập Toán 2 Tập 1 - HA', 'TẬP 1'], ['Sách - Tiếng Việt 3 - HA', '2 cuốn sách hay']
+].forEach(function (c) { check('"' + c[0] + (c[1] ? ' | ' + c[1] : '') + '" → sách lẻ', !cr('8935092800000', c[0], c[1]), PL.comboReason({ ten: c[0], phanLoai: c[1] })); });
+[['Sách - Thần Thoại Hy Lạp Trọn Bộ 2 Tập - HA', ''], ['Sách - HD Giải Vở BT TV 3 (KN) (2 cuốn) - HA', ''], ['Sách Tiếng Nhật - Combo Tập Viết Tiếng Nhật Katakana + Hiragana - HA', ''],
+ ['Sách - Kỹ Thuật Cắt May Cơ Bản', 'Combo Kỹ Thuật Cắt May Cơ Bản (Bộ 2 Cuốn)'], ['Sách - Ngữ Văn 6 Quyển 1+2 - HA', ''], ['Sách - X - HA', 'COMBO HA (2 cuốn)'],
+ ['Sách - Tiếng Anh 7 (3 Quyển) - HA', ''], ['Sách - Bộ 3 Cuốn Toán - HA', '']
+].forEach(function (c) { check('"' + c[0] + (c[1] ? ' | ' + c[1] : '') + '" → combo', cr('', c[0], c[1])); });
+check('"Bộ 1 cuốn" / "(1 tập)" không phải combo', !cr('', 'Sách - X (1 tập)', '') && !cr('', 'Sách - Bộ 1 Cuốn X', ''));
 check('"Lớp 1+2+3" không phải combo', !cr('8935092839820', 'Luyện Viết Tiếng Anh Lớp 1+2+3', 'LỚP 2'));
 
 console.log('\n6b. File mẫu nạp danh mục');

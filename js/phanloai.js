@@ -97,9 +97,12 @@
   function comboReason(row) {
     var t = norm(row.ten + ' ' + row.phanLoai);
     if (/combo/u.test(t)) return 'Có chữ "combo"';
-    var re = /(\d+)\s*(cuốn|tập|quyển)/gu, m;
+    // "N tập" / "N cuốn" đứng trơn KHÔNG tính (dễ nhầm số lớp: "Toán 9 Tập 2", "Vật Lí 10 Tập 1")
+    var m, re = /(?:^|[^\p{L}])bộ\s*(\d+)\s*(cuốn|tập|quyển)/gu; // "bộ 2 cuốn", "trọn bộ 3 tập"
+    while ((m = re.exec(t))) if (parseInt(m[1], 10) >= 2) return 'Bộ nhiều cuốn (' + m[0].trim() + ')';
+    re = /\(\s*(\d+)\s*(cuốn|tập|quyển)\s*\)/gu;       // "(2 cuốn)", "(3 tập)" trong ngoặc
     while ((m = re.exec(t))) if (parseInt(m[1], 10) >= 2) return 'Nhiều cuốn (' + m[0] + ')';
-    if (/tập\s*\d+\s*\+\s*(tập\s*)?\d+/u.test(t)) return 'Nhiều tập (Tập 1 + 2)';
+    if (/(tập|quyển)\s*\d+\s*\+\s*((tập|quyển)\s*)?\d+/u.test(t)) return 'Nhiều tập (Tập 1 + 2)';
     return '';
   }
 
