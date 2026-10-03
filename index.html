@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tách đơn nhập nhà</title>
+  <meta name="description" content="Lọc đơn Shopee + TikTok ra danh sách nhập hàng Hồng Ân, Khang Việt, Minh Long">
+  <link rel="icon" href="icons/meo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-cat" id="brand-cat" aria-hidden="true"></span>
+      <div>
+        <h1>Tách đơn nhập nhà</h1>
+        <p class="brand-sub">Hồng Ân · Khang Việt · Minh Long</p>
+      </div>
+    </div>
+    <nav class="nav" aria-label="Chuyển màn hình">
+      <button class="nav-btn is-active" data-man="chinh" aria-current="page">📦 Tách đơn</button>
+      <button class="nav-btn" data-man="danhmuc">📚 Danh mục</button>
+      <button class="nav-btn" data-man="caidat">⚙️ Cài đặt</button>
+    </nav>
+    <button class="sync" id="sync" type="button" title="Bấm để tải lại danh mục">
+      <span class="sync-dot" aria-hidden="true"></span><span id="sync-text">Chưa kết nối</span>
+    </button>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <main id="noi-dung">
+    <!-- ============ MÀN CHÍNH ============ -->
+    <section class="man" id="man-chinh" aria-label="Tách đơn">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-describedby="drop-mota">
+        <div class="drop-cat" id="drop-cat" aria-hidden="true"></div>
+        <div class="drop-text">
+          <h2>Thả file đơn hàng vào đây nha</h2>
+          <p id="drop-mota">File <b>.xlsx</b> xuất từ <b>Shopee</b> và <b>TikTok</b> – thả 1 hoặc 2 file cùng lúc.<br>
+            File chỉ được đọc trên máy này, không gửi đi đâu cả 🔒</p>
+          <span class="btn btn-primary">Chọn file</span>
+        </div>
+        <input type="file" id="file-input" accept=".xlsx,.xls" multiple hidden>
+      </div>
+
+      <ul class="chips" id="chips" aria-live="polite"></ul>
+
+      <div class="empty" id="trong">
+        <div class="empty-cat" id="empty-cat" aria-hidden="true"></div>
+        <p>Chưa có file nào… Mèo đang ngủ trên đống sách 💤</p>
+      </div>
+
+      <div id="ket-qua" hidden>
+        <div class="xong" id="xong">
+          <div class="xong-cat" id="xong-cat" aria-hidden="true"></div>
+          <div class="xong-text" id="xong-text"></div>
+          <button class="btn btn-big" id="btn-tai" type="button">⬇️ Tải file Excel</button>
+        </div>
+
+        <div class="cards" id="cards" role="tablist" aria-label="Nhóm kết quả"></div>
+
+        <div class="panel" id="panel" role="tabpanel">
+          <div class="panel-head" id="panel-head"></div>
+          <div class="table-wrap" id="bang"></div>
+        </div>
+
+        <details class="bo-qua" id="bo-qua">
+          <summary id="bo-qua-tieu-de">Đã bỏ qua</summary>
+          <div class="table-wrap" id="bang-bo-qua"></div>
+        </details>
+      </div>
+      <div class="confetti" id="confetti" aria-hidden="true"></div>
+    </section>
+
+    <!-- ============ MÀN DANH MỤC ============ -->
+    <section class="man" id="man-danhmuc" aria-label="Danh mục" hidden>
+      <div class="dm-head">
+        <div class="seg" role="tablist" aria-label="Loại danh mục">
+          <button class="seg-btn is-active" data-dm="sku" role="tab" aria-selected="true">SKU → nhà <span id="dm-dem-sku" class="dem"></span></button>
+          <button class="seg-btn" data-dm="combo" role="tab" aria-selected="false">Combo <span id="dm-dem-combo" class="dem"></span></button>
+        </div>
+        <input type="search" class="input search" id="dm-tim" placeholder="🔎 Tìm theo SKU, tên sách…" aria-label="Tìm trong danh mục">
+        <div class="dm-actions">
+          <button class="btn" id="dm-xuat" type="button">📤 Xuất danh mục ra Excel</button>
+          <button class="btn can-write" id="dm-nap" type="button">📥 Nạp từ Excel</button>
+          <button class="btn btn-ghost" id="dm-mau" type="button">📄 Tải file mẫu</button>
+          <input type="file" id="dm-nap-input" accept=".xlsx" hidden>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="table-wrap" id="dm-bang"></div>
+      </div>
+    </section>
+
+    <!-- ============ MÀN CÀI ĐẶT ============ -->
+    <section class="man" id="man-caidat" aria-label="Cài đặt" hidden>
+      <form class="panel form" id="form-caidat" autocomplete="off">
+        <h2>Kết nối Google Sheets</h2>
+        <label class="field">
+          <span>URL Apps Script (Web App)</span>
+          <input class="input" id="cd-url" type="url" placeholder="https://script.google.com/macros/s/…/exec">
+          <small>Dán đường link có đuôi <code>/exec</code> lấy ở bước “Deploy” (xem HUONG-DAN.md).</small>
+        </label>
+        <label class="field">
+          <span>Mã PIN</span>
+          <span class="pin-row">
+            <input class="input" id="cd-pin" type="password" placeholder="Để trống = chỉ xem">
+            <button class="btn btn-ghost" type="button" id="cd-pin-hien" aria-pressed="false">👁 Hiện</button>
+          </span>
+          <small>Nhập 1 lần trên máy này. Không có PIN thì chỉ xem được danh mục, không sửa được.</small>
+        </label>
+        <label class="field">
+          <span>Mã nhà khác (bỏ qua)</span>
+          <input class="input" id="cd-makhac" type="text">
+          <small>Cách nhau bằng dấu phẩy. Sách có các mã này (và không có HA/KV/ML) sẽ bị bỏ qua.</small>
+        </label>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">💾 Lưu cài đặt</button>
+          <button class="btn" type="button" id="cd-kiemtra">🔌 Kiểm tra kết nối</button>
+        </div>
+        <p class="ketqua-kt" id="cd-ketqua" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <!-- ============ HỘP THOẠI ============ -->
+  <dialog class="dlg dlg-wide" id="dlg-combo" aria-labelledby="dlg-combo-title">
+    <form method="dialog" id="form-combo">
+      <h2 id="dlg-combo-title">Khai báo thành phần combo</h2>
+      <div class="combo-goc" id="cb-goc"></div>
+      <label class="field">
+        <span>Tên combo</span>
+        <input class="input" id="cb-ten" required>
+      </label>
+      <div class="field">
+        <span>Khóa nhận diện <small>(mỗi sàn có thể đặt mã khác nhau)</small></span>
+        <div class="khoa-list" id="cb-khoa"></div>
+      </div>
+      <div class="table-wrap">
+        <table class="tbl tbl-tp">
+          <thead><tr><th>SKU</th><th>Tên sách</th><th>Nhà</th><th>Giá gốc</th><th>SL / combo</th><th><span class="sr">Xóa</span></th></tr></thead>
+          <tbody id="cb-tp"></tbody>
+        </table>
+      </div>
+      <button class="btn btn-ghost" type="button" id="cb-them">＋ Thêm cuốn</button>
+      <p class="err" id="cb-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" type="button" id="cb-luu">💾 Lưu combo</button>
+      </div>
+    </form>
+    <datalist id="ds-sku"></datalist>
+  </dialog>
+
+  <dialog class="dlg" id="dlg-coSan" aria-labelledby="dlg-cosan-title">
+    <form method="dialog">
+      <h2 id="dlg-cosan-title">Đây là combo đã có</h2>
+      <p class="muted" id="cs-goc"></p>
+      <input type="search" class="input" id="cs-tim" placeholder="🔎 Tìm combo…" aria-label="Tìm combo">
+      <ul class="cs-list" id="cs-list"></ul>
+      <div class="dlg-actions"><button class="btn" value="cancel">Đóng</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlg-hoi" aria-labelledby="dlg-hoi-title">
+    <form method="dialog">
+      <h2 id="dlg-hoi-title">Chắc chưa nè?</h2>
+      <p id="hoi-noidung"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="no">Thôi</button>
+        <button class="btn btn-danger" value="yes" id="hoi-ok">Đồng ý</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="lib/xlsx-0.18.5.full.min.js"></script>
+  <script src="lib/exceljs-4.4.0.min.js" defer></script>
+  <script src="js/docfile.js"></script>
+  <script src="js/phanloai.js"></script>
+  <script src="js/xuatfile.js"></script>
+  <script src="js/danhmuc.js"></script>
+  <script src="js/danhmuc-excel.js"></script>
+  <script src="js/linhvat.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/khaibao.js"></script>
+  <script src="js/mandanhmuc.js"></script>
+  <script src="js/caidat.js"></script>
+</body>
+</html>

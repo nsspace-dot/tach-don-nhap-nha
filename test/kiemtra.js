@@ -104,6 +104,7 @@ var kata = kq2.nha.HA.filter(function (g) { return g.sku === KATA; });
 var hira = kq2.nha.HA.filter(function (g) { return g.sku === HIRA; });
 check('Katakana trong Hồng Ân = 11', kata.length === 1 && kata[0].sl === 11, JSON.stringify(kata.map(function (g) { return [g.gia, g.sl]; })));
 check('Hiragana trong Hồng Ân = 11, chỉ 1 dòng', hira.length === 1 && hira[0].sl === 11, JSON.stringify(hira.map(function (g) { return [g.gia, g.sl]; })));
+check('Đếm dòng HA vẫn = 43 sau khi khai báo combo', kq2.dongTheoNha.HA === 43, kq2.dongTheoNha.HA);
 check('Không còn dòng Hiragana giá 50.000', !hira.some(function (g) { return g.gia === 50000; }));
 check('Combo trộn nhà (không SKU) vẫn ở Combo vì chưa khai báo', kq2.combo.some(function (g) { return /MEGA/.test(g.phanLoai); }));
 

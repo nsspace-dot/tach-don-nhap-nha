@@ -208,6 +208,9 @@
     lines.forEach(function (ln) {
       var r = ln.row;
       if (NHA.indexOf(ln.nha) >= 0 && (ln.loai === 'nha' || ln.loai === 'combo')) dongTheoNha[ln.nha]++;
+      if (ln.loai === 'tach_combo') NHA.forEach(function (n) {
+        if ((ln.combo.thanh_phan || []).some(function (tp) { return tp.nha === n; })) dongTheoNha[n]++;
+      });
       switch (ln.loai) {
         case 'tach_combo':
           (ln.combo.thanh_phan || []).forEach(function (tp) {
