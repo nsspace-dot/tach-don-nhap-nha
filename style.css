@@ -218,6 +218,18 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .trong-bang .mini-cat { width: 90px; height: 90px; margin: 0 auto 6px; }
 .select { font: 600 13px/1 var(--font); border: 2px solid var(--line); border-radius: 999px; padding: 6px 10px; background: #fff; color: var(--ink); }
 
+.tai-ban { display: flex; flex-direction: column; gap: 10px; }
+.tai-ban-item { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: #e6f1ff; border: 2px solid #b5d4fb; color: #1f4a7a;
+  border-radius: var(--r-lg); padding: 12px 16px; box-shadow: var(--shadow); }
+.tai-ban-item .tb-text { flex: 1; min-width: 260px; }
+.tai-ban-item .tb-text b { color: #123a66; }
+.ma-cu { background: #cfe5ff; color: #1f4a7a; border-radius: 6px; padding: 1px 6px; }
+.nho-macu { background: #cfe5ff; color: #1f4a7a; }
+.lech-gia { background: #fff7e0; border: 2px dashed #f0d48a; border-radius: var(--r-md); margin: 12px 16px; padding: 10px 14px; font-size: 14px; }
+.lech-gia ul { margin: 6px 0; padding-left: 18px; }
+.lech-gia li { margin: 4px 0; }
+.nhan-lech { display: inline-block; background: var(--warn); color: #6f5300; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px; margin: 2px 4px 2px 0; }
+.listing summary { background: #e6f1ff; color: #1f4a7a; }
 .bo-qua { background: var(--paper); border: 2px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
 .bo-qua summary { cursor: pointer; padding: 14px 18px; font-family: var(--font-head); font-size: 18px; font-weight: 700; background: var(--bq); list-style: none; }
 .bo-qua summary::-webkit-details-marker { display: none; }

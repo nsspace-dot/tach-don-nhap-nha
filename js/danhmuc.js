@@ -28,7 +28,9 @@
     c = c || {};
     var skus = (c.skus || []).map(function (e) {
       return { key: String(e.key || ''), sku: String(e.sku || ''), ten: String(e.ten || ''), nha: String(e.nha || ''),
-               nguon: String(e.nguon || 'tay'), cap_nhat: e.cap_nhat || '' };
+               nguon: String(e.nguon || 'tay'), cap_nhat: e.cap_nhat || '',
+               gia_gan_nhat: Number(e.gia_gan_nhat) || 0, ngay_gia: String(e.ngay_gia || ''),
+               ma_moi: String(e.ma_moi || ''), khong_tai_ban: String(e.khong_tai_ban || '') };
     }).filter(function (e) { return e.key; });
     var combos = (c.combos || []).map(function (x) {
       var khoa = Array.isArray(x.khoa) ? x.khoa : String(x.khoa || '').split(' ;; ');

@@ -6,7 +6,7 @@
 })(typeof self !== 'undefined' ? self : this, function (PL) {
   'use strict';
 
-  var COT_SKU = ['key', 'sku', 'ten', 'phan_loai', 'nha', 'nguon', 'cap_nhat'];
+  var COT_SKU = ['key', 'sku', 'ten', 'phan_loai', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban'];
   var COT_COMBO = ['combo_id', 'ten_combo', 'khoa', 'cap_nhat', 'cach_xuat', 'ma_he_thong', 'ten_xuat', 'nha'];
   var COT_TP = ['combo_id', 'sku', 'ten', 'nha', 'gia_goc', 'so_luong'];
   var NHA_SKU = ['HA', 'KV', 'ML', PL.KHONG_NHAP];
@@ -20,7 +20,7 @@
 
   function xuat(catalog, XLSX) {
     var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, sheet(XLSX, COT_SKU, catalog.skus, [30, 16, 60, 16, 10, 8, 20]), 'SKU_NHA');
+    XLSX.utils.book_append_sheet(wb, sheet(XLSX, COT_SKU, catalog.skus, [30, 16, 60, 16, 10, 8, 20, 12, 12, 16, 20]), 'SKU_NHA');
     XLSX.utils.book_append_sheet(wb, sheet(XLSX, COT_COMBO, catalog.combos.map(function (c) {
       return { combo_id: c.combo_id, ten_combo: c.ten_combo, khoa: c.khoa.join(' ;; '), cap_nhat: c.cap_nhat,
                cach_xuat: c.cach_xuat || 'tach', ma_he_thong: c.ma_he_thong || '', ten_xuat: c.ten_xuat || '', nha: c.nha || '' };
@@ -41,6 +41,9 @@
       ['1. Sheet SKU_NHA: mỗi dòng 1 cuốn sách lẻ. Cột nha = HA / KV / ML / KHONG_NHAP.'],
       ['   - Sách có mã vạch: chỉ cần điền sku + ten + nha (để trống cột key).'],
       ['   - Sách không có mã vạch: điền ten + phan_loai ĐÚNG như trên sàn, để trống sku.'],
+      ['   - gia_gan_nhat (không bắt buộc): giá gốc gần nhất của cuốn sách – dùng khi tách combo.'],
+      ['   - ma_moi (không bắt buộc): sách tái bản đổi mã vạch → ghi mã vạch MỚI vào dòng của mã CŨ.'],
+      ['     Nên dùng nút "🔁 Thay mã tái bản" trong app thay vì nạp cột này (app tự đổi luôn thành phần combo).'],
       ['2. Sheet COMBO: mỗi dòng 1 combo. combo_id tự đặt (ví dụ C001), không trùng nhau.'],
       ['   - Cột khoa: SKU của combo trên các sàn, cách nhau bằng " ;; " (ví dụ: 55252 ;; 8935092825724|COMBO.HA).'],
       ['   - Combo có SKU là MÃ VẠCH (mã của 1 cuốn lẻ): ghi <mã vạch>|<phân loại> (ví dụ 8935092825724|COMBO.HA).'],
@@ -57,11 +60,11 @@
     var wsHd = XLSX.utils.aoa_to_sheet(hd);
     wsHd['!cols'] = [{ wch: 110 }];
     XLSX.utils.book_append_sheet(wb, wsHd, 'HUONG_DAN');
-    XLSX.utils.book_append_sheet(wb, sheet(XLSX, ['key', 'sku', 'ten', 'phan_loai', 'nha'], [
-      { sku: '8935092845425', ten: 'Sách - Hướng Dẫn Giải VIOLYMPIC Toán 1', nha: 'HA' },
+    XLSX.utils.book_append_sheet(wb, sheet(XLSX, ['key', 'sku', 'ten', 'phan_loai', 'nha', 'gia_gan_nhat', 'ma_moi'], [
+      { sku: '8935092845425', ten: 'Sách - Hướng Dẫn Giải VIOLYMPIC Toán 1', nha: 'HA', gia_gan_nhat: 48000 },
       { sku: '8935092543000', ten: 'Sách - Bồi Dưỡng Học Sinh Giỏi Lịch Sử 9', nha: 'KV' },
       { sku: '', ten: 'Sách - Ví Dụ Sách Không Có Mã Vạch - Newshop', phan_loai: 'Mặc định', nha: 'KHONG_NHAP' }
-    ], [6, 16, 60, 16, 12]), 'SKU_NHA');
+    ], [6, 16, 60, 16, 12, 12, 16]), 'SKU_NHA');
     XLSX.utils.book_append_sheet(wb, sheet(XLSX, ['combo_id', 'ten_combo', 'khoa', 'cach_xuat', 'ma_he_thong', 'ten_xuat', 'nha'], [
       { combo_id: 'C001', ten_combo: 'Combo Tập Viết Tiếng Nhật Katakana + Hiragana', khoa: '55252 ;; 8935092825724|COMBO.HA', cach_xuat: 'tach' },
       { combo_id: 'C002', ten_combo: 'Combo Giúp Em Học Tốt Tiếng Việt Lớp 3 - Tập 1 + 2', khoa: '55889', cach_xuat: 'nguyen',
@@ -116,7 +119,11 @@
       else if (ten) key = PL.tenKey(ten, r.phan_loai);
       else { loi.push('SKU_NHA dòng ' + (i + 2) + ': thiếu SKU và tên.'); return; }
       var nguon = PL.clean(r.nguon) === 'tu_hoc' ? 'tu_hoc' : 'tay';
-      skus.push({ key: key, sku: sku, ten: ten, nha: nha, nguon: nguon });
+      var e = { key: key, sku: sku, ten: ten, nha: nha, nguon: nguon };
+      if (Number(r.gia_gan_nhat) > 0) { e.gia_gan_nhat = Number(r.gia_gan_nhat); e.ngay_gia = PL.clean(r.ngay_gia); }
+      if (PL.clean(r.ma_moi)) e.ma_moi = PL.clean(r.ma_moi).toUpperCase();
+      if (PL.clean(r.khong_tai_ban)) e.khong_tai_ban = PL.clean(r.khong_tai_ban);
+      skus.push(e);
     });
     var theoId = {};
     dsCombo.forEach(function (r, i) {

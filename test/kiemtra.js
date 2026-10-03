@@ -220,6 +220,10 @@ check('File mẫu nạp lại được: 3 SKU, combo tách 2 thành phần + com
   mauNap.combos[0].thanh_phan.length === 2 && mauNap.loi.length === 0, mauNap.loi);
 check('Khóa "55252 ;; 8935092825724|COMBO.HA" → sku:55252, sku:8935092825724|combo.ha', mauNap.combos[0].khoa.join(',') === 'sku:55252,sku:8935092825724|combo.ha', mauNap.combos[0].khoa);
 check('Combo mẫu C002 là "nguyen", nhà HA, không cần thành phần', mauNap.combos[1].cach_xuat === 'nguyen' && mauNap.combos[1].nha === 'HA' && mauNap.combos[1].thanh_phan.length === 0);
+var skuMoi = [{ key: 'sku:8935092825731', sku: '8935092825731', ten: 'Katakana', nha: 'HA', nguon: 'tay', gia_gan_nhat: 28000, ngay_gia: '2026-10-03', ma_moi: '8935092999999', khong_tai_ban: '8935092888888' }];
+var vongLai = DX.nap(XLSX.read(XLSX.write(DX.xuat({ skus: skuMoi, combos: [] }, XLSX), { type: 'buffer', bookType: 'xlsx' })), XLSX).skus[0];
+check('Xuất/nạp danh mục giữ cột giá gần nhất, mã mới, không-phải-tái-bản', vongLai.gia_gan_nhat === 28000 && vongLai.ma_moi === '8935092999999' &&
+  vongLai.khong_tai_ban === '8935092888888' && vongLai.ngay_gia === '2026-10-03', vongLai);
 var napLoi = DX.nap((function () {
   var w = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(w, XLSX.utils.aoa_to_sheet([['combo_id', 'ten_combo', 'khoa', 'cach_xuat', 'nha'], ['C9', 'X', '111', 'nguyen', '']]), 'COMBO');

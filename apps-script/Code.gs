@@ -8,7 +8,8 @@
  *   4. Deploy → New deployment → Web app → Execute as: Me, Who has access: Anyone.
  *
  * Các sheet:
- *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat
+ *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat | gia_gan_nhat | ngay_gia | ma_moi | khong_tai_ban
+ *                     (ma_moi: mã tái bản thay thế ; khong_tai_ban: các mã đã xác nhận "không phải tái bản", cách nhau " ;; ")
  *   COMBO             combo_id | ten_combo | khoa | cap_nhat | cach_xuat | ma_he_thong | ten_xuat | nha
  *                     (khoa cách nhau bằng " ;; " ; cach_xuat = tach | nguyen ; trống = tach)
  *   COMBO_THANH_PHAN  combo_id | sku | ten | nha | gia_goc | so_luong
@@ -18,21 +19,20 @@
  *   GET  <url>                  → { ok, skus, combos }
  *   GET  <url>?action=lichSu    → { ok, lich_su }   (100 thay đổi gần nhất, mới nhất trước)
  *   POST <url>  body {action, data}  (Content-Type: text/plain)
- *        action: ping, upsertSku, upsertSkuBatch, deleteSku, upsertCombo, addComboKey, doiKhoaCombo, deleteCombo, importBatch
+ *        action: ping, upsertSku, upsertSkuBatch (kèm cập nhật giá), deleteSku, upsertCombo, addComboKey, doiKhoaCombo,
+ *                deleteCombo, importBatch, thayMaTaiBan, hoanTacTaiBan, boQuaTaiBan, capNhatGiaCombo
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU' };
 var COT = {
-  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat'],
+  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban'],
   COMBO: ['combo_id', 'ten_combo', 'khoa', 'cap_nhat', 'cach_xuat', 'ma_he_thong', 'ten_xuat', 'nha'],
   COMBO_THANH_PHAN: ['combo_id', 'sku', 'ten', 'nha', 'gia_goc', 'so_luong'],
   LICH_SU: ['thoi_gian', 'hanh_dong', 'khoa', 'du_lieu_cu', 'du_lieu_moi']
 };
-// Cột lưu dạng chữ (tránh Google Sheets tự đổi mã vạch thành số / ngày tháng)
-var COT_CHU = {
-  SKU_NHA: 6, COMBO: 8, COMBO_THANH_PHAN: 4, LICH_SU: 5
-};
+// Cột số; mọi cột khác lưu dạng chữ (tránh Google Sheets tự đổi mã vạch thành số / ngày tháng)
+var COT_SO = { SKU_NHA: ['gia_gan_nhat'], COMBO_THANH_PHAN: ['gia_goc', 'so_luong'] };
 var NHA_SKU = ['HA', 'KV', 'ML', 'KHONG_NHAP'];
 var NHA_TP = ['HA', 'KV', 'ML', 'KHAC'];
 var NHA_CHINH = ['HA', 'KV', 'ML'];
@@ -89,6 +89,22 @@ function xuLy_(action, data) {
       (data.items || []).forEach(function (it) {
         try { if (upsertSku_(cat, it, ctx, false)) extra.soThayDoi++; } catch (e) { /* bỏ qua dòng lỗi */ }
       });
+      // Giá gần nhất của sách lẻ trong file hôm nay (chỉ ghi khi giá đổi; không đụng nha/nguon)
+      extra.soCapNhatGia = 0;
+      (data.gia || []).forEach(function (g) { if (capNhatGia_(cat, g, ctx)) extra.soCapNhatGia++; });
+      break;
+    case 'thayMaTaiBan':
+      thayMaTaiBan_(cat, data, ctx);
+      break;
+    case 'hoanTacTaiBan':
+      hoanTacTaiBan_(cat, data, ctx);
+      break;
+    case 'boQuaTaiBan':
+      boQuaTaiBan_(cat, data, ctx);
+      break;
+    case 'capNhatGiaCombo':
+      extra.soCombo = 0;
+      (data.items || []).forEach(function (it) { if (capNhatGiaCombo_(cat, it, ctx)) extra.soCombo++; });
       break;
     case 'deleteSku':
       deleteSku_(cat, data, ctx);
@@ -153,12 +169,173 @@ function upsertSku_(cat, d, ctx, choGhiDeTay) {
   // Nhãn "tay" luôn ưu tiên hơn "tu_hoc": tự học không bao giờ ghi đè gán tay
   if (cu && cu.nguon === 'tay' && nguon === 'tu_hoc') return false;
   if (!choGhiDeTay && cu && cu.nguon === 'tay') return false;
-  var moi = { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten) || (cu ? cu.ten : ''), nha: nha, nguon: nguon, cap_nhat: ctx.now };
-  if (cu && cu.nha === moi.nha && cu.nguon === moi.nguon && cu.sku === moi.sku && cu.ten === moi.ten) return false;
+  // Giữ các cột khác (giá gần nhất, mã tái bản…) của dòng cũ
+  var moi = Object.assign({}, cu || {}, { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten) || (cu ? cu.ten : ''), nha: nha, nguon: nguon, cap_nhat: ctx.now });
+  if (!cu && soDuong_(d.gia_gan_nhat)) { moi.gia_gan_nhat = soDuong_(d.gia_gan_nhat); moi.ngay_gia = chuoi_(d.ngay_gia) || homNay_(); }
+  if (ctx.action === 'importBatch') {
+    // Nạp Excel: cho phép ghi kèm giá gần nhất / mã tái bản nếu file có
+    if (soDuong_(d.gia_gan_nhat)) { moi.gia_gan_nhat = soDuong_(d.gia_gan_nhat); moi.ngay_gia = chuoi_(d.ngay_gia) || homNay_(); }
+    if (chuoi_(d.ma_moi)) moi.ma_moi = chuoi_(d.ma_moi).toUpperCase();
+    if (chuoi_(d.khong_tai_ban)) moi.khong_tai_ban = chuoi_(d.khong_tai_ban);
+  }
+  var giong = function (a, b) {
+    return ['nha', 'nguon', 'sku', 'ten', 'gia_gan_nhat', 'ma_moi', 'khong_tai_ban'].every(function (f) { return chuoi_(a[f]) === chuoi_(b[f]); });
+  };
+  if (cu && giong(cu, moi)) return false;
   if (i >= 0) cat.skus[i] = moi; else cat.skus.push(moi);
   ctx.doiSku = true;
   ghiLog_(ctx, ctx.action, key, cu, moi);
   return true;
+}
+
+function soDuong_(v) { var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
+function homNay_() { return dinhDang_(new Date(), 'yyyy-MM-dd'); }
+function dinhSo_(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+function timSku_(cat, ma) { return timViTri_(cat.skus, 'key', 'sku:' + chuoi_(ma).toUpperCase()); }
+
+/* ===================== Giá gần nhất ===================== */
+
+function capNhatGia_(cat, g, ctx) {
+  var i = timViTri_(cat.skus, 'key', chuoi_(g.key));
+  var gia = soDuong_(g.gia);
+  if (i < 0 || !gia) return false;
+  var cu = cat.skus[i];
+  if (soDuong_(cu.gia_gan_nhat) === gia) return false;
+  var moi = Object.assign({}, cu, { gia_gan_nhat: gia, ngay_gia: homNay_() }); // KHÔNG đổi nha / nguon
+  cat.skus[i] = moi;
+  ctx.doiSku = true;
+  ghiLog_(ctx, 'capNhatGia', moi.key, cu, Object.assign({ ghi_chu: 'Cập nhật giá: ' + dinhSo_(cu.gia_gan_nhat) + ' → ' + dinhSo_(gia) }, moi));
+  return true;
+}
+
+/* items: { combo_id, gia: { "<sku>": giá mới } } → sửa giá khai báo của thành phần */
+function capNhatGiaCombo_(cat, d, ctx) {
+  var i = timViTri_(cat.combos, 'combo_id', chuoi_(d.combo_id));
+  if (i < 0) return false;
+  var c = cat.combos[i], cu = saoChep_(c), doi = [];
+  c.thanh_phan.forEach(function (t) {
+    var g = soDuong_((d.gia || {})[t.sku]);
+    if (g && g !== (Number(t.gia_goc) || 0)) { doi.push(t.ten + ': ' + dinhSo_(t.gia_goc) + ' → ' + dinhSo_(g)); t.gia_goc = g; }
+  });
+  if (!doi.length) return false;
+  c.cap_nhat = ctx.now;
+  ctx.doiCombo = true;
+  ghiLog_(ctx, 'capNhatGiaCombo', c.combo_id, cu, Object.assign({ ghi_chu: 'Cập nhật giá: ' + doi.join('; ') }, c));
+  return true;
+}
+
+/* ===================== Tái bản (đổi mã vạch) ===================== */
+
+/* Thay mã X → Y: tạo/cập nhật Y (nhà theo X, nguồn tay), X.ma_moi = Y, thành phần combo X → Y, thêm khóa combo theo Y */
+function thayMaTaiBan_(cat, d, ctx) {
+  var X = chuoi_(d.ma_cu).toUpperCase(), Y = chuoi_(d.ma_moi).toUpperCase();
+  var gia = soDuong_(d.gia), ten = chuoi_(d.ten);
+  if (!X || !Y) throw new Error('Thiếu mã cũ hoặc mã mới.');
+  if (!/^\d{7,}$/.test(Y)) throw new Error('Mã mới phải là mã vạch (chỉ gồm chữ số, từ 7 ký tự).');
+  if (X === Y) throw new Error('Mã mới phải khác mã cũ.');
+  var iX = timSku_(cat, X);
+  if (iX < 0) throw new Error('Mã cũ ' + X + ' chưa có trong danh mục.');
+  var rx = cat.skus[iX];
+  if (chuoi_(rx.ma_moi)) throw new Error('Mã ' + X + ' đã được thay bằng ' + rx.ma_moi + ' – hãy thay mã trên mã mới nhất.');
+  // Chặn vòng lặp: đi theo chuỗi từ Y không được quay về X
+  var cur = Y, da = {};
+  while (cur && !da[cur]) {
+    if (cur === X) throw new Error('Không thể thay ' + X + ' → ' + Y + ' vì ' + Y + ' đang trỏ ngược về ' + X + ' (vòng lặp).');
+    da[cur] = 1;
+    var j = timSku_(cat, cur);
+    cur = j >= 0 ? chuoi_(cat.skus[j].ma_moi).toUpperCase() : '';
+  }
+  var iY = timSku_(cat, Y);
+  var dongCombo = [];
+  cat.combos.forEach(function (c, k) {
+    var dung = c.thanh_phan.some(function (t) { return chuoi_(t.sku).toUpperCase() === X; }) ||
+      c.khoa.some(function (kh) { return kh === 'sku:' + X || kh.indexOf('sku:' + X + '|') === 0; });
+    if (dung) dongCombo.push(k);
+  });
+  var truoc = {
+    skus: [{ key: 'sku:' + X, dong: saoChep_(rx) }, { key: 'sku:' + Y, dong: iY >= 0 ? saoChep_(cat.skus[iY]) : null }],
+    combos: dongCombo.map(function (k) { return saoChep_(cat.combos[k]); })
+  };
+
+  var ry = iY >= 0 ? cat.skus[iY] : null;
+  var moiY = Object.assign({}, ry || {}, {
+    key: 'sku:' + Y, sku: Y, ten: ten || (ry && ry.ten) || rx.ten, nha: rx.nha, nguon: 'tay', cap_nhat: ctx.now,
+    ma_moi: ry ? chuoi_(ry.ma_moi) : '', khong_tai_ban: ry ? chuoi_(ry.khong_tai_ban) : ''
+  });
+  if (gia) { moiY.gia_gan_nhat = gia; moiY.ngay_gia = homNay_(); }
+  else if (!soDuong_(moiY.gia_gan_nhat) && soDuong_(rx.gia_gan_nhat)) { moiY.gia_gan_nhat = rx.gia_gan_nhat; moiY.ngay_gia = rx.ngay_gia; }
+  if (iY >= 0) cat.skus[iY] = moiY; else cat.skus.push(moiY);
+  cat.skus[iX] = Object.assign({}, rx, { ma_moi: Y, cap_nhat: ctx.now });
+
+  var khoaDaCo = {};
+  cat.combos.forEach(function (c) { c.khoa.forEach(function (kh) { khoaDaCo[kh] = c.combo_id; }); });
+  dongCombo.forEach(function (k) {
+    var c = cat.combos[k];
+    c.thanh_phan.forEach(function (t) {
+      if (chuoi_(t.sku).toUpperCase() !== X) return;
+      t.sku = Y;
+      if (ten) t.ten = ten;
+      if (gia) t.gia_goc = gia;
+    });
+    c.khoa.slice().forEach(function (kh) {
+      var moi = kh === 'sku:' + X ? 'sku:' + Y : kh.indexOf('sku:' + X + '|') === 0 ? 'sku:' + Y + kh.slice(4 + X.length) : '';
+      if (moi && !khoaDaCo[moi]) { c.khoa.push(moi); khoaDaCo[moi] = c.combo_id; }
+    });
+    c.cap_nhat = ctx.now;
+  });
+  var sau = {
+    skus: [{ key: 'sku:' + X, dong: saoChep_(cat.skus[iX]) }, { key: 'sku:' + Y, dong: saoChep_(moiY) }],
+    combos: dongCombo.map(function (k) { return saoChep_(cat.combos[k]); })
+  };
+  ctx.doiSku = true;
+  if (dongCombo.length) ctx.doiCombo = true;
+  ghiLog_(ctx, 'thayMaTaiBan', X + ' → ' + Y, truoc, sau);
+}
+
+/* Hoàn tác 1 lần thay mã: d.dong = số dòng của bản ghi thayMaTaiBan trong sheet LICH_SU */
+function hoanTacTaiBan_(cat, d, ctx) {
+  var dong = Math.round(Number(d.dong));
+  var s = sheet_(SH.LS);
+  if (!(dong >= 2 && dong <= s.getLastRow())) throw new Error('Không tìm thấy bản ghi lịch sử cần hoàn tác.');
+  var r = s.getRange(dong, 1, 1, COT.LICH_SU.length).getValues()[0];
+  if (String(r[1]) !== 'thayMaTaiBan') throw new Error('Bản ghi này không phải "Thay mã tái bản".');
+  var maLs = 'LS#' + dong;
+  var n = s.getLastRow();
+  var cot = s.getRange(2, 2, n - 1, 2).getValues();
+  if (cot.some(function (x) { return String(x[0]) === 'hoanTacTaiBan' && String(x[1]).indexOf(maLs + ' ') === 0; })) {
+    throw new Error('Lần thay mã này đã được hoàn tác rồi.');
+  }
+  var truoc = JSON.parse(String(r[3]));
+  var hienTai = { skus: [], combos: [] };
+  truoc.skus.forEach(function (x) {
+    var i = timViTri_(cat.skus, 'key', x.key);
+    hienTai.skus.push({ key: x.key, dong: i >= 0 ? saoChep_(cat.skus[i]) : null });
+    if (x.dong) { if (i >= 0) cat.skus[i] = x.dong; else cat.skus.push(x.dong); }
+    else if (i >= 0) cat.skus.splice(i, 1);
+  });
+  truoc.combos.forEach(function (c) {
+    var i = timViTri_(cat.combos, 'combo_id', c.combo_id);
+    hienTai.combos.push(i >= 0 ? saoChep_(cat.combos[i]) : null);
+    if (i >= 0) cat.combos[i] = c; else cat.combos.push(c);
+  });
+  ctx.doiSku = true;
+  if (truoc.combos.length) ctx.doiCombo = true;
+  ghiLog_(ctx, 'hoanTacTaiBan', maLs + ' (' + String(r[2]) + ')', hienTai, truoc);
+}
+
+/* "Không phải tái bản": ghi nhớ cặp X–Y để không hỏi lại */
+function boQuaTaiBan_(cat, d, ctx) {
+  var X = chuoi_(d.ma_cu).toUpperCase(), Y = chuoi_(d.ma_moi).toUpperCase();
+  var i = timSku_(cat, X);
+  if (i < 0 || !Y) throw new Error('Không tìm thấy mã ' + X + ' trong danh mục.');
+  var cu = cat.skus[i];
+  var ds = chuoi_(cu.khong_tai_ban) ? chuoi_(cu.khong_tai_ban).split(/\s*;;\s*/) : [];
+  if (ds.indexOf(Y) >= 0) return;
+  ds.push(Y);
+  var moi = Object.assign({}, cu, { khong_tai_ban: ds.join(TACH_KHOA), cap_nhat: ctx.now });
+  cat.skus[i] = moi;
+  ctx.doiSku = true;
+  ghiLog_(ctx, 'boQuaTaiBan', X + ' ≠ ' + Y, cu, moi);
 }
 
 function deleteSku_(cat, d, ctx) {
@@ -325,7 +502,8 @@ function ghiBang_(ten, ds) {
   var s = sheet_(ten), cols = COT[ten], n = s.getLastRow();
   if (n > 1) s.getRange(2, 1, n - 1, cols.length).clearContent();
   if (!ds.length) return;
-  s.getRange(2, 1, ds.length, COT_CHU[ten]).setNumberFormat('@');
+  var so = COT_SO[ten] || [];
+  cols.forEach(function (c, j) { if (so.indexOf(c) < 0) s.getRange(2, j + 1, ds.length, 1).setNumberFormat('@'); });
   s.getRange(2, 1, ds.length, cols.length).setValues(ds.map(function (o) {
     return cols.map(function (c) { return o[c] === undefined || o[c] === null ? '' : o[c]; });
   }));
@@ -370,11 +548,11 @@ function docLichSu_(soDong) {
   var s = sheet_(SH.LS), n = s.getLastRow();
   if (n < 2) return [];
   var tu = Math.max(2, n - soDong + 1);
-  return s.getRange(tu, 1, n - tu + 1, COT.LICH_SU.length).getValues().reverse().map(function (r) {
-    var o = {};
+  return s.getRange(tu, 1, n - tu + 1, COT.LICH_SU.length).getValues().map(function (r, i) {
+    var o = { dong: tu + i }; // số dòng trong sheet – dùng cho "Hoàn tác"
     COT.LICH_SU.forEach(function (c, j) { o[c] = r[j] instanceof Date ? dinhDang_(r[j]) : String(r[j]); });
     return o;
-  });
+  }).reverse();
 }
 
 /* ===================== Tiện ích ===================== */

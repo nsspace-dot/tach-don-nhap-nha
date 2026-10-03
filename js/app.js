@@ -143,14 +143,23 @@
   function tuHoc() {
     if (!S.kq || !DM.coTheGhi() || S.hocDangGui) return;
     var ds = S.kq.hoc.filter(function (h) { return !S.hocDaGui[h.key]; });
-    if (!ds.length) return;
+    // Giá gần nhất của SKU đã có trong danh mục – gom chung vào 1 lần ghi
+    var gia = S.kq.capNhatGia.filter(function (g) { return !S.hocDaGui[g.key + '@' + g.gia]; });
+    if (!ds.length && !gia.length) return;
     S.hocDangGui = true;
     ds.forEach(function (h) { S.hocDaGui[h.key] = true; });
-    DM.goi('upsertSkuBatch', { items: ds })
-      .then(function () { toast('🐾 Mèo đã ghi nhớ thêm ' + ds.length + ' SKU vào danh mục.', 'ok'); })
+    gia.forEach(function (g) { S.hocDaGui[g.key + '@' + g.gia] = true; });
+    DM.goi('upsertSkuBatch', { items: ds, gia: gia.map(function (g) { return { key: g.key, gia: g.gia }; }) })
+      .then(function () {
+        var tin = [];
+        if (ds.length) tin.push('ghi nhớ thêm ' + ds.length + ' SKU');
+        if (gia.length) tin.push('cập nhật giá ' + gia.length + ' SKU');
+        toast('🐾 Mèo đã ' + tin.join(' và ') + '.', 'ok');
+      })
       .catch(function (e) {
         ds.forEach(function (h) { delete S.hocDaGui[h.key]; });
-        toast('Không lưu được SKU tự học: ' + e.message, 'loi');
+        gia.forEach(function (g) { delete S.hocDaGui[g.key + '@' + g.gia]; });
+        toast('Không lưu được SKU tự học / giá: ' + e.message, 'loi');
       })
       .then(function () { S.hocDangGui = false; });
   }
@@ -185,6 +194,8 @@
         '<div class="card-so">' + so(tg.cuon) + ' <small>cuốn</small></div>' +
         '<div class="card-phu">' + so(tg.dong) + ' dòng</div></button>';
     }).join('');
+    veTaiBan();
+    veListing();
     Array.prototype.forEach.call($('cards').children, function (b) { b.classList.toggle('is-active', b.dataset.k === S.tab); });
     veBang();
     veBoQua();
@@ -197,6 +208,7 @@
     var legend = '';
     if (PL.NHA.indexOf(S.tab) >= 0) {
       legend = '<div class="legend"><span><i style="background:var(--sku-la)"></i>SKU trống / dạng chữ</span>' +
+        '<span><i style="background:#cfe5ff"></i>Có đơn dùng mã cũ (tái bản) – nên sửa listing</span>' +
         '<span><i style="background:var(--warn)"></i>Cùng SKU nhưng giá gốc khác</span></div>';
     } else if (S.tab === 'chuaRo') {
       legend = '<div class="legend">Chọn nhà cho từng dòng – mèo sẽ nhớ cho lần sau 🐾</div>';
@@ -205,15 +217,19 @@
     }
     $('panel-head').innerHTML = '<h2>' + t.emoji + ' ' + t.ten + '</h2>' + legend;
     if (!list.length) {
-      $('bang').innerHTML = '<div class="trong-bang"><div class="mini-cat">' + LV.meo('ngu') + '</div>Không có dòng nào ở đây.</div>';
+      $('bang').innerHTML = (S.tab === 'combo' ? khungLechGia(S.kq.lechGiaHomNay, 'kq') : '') + '<div class="trong-bang"><div class="mini-cat">' + LV.meo('ngu') + '</div>Không có dòng nào ở đây.</div>';
       return;
     }
     if (PL.NHA.indexOf(S.tab) >= 0) $('bang').innerHTML = bangNha(list);
-    else if (S.tab === 'combo') $('bang').innerHTML = bangCombo(list);
+    else if (S.tab === 'combo') $('bang').innerHTML = khungLechGia(S.kq.lechGiaHomNay, 'kq') + bangCombo(list);
     else $('bang').innerHTML = bangChuaRo(list);
   }
 
   function oSku(g) {
+    if (g.maCu && g.maCu.length) {
+      return '<span class="ma-cu" title="Có đơn còn dùng mã cũ ' + esc(g.maCu.join(', ')) + ' – đã tính vào mã mới">' + esc(g.sku) + '</span>' +
+        '<div><span class="nho nho-macu">Mã cũ trên sàn – nên sửa listing</span></div>';
+    }
     if (!g.sku) return '<span class="sku-la sku-trong" title="Không có SKU – nhận diện bằng tên + phân loại">(trống)</span>';
     if (g.skuLa) return '<span class="sku-la" title="SKU không phải mã vạch – nhận diện bằng tên + phân loại">' + esc(g.sku) + '</span>';
     return esc(g.sku);
@@ -312,6 +328,57 @@
             : '<span class="muted" title="Dán URL Apps Script ở màn Cài đặt">🔌</span>') +
           '</td></tr>';
       }).join('') + '</tbody></table>';
+  }
+
+  /* ---------- Tái bản: khung nhắc + listing cần sửa ---------- */
+  function giaChu(n) { return n ? so(n) + 'đ' : 'chưa rõ giá'; }
+  function veTaiBan() {
+    var ds = S.kq.taiBan;
+    $('tai-ban').hidden = !ds.length;
+    $('tai-ban').innerHTML = ds.map(function (t, i) {
+      return '<div class="tai-ban-item" role="status"><div class="tb-text">🔁 <b>Có thể là bản tái bản:</b> ' + esc(PL.tenGon(t.ten, DM.caiDat.maKhac)) +
+        ' — mã cũ <b>' + esc(t.maCu) + '</b> (' + giaChu(t.giaCu) + ') → mã mới <b>' + esc(t.maMoi) + '</b> (' + giaChu(t.giaMoi) + ')</div>' +
+        nutGhi('✅ Đúng, thay mã', 'class="btn btn-sm btn-primary" data-tb-dung="' + i + '"') +
+        nutGhi('Không phải', 'class="btn btn-sm" data-tb-khong="' + i + '"') + '</div>';
+    }).join('');
+  }
+  function veListing() {
+    var ds = S.kq.listingCanSua;
+    $('listing').hidden = !ds.length;
+    if (!ds.length) return;
+    $('listing-tieu-de').textContent = '🏷️ Mã cũ trên sàn – nên sửa listing (' + ds.length + ')';
+    $('bang-listing').innerHTML = '<div class="legend" style="padding:12px 16px">Các listing dưới đây còn dùng mã vạch cũ (sách đã tái bản). App đã tự tính vào mã mới; nên sửa SKU trên sàn cho khớp.</div>' +
+      '<table class="tbl"><thead><tr><th>Sàn</th><th>Tên sản phẩm</th><th>Phân loại</th><th>Mã cũ → mã mới</th><th class="so">Số dòng</th></tr></thead><tbody>' +
+      ds.map(function (l) {
+        return '<tr><td><span class="tag tag-' + l.san + '">' + l.san + '</span></td><td class="ten">' + esc(l.ten) + '</td><td class="pl">' + esc(l.phanLoai) +
+          '</td><td class="sku">' + esc(l.maCu) + ' → <b>' + esc(l.maMoi) + '</b></td><td class="so">' + l.soDong + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  function thayMa(t) {
+    return DM.goi('thayMaTaiBan', { ma_cu: t.maCu, ma_moi: t.maMoi, gia: t.giaMoi || '', ten: t.tenMoi || '' })
+      .then(function () { toast('🔁 Đã thay mã ' + t.maCu + ' → ' + t.maMoi + '. Combo và đơn mã cũ sẽ tính theo mã mới.', 'ok'); })
+      .catch(function (e) { toast('Không thay mã được: ' + e.message, 'loi'); throw e; });
+  }
+
+  /* ---------- Lệch giá combo ---------- */
+  function khungLechGia(ds, nguon) {
+    if (!ds || !ds.length) return '';
+    return '<div class="lech-gia">💸 <b>' + ds.length + ' combo có giá thành phần đã đổi</b> (giá khai báo khác giá mới nhất):<ul>' +
+      ds.map(function (c, i) {
+        return '<li><b>' + esc(PL.tenGon(c.ten_combo, DM.caiDat.maKhac)) + '</b> ' + c.ds.map(function (x) {
+          return '<span class="nhan-lech" title="' + esc(x.ten) + '">💸 Giá đã đổi: ' + so(x.cu) + ' → ' + so(x.moi) + '</span>';
+        }).join('') + ' ' + nutGhi('Cập nhật giá', 'class="btn btn-sm" data-gia-combo="' + i + '" data-gia-nguon="' + nguon + '"') + '</li>';
+      }).join('') + '</ul>' + nutGhi('💸 Cập nhật giá tất cả combo', 'class="btn btn-sm btn-primary" data-gia-tatca="' + nguon + '"') + '</div>';
+  }
+  function capNhatGiaCombo(ds) {
+    if (!ds.length) return Promise.resolve();
+    return DM.goi('capNhatGiaCombo', { items: ds.map(function (c) {
+      var gia = {};
+      c.ds.forEach(function (x) { gia[x.sku] = x.moi; });
+      return { combo_id: c.combo_id, gia: gia };
+    }) })
+      .then(function () { toast('💸 Đã cập nhật giá cho ' + ds.length + ' combo.', 'ok'); })
+      .catch(function (e) { toast('Không cập nhật giá được: ' + e.message, 'loi'); });
   }
 
   /* ---------- Gán nhà (lưu danh mục, nguồn = tay) ---------- */
@@ -435,6 +502,8 @@
       else if (b.dataset.khaiBaoCr) root.KhaiBao.moKhaiBao(S.kq.chuaRo[+b.dataset.khaiBaoCr]);
       else if (b.dataset.coSan) root.KhaiBao.moCoSan(S.kq.combo[+b.dataset.coSan]);
       else if (b.dataset.nguyen) root.KhaiBao.moKhaiBao(S.kq.combo[+b.dataset.nguyen], 'nguyen');
+      else if (b.dataset.giaCombo) { b.disabled = true; capNhatGiaCombo([S.kq.lechGiaHomNay[+b.dataset.giaCombo]]); }
+      else if (b.dataset.giaTatca) { b.disabled = true; capNhatGiaCombo(S.kq.lechGiaHomNay); }
     });
     $('bang-bo-qua').addEventListener('change', function (e) {
       var s = e.target.closest('[data-gan-bq]');
@@ -444,6 +513,23 @@
     });
 
     $('btn-tai').addEventListener('click', taiExcel);
+    $('tai-ban').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      if (b.dataset.tbDung) {
+        var t = S.kq.taiBan[+b.dataset.tbDung];
+        hoi('Thay mã ' + t.maCu + ' → ' + t.maMoi + ' cho "' + PL.tenGon(t.ten, DM.caiDat.maKhac) + '"?\n\n' +
+          '· Mã mới ' + t.maMoi + ' thuộc nhà ' + (PL.TEN_NHA[t.nha] || t.nha) + ', giá ' + giaChu(t.giaMoi) + '\n' +
+          '· Combo có cuốn này sẽ tách ra mã mới\n· Đơn còn dùng mã cũ vẫn tính vào mã mới\n\nCó thể hoàn tác trong tab Lịch sử.', 'Thay mã')
+          .then(function (ok) { if (ok) { b.disabled = true; thayMa(t).catch(function () { b.disabled = false; }); } });
+      } else if (b.dataset.tbKhong) {
+        var k = S.kq.taiBan[+b.dataset.tbKhong];
+        b.disabled = true;
+        DM.goi('boQuaTaiBan', { ma_cu: k.maCu, ma_moi: k.maMoi })
+          .then(function () { toast('👌 Đã ghi nhớ: ' + k.maMoi + ' không phải tái bản của ' + k.maCu + '.', 'ok'); })
+          .catch(function (e) { b.disabled = false; toast('Không lưu được: ' + e.message, 'loi'); });
+      }
+    });
     document.querySelectorAll('.nav-btn').forEach(function (b) {
       b.addEventListener('click', function () { diToi(b.dataset.man); });
     });
@@ -471,7 +557,7 @@
 
   root.App = {
     S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge,
-    rows: rows, diToi: diToi
+    rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa
   };
   document.addEventListener('DOMContentLoaded', khoiDong);
 })(typeof self !== 'undefined' ? self : this);

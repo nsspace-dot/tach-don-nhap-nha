@@ -156,17 +156,44 @@ Trên màn hình app cũng hiện tên gọn; **rê chuột vào tên** để xe
 Ý nghĩa màu trong file Excel:
 - 🟧 **Ô SKU màu cam:** SKU trống hoặc không phải mã vạch – app nhận diện bằng tên + phân loại.
 - 🟨 **Cả dòng màu vàng:** cùng SKU nhưng giá gốc khác nhau (để 2 dòng riêng cho bạn kiểm tra).
+- 🟦 **Ô SKU màu xanh dương nhạt:** có đơn còn dùng **mã cũ** của sách đã tái bản – app đã tính vào mã mới. Nên sửa SKU của listing đó trên sàn (xem mục *"Mã cũ trên sàn – nên sửa listing"* trên màn hình).
 
 ### Mèo tự học 🐾
 Mỗi lần tách đơn, sách lẻ có mã vạch và có đúng 1 mã nhà trong tên (vd "… - HA - Newshop") sẽ được tự ghi vào danh mục (nguồn **tự học**).
 Lần sau nếu tên sách thiếu mã nhà, app vẫn nhận ra. Những gì bạn **gán tay** luôn được ưu tiên – tự học không bao giờ ghi đè.
 
+## Khi sách tái bản / tăng giá 📈🔁
+
+### Sách tăng giá
+- Mỗi lần thả file, với **sách lẻ có mã vạch đã có trong danh mục**, app ghi lại **giá gần nhất** (giá gốc trong file; nhiều giá trong ngày thì lấy giá cao nhất).
+  Chỉ ghi khi giá đổi, gom chung vào lần ghi tự học, và ghi vào **Lịch sử** ("Cập nhật giá: 25.000 → 28.000"). Không bao giờ đổi nhà / nguồn bạn đã gán tay.
+- Khi **tách combo**, giá mỗi cuốn lấy theo thứ tự: **giá sách lẻ đó trong file hôm nay** → **giá gần nhất trong danh mục** → giá đã khai báo trong combo.
+- Nếu giá khai báo trong combo khác giá mới nhất, app hiện nhãn **"💸 Giá đã đổi: 25.000 → 28.000"** ở tab Combo (màn Tách đơn) và ở Danh mục > Combo.
+  Bấm **Cập nhật giá** (từng combo) hoặc **💸 Cập nhật giá tất cả combo** để sửa giá khai báo (có ghi Lịch sử).
+- Danh mục > SKU → nhà có cột **Giá gần nhất (ngày)**.
+
+### Sách tái bản (đổi mã vạch)
+**App tự phát hiện:** khi file có một sách lẻ mã vạch **mới** (chưa có trong danh mục) mà **tên trùng** một sách đã có, đầu trang hiện khung:
+> 🔁 Có thể là bản tái bản: *Tập Viết Tiếng Nhật Katakana* — mã cũ 8935092825731 (28.000đ) → mã mới 8935092999999 (30.000đ)
+- **✅ Đúng, thay mã** → app thay mã (xem bên dưới).
+- **Không phải** → app ghi nhớ cặp mã này và không hỏi lại nữa.
+
+**Thay mã bằng tay:** Danh mục > SKU → nhà → dòng sách cũ → **🔁 Thay mã tái bản** → nhập mã vạch mới (bắt buộc), giá mới và tên mới (không bắt buộc).
+
+Khi thay mã cũ **X** → mã mới **Y**, app làm một lần:
+1. Tạo dòng **Y** (cùng nhà với X, nguồn "gán tay", giá mới). Dòng **X** được giữ lại làm **mã phụ** trỏ về Y.
+2. Mọi combo có cuốn X → đổi thành Y. Khóa nhận diện combo theo X được giữ và thêm khóa tương ứng theo Y.
+3. Đơn **còn dùng mã cũ X** (listing trên sàn chưa sửa) vẫn được tính như Y: xuất SKU Y, cộng chung với Y, ô SKU tô **xanh dương nhạt**, và có danh sách **"🏷️ Mã cũ trên sàn – nên sửa listing"** (sàn, tên sản phẩm, mã cũ → mã mới).
+4. Tái bản nhiều lần (X → Y → Z): thay tiếp trên mã mới nhất (Y → Z); đơn dùng X hay Y đều ra Z. App chặn trường hợp vòng lặp.
+
+**Hoàn tác:** Danh mục > 🕘 Lịch sử → dòng **"🔁 Thay mã tái bản"** → **↩️ Hoàn tác** → danh mục SKU và combo liên quan trở về đúng như trước khi thay (việc hoàn tác cũng được ghi Lịch sử; mỗi lần thay mã chỉ hoàn tác được 1 lần).
+
 ## Màn Danh mục
 
-- **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), đổi nhà, xóa (có hỏi lại).
+- **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
 - **Combo:** xem thành phần, cột **Cách xuất** (✂️ Tách / 📦 Nguyên combo – đổi qua lại ngay tại đây), **✏️ Sửa**, xóa (hiện rõ tên combo và các thành phần trước khi xóa).
   - Combo có SKU là **mã vạch** (vd dòng Shopee "Hiragana (HA)" phân loại COMBO.HA) được nhận diện bằng mã vạch **kèm phân loại** (`sku:8935092825724|combo.ha`), để không nhầm với cuốn lẻ cùng mã vạch. Combo khai báo trước đây bằng mã vạch trơn sẽ **tự đổi sang khóa mới** lần đầu bạn thả file có combo đó (có ghi Lịch sử).
-- **🕘 Lịch sử:** 100 thay đổi gần nhất (ai gán nhà, tự học, lưu/xóa combo…), có dữ liệu trước và sau. Bản đầy đủ ở sheet **LICH_SU**.
+- **🕘 Lịch sử:** 100 thay đổi gần nhất (gán nhà, tự học, cập nhật giá, lưu/xóa combo, thay mã tái bản…), có dữ liệu trước và sau, nút **↩️ Hoàn tác** cho thay mã tái bản. Bản đầy đủ ở sheet **LICH_SU**.
 - **📤 Xuất danh mục ra Excel:** sao lưu thủ công về máy.
 - **📥 Nạp từ Excel:** nạp hàng loạt. Bấm **📄 Tải file mẫu** (hoặc dùng [`templates/mau-nap-danh-muc.xlsx`](templates/mau-nap-danh-muc.xlsx)), đọc sheet `HUONG_DAN` trong file, điền rồi nạp. File xuất ở trên cũng nạp lại được.
 
@@ -210,5 +237,6 @@ Chạy kiểm thử (cần Node.js):
 ```
 node test/kiemtra.js              # cần 2 file mẫu thật trong thư mục mau/ (không có trên repo)
 node test/kiemtra-appscript.js    # kiểm thử Code.gs bằng môi trường giả lập
+node test/kiemtra-taiban.js        # giá gần nhất + thay mã tái bản (Code.gs giả lập + phân loại, cần file mẫu)
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

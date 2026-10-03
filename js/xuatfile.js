@@ -9,6 +9,7 @@
   var MAU = { HA: 'FFF9D5CC', KV: 'FFCDEFE0', ML: 'FFFBEBB5', combo: 'FFE3D9F5', chuaRo: 'FFFFD8C2' };
   var CANH_BAO = 'FFFFF2A8';      // cùng SKU nhưng giá gốc khác nhau
   var SKU_LA = 'FFFFB580';        // SKU trống / dạng chữ (không phải mã vạch)
+  var MA_CU = 'FFCFE5FF';         // có đơn còn dùng mã cũ (sách tái bản) → nên sửa listing
   var SO = '#,##0';
 
   function fileName(date) {
@@ -42,6 +43,11 @@
         c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SKU_LA } };
         c.note = 'SKU trống hoặc không phải mã vạch – nhận diện bằng tên + phân loại';
       }
+      if (r._maCu) {
+        var cm = row.getCell(cols.findIndex(function (x) { return x.k === 'sku'; }) + 1);
+        cm.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: MA_CU } };
+        cm.note = 'Có đơn còn dùng mã cũ ' + r._maCu + ' (sách tái bản) – đã tính vào mã mới. Nên sửa listing trên sàn.';
+      }
     });
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
     return ws;
@@ -63,7 +69,7 @@
 
   function pick(list, cols, skuLa) {
     return list.map(function (g) {
-      var o = { _canhBao: g.canhBaoGia, _skuLa: skuLa && g.skuLa };
+      var o = { _canhBao: g.canhBaoGia, _skuLa: skuLa && g.skuLa, _maCu: g.maCu && g.maCu.length ? g.maCu.join(', ') : '' };
       cols.forEach(function (c) { o[c.k] = g[c.k] === undefined ? '' : g[c.k]; });
       if (g.tenGon) o.ten = g.tenGon; // tên đã làm gọn (bỏ "Sách -", "- HA - Newshop"…)
       return o;

@@ -62,12 +62,19 @@
           <button class="btn btn-big" id="btn-tai" type="button">⬇️ Tải file Excel</button>
         </div>
 
+        <div class="tai-ban" id="tai-ban" hidden></div>
+
         <div class="cards" id="cards" role="tablist" aria-label="Nhóm kết quả"></div>
 
         <div class="panel" id="panel" role="tabpanel">
           <div class="panel-head" id="panel-head"></div>
           <div class="table-wrap" id="bang"></div>
         </div>
+
+        <details class="bo-qua listing" id="listing" hidden>
+          <summary id="listing-tieu-de">Mã cũ trên sàn – nên sửa listing</summary>
+          <div class="table-wrap" id="bang-listing"></div>
+        </details>
 
         <details class="bo-qua" id="bo-qua">
           <summary id="bo-qua-tieu-de">Đã bỏ qua</summary>
@@ -178,6 +185,28 @@
       <input type="search" class="input" id="cs-tim" placeholder="🔎 Tìm combo…" aria-label="Tìm combo">
       <ul class="cs-list" id="cs-list"></ul>
       <div class="dlg-actions"><button class="btn" value="cancel">Đóng</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlg-taiban" aria-labelledby="dlg-taiban-title">
+    <form method="dialog" id="form-taiban">
+      <h2 id="dlg-taiban-title">🔁 Thay mã tái bản</h2>
+      <p class="muted" id="tb-goc"></p>
+      <label class="field"><span>Mã vạch mới <small>(bắt buộc)</small></span>
+        <input class="input" id="tb-ma" inputmode="numeric" autocomplete="off" required>
+      </label>
+      <label class="field"><span>Giá gốc mới <small>(không bắt buộc)</small></span>
+        <input class="input" id="tb-gia" type="number" min="0" step="1000">
+      </label>
+      <label class="field"><span>Tên mới <small>(không bắt buộc – để trống giữ tên cũ)</small></span>
+        <input class="input" id="tb-ten">
+      </label>
+      <small class="muted">Mã cũ được giữ lại làm “mã phụ”: đơn còn dùng mã cũ sẽ tính vào mã mới. Thành phần combo dùng mã cũ đổi sang mã mới. Có thể hoàn tác trong tab Lịch sử.</small>
+      <p class="err" id="tb-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" type="button" id="tb-luu">🔁 Thay mã</button>
+      </div>
     </form>
   </dialog>
 

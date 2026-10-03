@@ -116,7 +116,52 @@
     (catalog.combos || []).forEach(function (c) {
       (c.khoa || []).forEach(function (k) { if (clean(k)) combo.set(clean(k), c); });
     });
-    return { sku: sku, combo: combo };
+    // Mã tái bản: "sku:X" có ma_moi = Y → X là mã phụ trỏ về Y
+    var maMoi = new Map();
+    sku.forEach(function (e, k) {
+      if (/^sku:/.test(k) && clean(e.ma_moi)) maMoi.set(k.slice(4), clean(e.ma_moi).toUpperCase());
+    });
+    return { sku: sku, combo: combo, maMoi: maMoi };
+  }
+
+  /* Đi theo chuỗi tái bản X → Y → Z tới mã mới nhất (chặn vòng lặp) */
+  function maMoiNhat(idx, sku) {
+    var cur = clean(sku).toUpperCase(), seen = {};
+    while (idx.maMoi.has(cur) && !seen[cur]) { seen[cur] = 1; cur = idx.maMoi.get(cur); }
+    return cur;
+  }
+  function soGia(v) { var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
+  /* Tên để so tái bản: tên làm gọn, bỏ dấu, chữ thường, gộp khoảng trắng */
+  function tenSoSanh(ten, maKhac) {
+    return tenGon(ten, maKhac).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  /* Giá dùng cho 1 thành phần combo: (a) giá sách lẻ trong file hôm nay → (b) giá gần nhất trong danh mục → (c) giá khai báo */
+  function giaThanhPhan(idx, giaFile, tp) {
+    var s = maMoiNhat(idx, tp.sku);
+    if (s && giaFile[s]) return { gia: giaFile[s], nguon: 'file' };
+    var e = s && idx.sku.get(skuKey(s));
+    if (e && soGia(e.gia_gan_nhat)) return { gia: soGia(e.gia_gan_nhat), nguon: 'danh_muc' };
+    return { gia: Number(tp.gia_goc) || 0, nguon: 'khai_bao' };
+  }
+
+  /* Combo "Tách" có giá khai báo khác giá đang dùng → [{combo_id, ten_combo, ds:[{sku, ten, cu, moi}]}] */
+  function lechGiaCombo(catalog, giaFile) {
+    var idx = catalog && catalog.sku instanceof Map ? catalog : buildIndex(catalog);
+    var ds = [];
+    var combos = catalog.combos || Array.from(new Set(idx.combo.values()));
+    combos.forEach(function (c) {
+      if (c.cach_xuat === 'nguyen') return;
+      var lech = [];
+      (c.thanh_phan || []).forEach(function (tp) {
+        if (!clean(tp.sku) || NHA.indexOf(tp.nha) < 0) return;
+        var g = giaThanhPhan(idx, giaFile || {}, tp);
+        if (g.nguon !== 'khai_bao' && g.gia !== (Number(tp.gia_goc) || 0)) lech.push({ sku: tp.sku, ten: tp.ten, cu: Number(tp.gia_goc) || 0, moi: g.gia });
+      });
+      if (lech.length) ds.push({ combo_id: c.combo_id, ten_combo: c.ten_combo, ds: lech });
+    });
+    return ds;
   }
   function lookup(map, row, isCombo) {
     var keys = rowKeys(row, isCombo);
@@ -213,6 +258,7 @@
     if (rank < g.rank) { g.rank = rank; g.ten = ten; g.tenGon = gon; if (item.nhom && !item.skuCoDinh) { g.sku = clean(item.sku); g.skuLa = !g.sku; } }
     g.sl += item.sl;
     g.nguon.push(item.src);
+    if (item.maCu && (g.maCu = g.maCu || []).indexOf(item.maCu) < 0) g.maCu.push(item.maCu);
   }
 
   function addToList(map, line, maKhac) {
@@ -243,6 +289,48 @@
     var dongTheoNha = { HA: 0, KV: 0, ML: 0 };
     var hoc = new Map(), hocXungDot = {}, doiKhoa = {};
     var maKhac = settings.maKhac || MA_KHAC_MAC_DINH;
+    var giaFile = {}, listing = new Map(), taiBan = new Map(), maTaiBan = {};
+
+    // Tên làm gọn của các SKU mã vạch đang dùng (chưa bị thay mã) → để phát hiện tái bản
+    var theoTen = new Map();
+    idx.sku.forEach(function (e, k) {
+      if (!/^sku:/.test(k) || !isBarcode(k.slice(4)) || clean(e.ma_moi) || !clean(e.ten)) return;
+      var t = tenSoSanh(e.ten, maKhac);
+      if (!theoTen.has(t)) theoTen.set(t, []);
+      theoTen.get(t).push(e);
+    });
+
+    rows = rows.map(function (row) {
+      if (comboReason(row) || !isBarcode(row.sku)) return row;
+      // Đơn còn dùng mã cũ (mã phụ) → tính như mã mới nhất
+      var moi = maMoiNhat(idx, row.sku);
+      var r = row;
+      if (moi !== clean(row.sku).toUpperCase()) {
+        r = Object.assign({}, row, { sku: moi, skuCu: clean(row.sku) });
+        var lk = row.san + '|' + r.skuCu + '|' + norm(row.ten);
+        var l = listing.get(lk) || { san: row.san, ten: row.ten, phanLoai: row.phanLoai, maCu: r.skuCu, maMoi: moi, soDong: 0 };
+        l.soDong++;
+        listing.set(lk, l);
+      }
+      // Giá sách lẻ trong file hôm nay (nhiều giá → lấy cao nhất)
+      if (soGia(r.gia) && soGia(r.gia) > (giaFile[r.sku] || 0)) giaFile[r.sku] = soGia(r.gia);
+      // Mã vạch MỚI, tên trùng 1 SKU đã có → có thể là bản tái bản
+      if (!idx.sku.has(skuKey(r.sku))) {
+        (theoTen.get(tenSoSanh(row.ten, maKhac)) || []).forEach(function (e) {
+          var x = clean(e.sku).toUpperCase();
+          if (x === r.sku) return;
+          var boQua = clean(e.khong_tai_ban).toUpperCase().split(/\s*;;?\s*/);
+          if (boQua.indexOf(r.sku) >= 0) return;
+          var tk = x + '>' + r.sku;
+          var tb = taiBan.get(tk) || { maCu: x, maMoi: r.sku, ten: row.ten, tenCu: e.ten, nha: e.nha, giaCu: soGia(e.gia_gan_nhat), giaMoi: 0, soDong: 0 };
+          tb.giaMoi = Math.max(tb.giaMoi, soGia(r.gia));
+          tb.soDong++;
+          taiBan.set(tk, tb);
+          maTaiBan[r.sku] = true;
+        });
+      }
+      return r;
+    });
     var lines = rows.map(function (row) { return classifyRow(row, idx, reKhac); });
 
     lines.forEach(function (ln) {
@@ -261,8 +349,9 @@
         case 'tach_combo':
           (ln.combo.thanh_phan || []).forEach(function (tp) {
             if (NHA.indexOf(tp.nha) < 0) return; // KHAC → bỏ qua
+            var skuTp = clean(tp.sku) ? maMoiNhat(idx, tp.sku) : '';
             addToHouse(houses[tp.nha], {
-              sku: tp.sku, ten: clean(tp.ten), phanLoai: '', gia: Number(tp.gia_goc) || 0,
+              sku: skuTp, ten: clean(tp.ten), phanLoai: '', gia: giaThanhPhan(idx, giaFile, tp).gia,
               sl: r.sl * (Number(tp.so_luong) || 1), rankSan: 'combo',
               src: { san: r.san, combo: ln.combo.ten_combo, row: r }
             }, maKhac);
@@ -278,12 +367,13 @@
           }, maKhac);
           break;
         case 'nha':
-          addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, src: { san: r.san, row: r } }, maKhac);
-          if (ln.hocSku) {
+          addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, maCu: r.skuCu,
+            src: { san: r.san, row: r } }, maKhac);
+          if (ln.hocSku && !maTaiBan[r.sku]) {
             var k = skuKey(r.sku), old = hoc.get(k);
             if (old && old.nha !== ln.nha) hocXungDot[k] = true;
             else if (!old || (r.san === 'TikTok' && old.san !== 'TikTok'))
-              hoc.set(k, { key: k, sku: r.sku, ten: r.ten, nha: ln.nha, nguon: 'tu_hoc', san: r.san });
+              hoc.set(k, { key: k, sku: r.sku, ten: r.ten, nha: ln.nha, nguon: 'tu_hoc', san: r.san, gia_gan_nhat: giaFile[r.sku] || '' });
           }
           break;
         case 'combo': addToList(comboMap, ln, maKhac); break;
@@ -302,8 +392,22 @@
       hocList.push(h);
     });
 
+    // Cập nhật giá gần nhất: SKU mã vạch đã có trong danh mục, giá trong file khác giá đang lưu
+    var capNhatGia = [];
+    Object.keys(giaFile).forEach(function (s) {
+      var e = idx.sku.get(skuKey(s));
+      if (e && soGia(e.gia_gan_nhat) !== giaFile[s]) capNhatGia.push({ key: skuKey(s), sku: s, ten: e.ten, cu: soGia(e.gia_gan_nhat), gia: giaFile[s] });
+    });
+    // Combo "Tách" bị lệch giá (chỉ combo có đơn hôm nay)
+    var comboHomNay = {};
+    lines.forEach(function (ln) { if (ln.loai === 'tach_combo') comboHomNay[ln.combo.combo_id] = true; });
+    var lechGia = lechGiaCombo(Object.assign({}, idx, { combos: catalog ? catalog.combos || [] : [] }), giaFile);
+
     var out = { nha: {}, combo: [], chuaRo: [], boQua: [], hoc: hocList, lines: lines, dongTheoNha: dongTheoNha, tongDong: rows.length,
-                maKhac: maKhac, doiKhoa: Object.keys(doiKhoa).map(function (k) { return doiKhoa[k]; }) };
+                maKhac: maKhac, doiKhoa: Object.keys(doiKhoa).map(function (k) { return doiKhoa[k]; }),
+                giaFile: giaFile, capNhatGia: capNhatGia, lechGia: lechGia,
+                lechGiaHomNay: lechGia.filter(function (l) { return comboHomNay[l.combo_id]; }),
+                taiBan: Array.from(taiBan.values()), listingCanSua: Array.from(listing.values()) };
     NHA.forEach(function (n) {
       var list = Array.from(houses[n].values());
       var dem = {};
@@ -329,6 +433,7 @@
     classify: classify, classifyRow: classifyRow, buildIndex: buildIndex,
     comboReason: comboReason, isNotBook: isNotBook, isBarcode: isBarcode,
     findCodes: findCodes, codeRegex: codeRegex, RE_NHA: RE_NHA,
+    maMoiNhat: maMoiNhat, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
     skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };
