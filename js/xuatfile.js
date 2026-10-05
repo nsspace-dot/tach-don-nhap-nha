@@ -25,20 +25,13 @@
 
   function sach(v) { return v === null || v === undefined ? '' : String(v).replace(/\s+/g, ' ').trim(); }
 
-  /* Danh sách dòng in ra file của 1 nhà: gộp theo TÊN GỌN + GIÁ BÌA (2 barcode khác nhau nhưng cùng tên, cùng giá → 1 dòng),
-   * khác giá thì giữ 2 dòng; sắp xếp theo tên A→Z. Xử lý bên trong (gộp theo barcode, combo…) không đổi. */
+  /* Danh sách dòng in ra file của 1 nhà: mỗi nhóm đã gộp lúc phân loại = 1 dòng
+   * (cùng barcode + cùng giá ; SKU trống/dạng chữ: cùng tên sàn + phân loại + giá). KHÔNG gộp theo tên –
+   * 2 barcode khác nhau luôn là 2 dòng. Tên = tên đã khai báo (hoặc tên tạm có phân loại). Sắp theo tên A→Z. */
   function dongCuaNha(result, nha) {
-    var nhom = new Map();
-    (result.nha[nha] || []).forEach(function (g) {
-      if (!(g.sl > 0)) return;
-      var ten = sach(g.tenGon || g.ten), gia = Number(g.gia) || 0;
-      var k = ten.toLowerCase() + '|' + gia;
-      var d = nhom.get(k);
-      if (!d) { d = { ten: ten, gia: gia, sl: 0, sku: [] }; nhom.set(k, d); }
-      d.sl += Number(g.sl) || 0;
-      if (sach(g.sku) && d.sku.indexOf(sach(g.sku)) < 0) d.sku.push(sach(g.sku));
-    });
-    return Array.from(nhom.values()).sort(function (a, b) {
+    return (result.nha[nha] || []).filter(function (g) { return g.sl > 0; }).map(function (g) {
+      return { ten: sach(g.tenGon || g.ten), gia: Number(g.gia) || 0, sl: Number(g.sl) || 0, sku: sach(g.sku) ? [sach(g.sku)] : [] };
+    }).sort(function (a, b) {
       return a.ten.localeCompare(b.ten, 'vi', { sensitivity: 'base' }) || a.gia - b.gia;
     });
   }

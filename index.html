@@ -138,6 +138,7 @@
           <button class="seg-btn" data-dm="lichsu" role="tab" aria-selected="false">🕘 Lịch sử</button>
         </div>
         <input type="search" class="input search" id="dm-tim" placeholder="🔎 Tìm theo SKU, tên sách…" aria-label="Tìm trong danh mục">
+        <label class="radio loc-ten" id="dm-loc-ten-o"><input type="checkbox" id="dm-loc-ten"> Chưa có tên khai báo <span id="dm-dem-chuaten" class="dem"></span></label>
         <div class="dm-actions">
           <button class="btn" id="dm-xuat" type="button">📤 Xuất danh mục ra Excel</button>
           <button class="btn can-write" id="dm-nap" type="button">📥 Nạp từ Excel</button>
@@ -172,6 +173,12 @@
           <textarea class="input" id="cd-trangthai" rows="3"></textarea>
           <small>Mỗi dòng 1 trạng thái, ghi đúng như cột “Trạng Thái Đơn Hàng” trong file Shopee. Dòng có trạng thái khác (Đang giao, Đã giao, Đã hủy…) sẽ bị bỏ qua.
             Để trống = mặc định “Chờ giao hàng” và “Chờ xác nhận”.</small>
+        </label>
+        <label class="field">
+          <span>Phân loại vô nghĩa (không ghép vào tên tạm)</span>
+          <textarea class="input" id="cd-plvn" rows="3"></textarea>
+          <small>Mỗi dòng 1 phân loại. Sách chưa khai báo tên sẽ dùng tạm “tên sàn – phân loại” (vd “… Các Lớp – Lớp 3”), trừ các phân loại ở đây
+            (không phân biệt hoa thường, có dấu hay không) hoặc phân loại đã có sẵn trong tên.</small>
         </label>
         <h2 class="h-phu">🔮 Gợi ý đặt dự phòng</h2>
         <label class="radio"><input type="checkbox" id="cd-dp-bat"> Hiện cột “Gợi ý dự phòng” ở màn Tách đơn</label>
@@ -277,6 +284,22 @@
       <div class="dlg-actions">
         <button class="btn" value="cancel" formnovalidate>Hủy</button>
         <button class="btn btn-primary" type="button" id="tb-luu">🔁 Thay mã</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlg-ten" aria-labelledby="dlg-ten-title">
+    <form method="dialog">
+      <h2 id="dlg-ten-title">✏️ Tên sách</h2>
+      <p class="muted" id="ten-goc"></p>
+      <label class="field"><span>Tên sách in ra file gửi nhà</span>
+        <input class="input" id="ten-moi" autocomplete="off" required>
+        <small>Lưu vào danh mục (cột “Tên sách”). Lần sau sách này luôn ra đúng tên này. Tự học không ghi đè.</small>
+      </label>
+      <p class="err" id="ten-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" type="button" id="ten-luu">💾 Lưu tên</button>
       </div>
     </form>
   </dialog>

@@ -255,14 +255,14 @@ check('Tải cả 3 nhà: nhắc cả sách chưa rõ nhà', kt3.chuaRo.length =
 check('Khang Việt không có vấn đề → tải luôn, không nhắc', !XuatFile.kiemTraTruocKhiTai(kq, ['KV']).coVanDe);
 var ktGia = XuatFile.kiemTraTruocKhiTai({ nha: { HA: [{ sku: '1234567', ten: 'A', gia: 1, sl: 1, canhBaoGia: true }, { sku: '1234567', ten: 'A', gia: 2, sl: 1, canhBaoGia: true }] }, combo: [], chuaRo: [] }, ['HA']);
 check('Nhắc cùng SKU nhưng giá khác nhau', ktGia.giaKhac.length === 1 && ktGia.giaKhac[0].gia.join('/') === '1/2');
-// Gộp theo tên gọn + giá bìa
+// KHÔNG gộp theo tên: 2 barcode khác nhau luôn là 2 dòng
 var gop = XuatFile.dongCuaNha({ nha: { HA: [
   { sku: '1111111', ten: 'Sách - Toán 9 Tập 1 - HA', tenGon: 'Toán 9 Tập 1', gia: 50000, sl: 2 },
   { sku: '2222222', ten: 'Toán 9 Tập 1 (HA)', tenGon: 'Toán 9 Tập 1', gia: 50000, sl: 3 },
   { sku: '3333333', ten: 'Toán 9 Tập 1 - HA', tenGon: 'Toán 9 Tập 1', gia: 55000, sl: 1 },
   { sku: '4444444', ten: 'An Toàn Giao Thông', tenGon: 'An Toàn Giao Thông', gia: 20000, sl: 1 }] } }, 'HA');
-check('2 barcode khác nhau, cùng tên gọn + cùng giá → 1 dòng (SL 5); khác giá → giữ dòng riêng; A→Z',
-  gop.length === 3 && gop[0].ten === 'An Toàn Giao Thông' && gop[1].sl === 5 && gop[1].gia === 50000 && gop[2].gia === 55000, gop);
+check('2 barcode khác nhau, cùng tên + cùng giá → vẫn 2 dòng riêng (không gộp theo tên); sắp A→Z',
+  gop.length === 4 && gop[0].ten === 'An Toàn Giao Thông' && gop[1].sl === 2 && gop[2].sl === 3 && gop[3].gia === 55000, JSON.stringify(gop));
 
 var docLai = function (wbX) {
   return wbX.xlsx.writeBuffer().then(function (buf) { var w = new ExcelJS.Workbook(); return w.xlsx.load(buf).then(function () { return { w: w, buf: buf }; }); });

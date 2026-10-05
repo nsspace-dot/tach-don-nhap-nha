@@ -19,7 +19,8 @@
   }
 
   var caiDat = Object.assign({ url: '', maKhac: root.PhanLoai.MA_KHAC_MAC_DINH.slice(), tenShop: '', sdt: '', diaChi: '', ghiChu: '',
-    trangThaiShopee: root.DocFile.TRANG_THAI_MAC_DINH.slice(), duPhongBat: true, soNgayDuPhong: 2 },
+    trangThaiShopee: root.DocFile.TRANG_THAI_MAC_DINH.slice(), duPhongBat: true, soNgayDuPhong: 2,
+    plVoNghia: root.PhanLoai.PL_VO_NGHIA_MAC_DINH.slice() },
     docLS(LS_CAIDAT, {}));
   if ('pin' in caiDat) { delete caiDat.pin; ghiLS(LS_CAIDAT, caiDat); } // bản cũ có PIN – không dùng nữa
   var cache = docLS(LS_DANHMUC, null);
@@ -33,7 +34,8 @@
       return { key: String(e.key || ''), sku: String(e.sku || ''), ten: String(e.ten || ''), nha: String(e.nha || ''),
                nguon: String(e.nguon || 'tay'), cap_nhat: e.cap_nhat || '',
                gia_gan_nhat: Number(e.gia_gan_nhat) || 0, ngay_gia: String(e.ngay_gia || ''),
-               ma_moi: String(e.ma_moi || ''), khong_tai_ban: String(e.khong_tai_ban || ''), nguon_ma: String(e.nguon_ma || '') };
+               ma_moi: String(e.ma_moi || ''), khong_tai_ban: String(e.khong_tai_ban || ''), nguon_ma: String(e.nguon_ma || ''),
+               ten_sach: String(e.ten_sach || ''), phan_loai: String(e.phan_loai || '') };
     }).filter(function (e) { return e.key; });
     var combos = (c.combos || []).map(function (x) {
       var khoa = Array.isArray(x.khoa) ? x.khoa : String(x.khoa || '').split(' ;; ');

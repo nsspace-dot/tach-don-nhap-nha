@@ -170,7 +170,7 @@
 
   function xuLy(moi) {
     var r = rows();
-    S.kq = r.length ? PL.classify(r, DM.catalog, { maKhac: DM.caiDat.maKhac }) : null;
+    S.kq = r.length ? PL.classify(r, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : null;
     if (!S.kq) S.duPhong = { HA: {}, KV: {}, ML: {} };
     veChips();
     veKetQua(moi);
@@ -305,6 +305,34 @@
     return gon === g.ten ? esc(gon) : '<span title="Tên gốc: ' + esc(g.ten) + '">' + esc(gon) + '</span>';
   }
 
+  /* Ô tên trong bảng nhà: tên đã khai báo (hoặc tên tạm + nhãn), nút ✏️ sửa tên → lưu vào danh mục */
+  function tenNha(g, i) {
+    var h = '<span title="Tên trên sàn: ' + esc(g.ten) + '">' + esc(g.tenGon) + '</span>';
+    if (g.chuaCoTen) h += ' <span class="nho nho-chuaten" title="Đang dùng tên tạm = tên sàn + phân loại. Bấm ✏️ để khai báo tên sách.">chưa có tên khai báo</span>';
+    else if (g.nguonTen === 'web') h += ' <span class="nho nguon-web" title="Tên lấy theo sổ mã chuẩn web">🌐 tên web</span>';
+    if (g.khoaTen && DM.coTheGhi()) h += ' <button type="button" class="btn-sua-ten" data-sua-ten="' + i + '" title="Sửa tên sách (lưu vào danh mục)" aria-label="Sửa tên sách">✏️</button>';
+    return h;
+  }
+  var dangSuaTen = null;
+  function moSuaTen(g, nha) {
+    dangSuaTen = { g: g, nha: nha };
+    $('ten-goc').innerHTML = (g.sku ? '<b>' + esc(g.sku) + '</b> · ' : '') + 'Tên trên sàn: ' + esc(g.ten);
+    $('ten-moi').value = g.tenGon;
+    $('ten-loi').textContent = '';
+    $('dlg-ten').showModal();
+    $('ten-moi').select();
+  }
+  function luuSuaTen() {
+    var x = dangSuaTen, ten = PL.clean($('ten-moi').value);
+    if (!ten) { $('ten-loi').textContent = 'Tên sách không được để trống.'; return; }
+    var btn = $('ten-luu');
+    btn.disabled = true;
+    DM.goi('luuTenSach', { key: x.g.khoaTen, sku: PL.isBarcode(x.g.sku) ? x.g.sku : '', ten: x.g.tenSan || x.g.ten, nha: x.nha, ten_sach: ten, phan_loai: x.g.phanLoai || '' })
+      .then(function () { $('dlg-ten').close(); toast('✏️ Đã lưu tên sách: ' + ten, 'ok'); })
+      .catch(function (e) { $('ten-loi').textContent = e.message; })
+      .then(function () { btn.disabled = false; });
+  }
+
   function nguonNho(g) {
     var san = {}, combo = {}, nguyen = false;
     (g.nguon || []).forEach(function (n) {
@@ -377,7 +405,7 @@
       list.map(function (g, i) {
         var x = theoDong[i], da = x && S.duPhong[nha][x.k];
         return '<tr' + (g.canhBaoGia ? ' class="canh-bao"' : '') + '><td class="stt">' + (i + 1) + '</td><td class="sku">' + oSku(g) +
-          '</td><td class="ten">' + tenHien(g) + '<div>' + nguonNho(g) + '</div></td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b>' +
+          '</td><td class="ten">' + tenNha(g, i) + '<div>' + nguonNho(g) + '</div></td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b>' +
           (da ? '<div class="dp-cong">+' + so(da) + ' dự phòng</div>' : '') + '</td>' + (cot ? oDuPhong(nha, x) : '') + '</tr>';
       }).join('') + '</tbody></table>';
   }
@@ -713,6 +741,7 @@
       else if (b.dataset.nguyen) root.KhaiBao.moKhaiBao(S.kq.combo[+b.dataset.nguyen], 'nguyen');
       else if (b.dataset.giaCombo) { b.disabled = true; capNhatGiaCombo([S.kq.lechGiaHomNay[+b.dataset.giaCombo]]); }
       else if (b.dataset.giaTatca) { b.disabled = true; capNhatGiaCombo(S.kq.lechGiaHomNay); }
+      else if (b.dataset.suaTen) moSuaTen(S.kq.nha[S.tab][+b.dataset.suaTen], S.tab);
       else if (b.dataset.dpThem || b.dataset.dpBo) {
         var x = S.dpGoiY.filter(function (y) { return y.i === +(b.dataset.dpThem || b.dataset.dpBo); })[0];
         if (!x) return;
@@ -739,6 +768,8 @@
       ganNha(S.kq.boQua[+s.dataset.ganBq], s.value);
     });
 
+    $('ten-luu').addEventListener('click', luuSuaTen);
+    $('ten-moi').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); luuSuaTen(); } });
     $('btn-tai').addEventListener('click', function () { taiNha(PL.NHA.slice(), $('btn-tai')); });
     $('bang-listing').addEventListener('click', function (e) { if (e.target.id === 'listing-xuat') xuatListing(); });
     $('tai-ban').addEventListener('click', function (e) {

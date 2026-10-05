@@ -232,7 +232,7 @@
         A.toast('Không có dòng nào để nạp' + (hong.length ? ' (' + hong.length + ' file không đọc được)' : '') + '.', 'loi');
         return;
       }
-      var kq = PL.classify(rows, DM.catalog, { maKhac: DM.caiDat.maKhac });
+      var kq = PL.classify(rows, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia });
       var dong = TK.dongNapLichSu(kq);
       var chuaTinh = kq.combo.reduce(function (s, g) { return s + g.sl; }, 0) + kq.chuaRo.reduce(function (s, g) { return s + g.sl; }, 0);
       var ngay = dong.map(function (d) { return d.ngay; }).sort();

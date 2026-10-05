@@ -159,9 +159,27 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
    **Nội dung file gửi nhà** (1 sheet, tên sheet = tên nhà) – chỉ **4 cột**:
    - **STT | Tên sách | Giá bìa | Số lượng**. Dòng 1 là tiêu đề cột, dữ liệu từ dòng 2, sắp xếp theo tên A→Z.
    - Không có SKU/barcode, thành tiền, dòng tiêu đề đơn, thông tin shop hay dòng tổng.
-   - Hai barcode khác nhau nhưng **cùng tên (đã làm gọn) và cùng giá bìa** → gộp 1 dòng, cộng số lượng. Khác giá bìa thì để 2 dòng.
+   - **Chỉ gộp 1 dòng khi cùng barcode** (kể cả mã đã quy về: mã phụ, tái bản, mã web) **và cùng giá**; SKU trống / dạng chữ thì gộp khi cùng tên sàn đã làm gọn + cùng phân loại + cùng giá.
+     **Hai barcode khác nhau luôn là 2 dòng**, dù tên giống nhau. Cùng barcode mà khác giá → 2 dòng (tô vàng trên app để kiểm tra).
+   - Tên sách lấy theo **tên đã khai báo** (xem mục *Tên sách khai báo* bên dưới).
    - In sẵn khổ **A4 dọc**, vừa 1 trang chiều ngang, sang trang tự lặp lại dòng tiêu đề cột.
    - Đã cộng cả Shopee, TikTok, web, phần tách từ combo và combo "xuất nguyên".
+
+### Tên sách khai báo ✏️
+Một listing trên sàn có thể gom nhiều cuốn (vd "Vở Bài Tập Thực Hành Mĩ Thuật **Các Lớp**", phân loại Lớp 1 / Lớp 2 / Lớp 3 – mỗi lớp 1 barcode), nên **tên sàn không đủ**.
+Tên in ra file gửi nhà (và hiện trên app) lấy theo thứ tự:
+1. **Tên đã khai báo** trong danh mục (cột **Tên sách**) cho barcode đó.
+2. **Tên trong sổ mã chuẩn web** cho barcode đó (nhãn *🌐 tên web*).
+3. Với cuốn tách từ combo: **tên đã khai báo của thành phần combo**.
+4. Chưa có tên khai báo → **tên tạm** = tên sàn đã làm gọn + " – " + phân loại, vd *"Vở Bài Tập Thực Hành Mĩ Thuật Các Lớp – LỚP 3"*, kèm nhãn **"chưa có tên khai báo"**.
+   Phân loại vô nghĩa (trống, Not Specified, Default, Mặc định, Lẻ…) hoặc đã có sẵn trong tên thì không ghép – danh sách này sửa ở **Cài đặt**.
+
+Cách khai báo:
+- **Ngay trên màn Tách đơn:** bấm **✏️** cạnh tên sách → sửa → **💾 Lưu tên**. Lưu vào danh mục, lần sau luôn dùng tên này.
+- **Danh mục → SKU → nhà:** cột **Tên sách** sửa được từng dòng (gõ xong bấm Tab / bấm ra ngoài là lưu). Sách chưa khai báo hiện sẵn **gợi ý** (tên web, không có thì tên tạm) chữ nghiêng.
+  Tick **"Chưa có tên khai báo"** để lọc ra các sách cần rà, sửa các ô cần sửa rồi bấm **✔ Dùng gợi ý cho … sách đang hiện** để lưu hàng loạt.
+- **Nạp Excel:** sheet SKU_NHA có cột **ten_sach** (hoặc "Tên sách"). Có cột này thì ô trống = bỏ khai báo; file không có cột này thì giữ nguyên tên cũ.
+- **Tự học / đơn web không bao giờ ghi đè** tên bạn đã khai báo. Đổi nhà cũng không mất tên.
 
 **Tên sách được làm gọn:** bỏ phần loại sách ở đầu ("Sách -", "Sách Tham Khảo -"…) và phần mã nhà, tên shop, tác giả ở cuối ("- HA - Newshop", "(HA)", "- KV - Tác Giả …"). Ví dụ
 "Sách Tham Khảo - Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối) - HA - Newshop" → "Hướng Dẫn Giải Bài Tập Toán Lớp 3 (Dùng Kèm SGK Kết Nối)".
@@ -189,8 +207,9 @@ Barcode trên sàn đôi khi sai (quên sửa sau tái bản, gõ nhầm, listin
 - Mỗi lần thả file web, các dòng có barcode được ghi / cập nhật vào **sổ mã chuẩn** (sheet `MA_CHUAN`): barcode, tên đã làm gọn, giá bìa, nhà cung cấp, ngày thấy gần nhất. Gom chung lần ghi tự học.
 - Nạp nhiều file web cũ một lúc: **Danh mục → 🌐 Nạp sổ mã chuẩn từ file web cũ** (chọn được nhiều file; bản cũ hơn không đè bản mới hơn).
 
-**App tự so sách lẻ trên Shopee/TikTok với sổ mã chuẩn** (chỉ xét listing có barcode KHÔNG có trong sổ, hoặc SKU trống / dạng chữ; so tên đã làm gọn, không dấu, chữ thường):
-- **Khớp chắc** – tên trùng hẳn **và** cùng giá bìa → **tự quy về barcode web**: cộng chung 1 dòng với cuốn đó, dùng tên của bản web, ghi chú *"🌐 đã quy về mã web"*. App lưu listing đó thành **mã phụ → mã web** (nguồn *web tự khớp*) để lần sau tự nhận.
+**App tự so sách lẻ trên Shopee/TikTok với sổ mã chuẩn** (chỉ xét listing có barcode KHÔNG có trong sổ, hoặc SKU trống / dạng chữ; so **tên sàn + phân loại** đã làm gọn, không dấu, chữ thường –
+vd "Vở Bài Tập Thực Hành Mĩ Thuật Các Lớp – Lớp 3" chỉ khớp được cuốn web Lớp 3; 2 tên có số khác nhau (Lớp 1 / Lớp 3, Tập 1 / Tập 2) không bao giờ bị coi là cùng cuốn):
+- **Khớp chắc** – tên + phân loại trùng hẳn **và** cùng giá bìa → **tự quy về barcode web**: cộng chung 1 dòng với cuốn đó, dùng tên của bản web, ghi chú *"🌐 đã quy về mã web"*. App lưu listing đó thành **mã phụ → mã web** (nguồn *web tự khớp*) để lần sau tự nhận.
 - **Khớp vừa** – tên trùng hẳn nhưng khác giá, **hoặc** tên giống ≥ 90% + cùng nhà + giá chênh ≤ 15% → **không tự gộp**, hiện khung **"🔁 Có thể cùng 1 cuốn"**:
   - **✅ Đúng, cùng cuốn** → lưu mã phụ (nguồn *gán tay*), lần sau tự tính vào mã web.
   - **Không phải** → ghi nhớ, không hỏi lại listing đó nữa.
@@ -271,7 +290,7 @@ Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê �
 
 ## Màn Danh mục
 
-- **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
+- **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), cột **Tên sách** (sửa được, lọc "Chưa có tên khai báo"), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
 - **Combo:** xem thành phần, cột **Cách xuất** (✂️ Tách / 📦 Nguyên combo – đổi qua lại ngay tại đây), **✏️ Sửa**, xóa (hiện rõ tên combo và các thành phần trước khi xóa).
   - Combo có SKU là **mã vạch** (vd dòng Shopee "Hiragana (HA)" phân loại COMBO.HA) được nhận diện bằng mã vạch **kèm phân loại** (`sku:8935092825724|combo.ha`), để không nhầm với cuốn lẻ cùng mã vạch. Combo khai báo trước đây bằng mã vạch trơn sẽ **tự đổi sang khóa mới** lần đầu bạn thả file có combo đó (có ghi Lịch sử).
 - **🕘 Lịch sử:** 100 thay đổi gần nhất (gán nhà, tự học, cập nhật giá, lưu/xóa combo, thay mã tái bản…), có dữ liệu trước và sau, nút **↩️ Hoàn tác** cho thay mã tái bản. Bản đầy đủ ở sheet **LICH_SU**.
@@ -285,6 +304,7 @@ Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê �
 - **Kiểm tra kết nối.**
 - **Trạng thái đơn Shopee cần lấy:** mỗi dòng 1 trạng thái (mặc định *Chờ giao hàng*, *Chờ xác nhận*). Ghi đúng như cột "Trạng Thái Đơn Hàng" trong file Shopee.
 - **Mã nhà khác:** có nhà mới (vd sách ghi "(STK)") thì tự thêm vào ô này – app không tự thêm.
+- **Phân loại vô nghĩa:** các phân loại không ghép vào tên tạm (mặc định Not Specified, Default, Mặc định, Lẻ, 1 cuốn).
 - **Gợi ý đặt dự phòng:** bật/tắt cột gợi ý và số ngày dự phòng (mặc định 2, để 0 = tắt).
 
 ---
@@ -325,6 +345,7 @@ node test/kiemtra-appscript.js    # kiểm thử Code.gs bằng môi trường g
 node test/kiemtra-taiban.js        # giá gần nhất + thay mã tái bản (Code.gs giả lập + phân loại, cần file mẫu)
 node test/kiemtra-web.js           # đơn web + Shopee tất cả trạng thái (cần mau/web.xlsx, mau/shopee-all.xlsx)
 node test/kiemtra-machuan.js       # sổ mã chuẩn, khớp sách lẻ trùng, listing cần sửa barcode
+node test/kiemtra-tensach.js       # tên sách khai báo, không gộp theo tên, khớp mã web theo tên + phân loại
 node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp file cũ), thống kê, dự báo dự phòng
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

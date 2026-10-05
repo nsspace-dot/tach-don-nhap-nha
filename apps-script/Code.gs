@@ -8,7 +8,8 @@
  *   4. Deploy → New deployment → Web app → Execute as: Me, Who has access: Anyone.
  *
  * Các sheet:
- *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat | gia_gan_nhat | ngay_gia | ma_moi | khong_tai_ban
+ *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat | gia_gan_nhat | ngay_gia | ma_moi | khong_tai_ban | nguon_ma | ten_sach | phan_loai
+ *                     (ten: tên listing trên sàn ; ten_sach: TÊN SÁCH ĐÃ KHAI BÁO dùng để xuất file – chỉ bạn sửa, tự học không ghi đè)
  *                     (ma_moi: mã tái bản thay thế ; khong_tai_ban: các mã đã xác nhận "không phải tái bản", cách nhau " ;; ")
  *   COMBO             combo_id | ten_combo | khoa | cap_nhat | cach_xuat | ma_he_thong | ten_xuat | nha
  *                     (khoa cách nhau bằng " ;; " ; cach_xuat = tach | nguyen ; trống = tach)
@@ -26,13 +27,13 @@
  *   POST <url>  body {action, data}  (Content-Type: text/plain)
  *        action: ping, upsertSku, upsertSkuBatch (kèm cập nhật giá), deleteSku, upsertCombo, addComboKey, doiKhoaCombo,
  *                deleteCombo, importBatch, thayMaTaiBan, hoanTacTaiBan, boQuaTaiBan, capNhatGiaCombo,
- *                upsertMaChuan, luuMaPhu, boQuaCungCuon   (upsertSkuBatch nhận thêm maChuan, maPhu)
+ *                upsertMaChuan, luuMaPhu, boQuaCungCuon, luuTenSach   (upsertSkuBatch nhận thêm maChuan, maPhu)
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI' };
 var COT = {
-  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban', 'nguon_ma'],
+  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban', 'nguon_ma', 'ten_sach', 'phan_loai'],
   // Sổ mã chuẩn: barcode trên đơn web (chuẩn) – khong_phai: các listing đã xác nhận "không phải cùng cuốn"
   MA_CHUAN: ['barcode', 'ten_gon', 'gia_bia', 'ncc', 'nha', 'ngay_thay', 'khong_phai'],
   // Lịch sử đặt hàng (KHÔNG có thông tin khách): 1 dòng / (ngày, nhà, barcode chuẩn). ngay dạng yyyy-MM-dd, hoặc yyyy-MM khi đã gom tháng cũ
@@ -115,6 +116,11 @@ function xuLy_(action, data) {
       if (data.maChuan && data.maChuan.length) extra.soMaChuan = ghiSoMaChuan_(cat, data.maChuan, ctx);
       extra.soMaPhu = 0;
       (data.maPhu || []).forEach(function (it) { try { if (luuMaPhu_(cat, it, ctx, true)) extra.soMaPhu++; } catch (e) { /* bỏ qua */ } });
+      break;
+    case 'luuTenSach':
+      // Khai báo tên sách (1 dòng hoặc hàng loạt) – nguồn tay
+      extra.soTenSach = 0;
+      (data.items || [data]).forEach(function (it) { if (luuTenSach_(cat, it, ctx)) extra.soTenSach++; });
       break;
     case 'upsertMaChuan':
       extra.soMaChuan = ghiSoMaChuan_(cat, data.items || [], ctx);
@@ -207,6 +213,10 @@ function upsertSku_(cat, d, ctx, choGhiDeTay) {
   if (!choGhiDeTay && cu && cu.nguon === 'tay') return false;
   // Giữ các cột khác (giá gần nhất, mã tái bản…) của dòng cũ
   var moi = Object.assign({}, cu || {}, { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten) || (cu ? cu.ten : ''), nha: nha, nguon: nguon, cap_nhat: ctx.now });
+  // Phân loại trên sàn (để gợi ý tên): chỉ điền khi đang trống
+  if (!chuoi_(moi.phan_loai) && chuoi_(d.phan_loai)) moi.phan_loai = chuoi_(d.phan_loai);
+  // Tên sách khai báo: chỉ thao tác của bạn (gán tay / nạp Excel có cột "Tên sách") mới được ghi – tự học KHÔNG đụng
+  if (choGhiDeTay && d.ten_sach !== undefined) moi.ten_sach = chuoi_(d.ten_sach);
   if (!cu && soDuong_(d.gia_gan_nhat)) { moi.gia_gan_nhat = soDuong_(d.gia_gan_nhat); moi.ngay_gia = chuoi_(d.ngay_gia) || homNay_(); }
   if (ctx.action === 'importBatch') {
     // Nạp Excel: cho phép ghi kèm giá gần nhất / mã tái bản nếu file có
@@ -215,12 +225,36 @@ function upsertSku_(cat, d, ctx, choGhiDeTay) {
     if (chuoi_(d.khong_tai_ban)) moi.khong_tai_ban = chuoi_(d.khong_tai_ban);
   }
   var giong = function (a, b) {
-    return ['nha', 'nguon', 'sku', 'ten', 'gia_gan_nhat', 'ma_moi', 'khong_tai_ban'].every(function (f) { return chuoi_(a[f]) === chuoi_(b[f]); });
+    return ['nha', 'nguon', 'sku', 'ten', 'gia_gan_nhat', 'ma_moi', 'khong_tai_ban', 'ten_sach', 'phan_loai'].every(function (f) { return chuoi_(a[f]) === chuoi_(b[f]); });
   };
   if (cu && giong(cu, moi)) return false;
   if (i >= 0) cat.skus[i] = moi; else cat.skus.push(moi);
   ctx.doiSku = true;
   ghiLog_(ctx, ctx.action, key, cu, moi);
+  return true;
+}
+
+/* Khai báo tên sách cho 1 khóa (sku:<barcode> hoặc ten:…). Chưa có trong danh mục → tạo mới (cần nhà), nguồn tay.
+ * Đã có → chỉ đổi tên sách, giữ nguyên nhà / nguồn. ten_sach rỗng = bỏ khai báo. */
+function luuTenSach_(cat, d, ctx) {
+  var key = chuoi_(d.key);
+  if (!/^(sku|ten):/.test(key)) throw new Error('Khóa không hợp lệ: ' + key);
+  var i = timViTri_(cat.skus, 'key', key), cu = i >= 0 ? cat.skus[i] : null, ten = chuoi_(d.ten_sach);
+  var moi;
+  if (cu) {
+    if (chuoi_(cu.ten_sach) === ten) return false;
+    moi = Object.assign({}, cu, { ten_sach: ten, cap_nhat: ctx.now });
+    if (!chuoi_(moi.phan_loai) && chuoi_(d.phan_loai)) moi.phan_loai = chuoi_(d.phan_loai);
+    cat.skus[i] = moi;
+  } else {
+    var nha = chuoi_(d.nha).toUpperCase();
+    if (NHA_CHINH.indexOf(nha) < 0) throw new Error('Cần chọn nhà cho sách mới: ' + key);
+    if (!ten) return false;
+    moi = { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: nha, nguon: 'tay', cap_nhat: ctx.now, ten_sach: ten, phan_loai: chuoi_(d.phan_loai) };
+    cat.skus.push(moi);
+  }
+  ctx.doiSku = true;
+  ghiLog_(ctx, 'luuTenSach', key, cu, Object.assign({ ghi_chu: 'Tên sách: ' + (chuoi_(cu && cu.ten_sach) || '(chưa có)') + ' → ' + (ten || '(bỏ khai báo)') }, moi));
   return true;
 }
 
