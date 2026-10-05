@@ -142,6 +142,12 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
        Không cần nhập thành phần. Đơn đặt hàng của nhà đó sẽ có **1 dòng** cho combo: giá gốc = giá combo trên sàn, số lượng = số combo (cộng cả 2 sàn nếu đã gắn mã của cả 2 sàn).
        Combo **trộn nhà khác** (có MEGA, TN…) thì không chọn được "Xuất nguyên" – phải tách để chỉ lấy phần HA/KV/ML.
      - Khai báo xong, combo tự tách thành từng cuốn và cộng vào đơn của nhà – không cần thả file lại.
+     - **App nhận ra combo khi:** tên/phân loại có chữ "combo", "bộ 3 cuốn", "(2 cuốn)", "Tập 1 + 2", **hoặc dạng "A+B"** (vd phân loại "VN+TG", "Toán + Văn", "Q1+Q2").
+       Không tính "C++", "Lớp 1+" (không có vế sau). Dấu "+" chỉ nằm trong tên sản phẩm mà phân loại đã chọn 1 cuốn (vd tên "… Lớp 1+2+3", phân loại "Lớp 2") → vẫn là sách lẻ.
+     - **🎁 nghi combo:** dòng dạng "A+B", hoặc 1 phân loại **không có barcode** mà giá **bằng tổng giá của ≥ 2 phân loại khác** cùng sản phẩm (lệch ≤ 2%) – vd "CỔ TÍCH VN+TG" 250.000 = Thế Giới 125.000 + Việt Nam 125.000.
+       Dòng này vào tab Combo kèm lý do. Bấm **🧩 Khai báo thành phần** (form đã gợi ý sẵn các phân loại khác cùng sản phẩm có barcode) hoặc **🙅 Không phải combo** → trả về sách lẻ, app ghi nhớ không hỏi lại.
+   - **🎁 Đây là combo** (nút nhỏ dưới tên ở bảng Hồng Ân / Khang Việt / Minh Long và tab Chưa rõ nhà): dòng bị nhận là sách lẻ nhưng thật ra là combo → bấm để khai báo combo. Lưu xong kết quả tự tính lại.
+   - **💾 Lưu vào danh mục** (nút nhỏ dưới tên): sách đang nhận diện tại chỗ (vd từ mã nhà trong tên, chưa có trong danh mục, thường là listing không có barcode) → lưu lại để sửa tên / đổi nhà ở màn Danh mục.
    - **🙈 Đã bỏ qua:** lịch, tranh, trà… và sách nhà khác. Nếu bị bỏ nhầm thì chọn lại nhà ở cột cuối.
 5. **Tải đơn đặt hàng gửi nhà** – mỗi nhà 1 file riêng:
    - Mỗi thẻ **Hồng Ân / Khang Việt / Minh Long** có nút **⬇️ Tải file** (nhà 0 cuốn thì nút mờ).
@@ -291,6 +297,8 @@ Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê �
 ## Màn Danh mục
 
 - **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), cột **Tên sách** (sửa được, lọc "Chưa có tên khai báo"), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
+- **Tìm kiếm** (cả SKU → nhà, Combo, Lịch sử): theo barcode, tên sàn, phân loại, tên đã khai báo, khóa nhận diện; không phân biệt dấu, hoa thường, ngoặc, dấu "+" – vd gõ `co tich vn tg` ra "CỔ TÍCH VN+TG (ML)".
+  Không thấy ở SKU → nhà mà có combo khớp thì app gợi ý chuyển sang tab Combo. Mục không có barcode (khóa tên + phân loại) cũng hiện và tìm được như thường.
 - **Combo:** xem thành phần, cột **Cách xuất** (✂️ Tách / 📦 Nguyên combo – đổi qua lại ngay tại đây), **✏️ Sửa**, xóa (hiện rõ tên combo và các thành phần trước khi xóa).
   - Combo có SKU là **mã vạch** (vd dòng Shopee "Hiragana (HA)" phân loại COMBO.HA) được nhận diện bằng mã vạch **kèm phân loại** (`sku:8935092825724|combo.ha`), để không nhầm với cuốn lẻ cùng mã vạch. Combo khai báo trước đây bằng mã vạch trơn sẽ **tự đổi sang khóa mới** lần đầu bạn thả file có combo đó (có ghi Lịch sử).
 - **🕘 Lịch sử:** 100 thay đổi gần nhất (gán nhà, tự học, cập nhật giá, lưu/xóa combo, thay mã tái bản…), có dữ liệu trước và sau, nút **↩️ Hoàn tác** cho thay mã tái bản. Bản đầy đủ ở sheet **LICH_SU**.
@@ -345,6 +353,7 @@ node test/kiemtra-appscript.js    # kiểm thử Code.gs bằng môi trường g
 node test/kiemtra-taiban.js        # giá gần nhất + thay mã tái bản (Code.gs giả lập + phân loại, cần file mẫu)
 node test/kiemtra-web.js           # đơn web + Shopee tất cả trạng thái (cần mau/web.xlsx, mau/shopee-all.xlsx)
 node test/kiemtra-machuan.js       # sổ mã chuẩn, khớp sách lẻ trùng, listing cần sửa barcode
+node test/kiemtra-combo.js         # combo dạng "A+B", nghi combo theo giá, "Không phải combo", "Đây là combo"
 node test/kiemtra-tensach.js       # tên sách khai báo, không gộp theo tên, khớp mã web theo tên + phân loại
 node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp file cũ), thống kê, dự báo dự phòng
 ```

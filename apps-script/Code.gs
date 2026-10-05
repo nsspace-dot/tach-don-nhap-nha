@@ -8,8 +8,9 @@
  *   4. Deploy → New deployment → Web app → Execute as: Me, Who has access: Anyone.
  *
  * Các sheet:
- *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat | gia_gan_nhat | ngay_gia | ma_moi | khong_tai_ban | nguon_ma | ten_sach | phan_loai
- *                     (ten: tên listing trên sàn ; ten_sach: TÊN SÁCH ĐÃ KHAI BÁO dùng để xuất file – chỉ bạn sửa, tự học không ghi đè)
+ *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat | gia_gan_nhat | ngay_gia | ma_moi | khong_tai_ban | nguon_ma | ten_sach | phan_loai | khong_combo
+ *                     (ten: tên listing trên sàn ; ten_sach: TÊN SÁCH ĐÃ KHAI BÁO dùng để xuất file – chỉ bạn sửa, tự học không ghi đè ;
+ *                      khong_combo = 1: bạn đã bấm "Không phải combo" cho dòng bị nghi combo)
  *                     (ma_moi: mã tái bản thay thế ; khong_tai_ban: các mã đã xác nhận "không phải tái bản", cách nhau " ;; ")
  *   COMBO             combo_id | ten_combo | khoa | cap_nhat | cach_xuat | ma_he_thong | ten_xuat | nha
  *                     (khoa cách nhau bằng " ;; " ; cach_xuat = tach | nguyen ; trống = tach)
@@ -27,13 +28,13 @@
  *   POST <url>  body {action, data}  (Content-Type: text/plain)
  *        action: ping, upsertSku, upsertSkuBatch (kèm cập nhật giá), deleteSku, upsertCombo, addComboKey, doiKhoaCombo,
  *                deleteCombo, importBatch, thayMaTaiBan, hoanTacTaiBan, boQuaTaiBan, capNhatGiaCombo,
- *                upsertMaChuan, luuMaPhu, boQuaCungCuon, luuTenSach   (upsertSkuBatch nhận thêm maChuan, maPhu)
+ *                upsertMaChuan, luuMaPhu, boQuaCungCuon, luuTenSach, khongPhaiCombo   (upsertSkuBatch nhận thêm maChuan, maPhu)
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI' };
 var COT = {
-  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban', 'nguon_ma', 'ten_sach', 'phan_loai'],
+  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban', 'nguon_ma', 'ten_sach', 'phan_loai', 'khong_combo'],
   // Sổ mã chuẩn: barcode trên đơn web (chuẩn) – khong_phai: các listing đã xác nhận "không phải cùng cuốn"
   MA_CHUAN: ['barcode', 'ten_gon', 'gia_bia', 'ncc', 'nha', 'ngay_thay', 'khong_phai'],
   // Lịch sử đặt hàng (KHÔNG có thông tin khách): 1 dòng / (ngày, nhà, barcode chuẩn). ngay dạng yyyy-MM-dd, hoặc yyyy-MM khi đã gom tháng cũ
@@ -121,6 +122,9 @@ function xuLy_(action, data) {
       // Khai báo tên sách (1 dòng hoặc hàng loạt) – nguồn tay
       extra.soTenSach = 0;
       (data.items || [data]).forEach(function (it) { if (luuTenSach_(cat, it, ctx)) extra.soTenSach++; });
+      break;
+    case 'khongPhaiCombo':
+      khongPhaiCombo_(cat, data, ctx);
       break;
     case 'upsertMaChuan':
       extra.soMaChuan = ghiSoMaChuan_(cat, data.items || [], ctx);
@@ -225,7 +229,7 @@ function upsertSku_(cat, d, ctx, choGhiDeTay) {
     if (chuoi_(d.khong_tai_ban)) moi.khong_tai_ban = chuoi_(d.khong_tai_ban);
   }
   var giong = function (a, b) {
-    return ['nha', 'nguon', 'sku', 'ten', 'gia_gan_nhat', 'ma_moi', 'khong_tai_ban', 'ten_sach', 'phan_loai'].every(function (f) { return chuoi_(a[f]) === chuoi_(b[f]); });
+    return ['nha', 'nguon', 'sku', 'ten', 'gia_gan_nhat', 'ma_moi', 'khong_tai_ban', 'ten_sach', 'phan_loai', 'khong_combo'].every(function (f) { return chuoi_(a[f]) === chuoi_(b[f]); });
   };
   if (cu && giong(cu, moi)) return false;
   if (i >= 0) cat.skus[i] = moi; else cat.skus.push(moi);
@@ -255,6 +259,23 @@ function luuTenSach_(cat, d, ctx) {
   }
   ctx.doiSku = true;
   ghiLog_(ctx, 'luuTenSach', key, cu, Object.assign({ ghi_chu: 'Tên sách: ' + (chuoi_(cu && cu.ten_sach) || '(chưa có)') + ' → ' + (ten || '(bỏ khai báo)') }, moi));
+  return true;
+}
+
+/* Dòng bị nghi combo (dạng "A+B" / theo giá) mà bạn bảo "Không phải combo" → ghi nhớ trên khóa sách lẻ của dòng.
+ * Chưa có trong danh mục → tạo dòng nguồn tự học (để tự học vẫn điền được nhà). bo = true: bỏ ghi nhớ. */
+function khongPhaiCombo_(cat, d, ctx) {
+  var key = chuoi_(d.key);
+  if (!/^(sku|ten):/.test(key)) throw new Error('Khóa không hợp lệ: ' + key);
+  var i = timViTri_(cat.skus, 'key', key), cu = i >= 0 ? cat.skus[i] : null, gt = d.bo ? '' : '1';
+  if (cu && chuoi_(cu.khong_combo) === gt) return false;
+  var nha = chuoi_(d.nha).toUpperCase();
+  var moi = cu ? Object.assign({}, cu, { khong_combo: gt, cap_nhat: ctx.now })
+    : { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: NHA_CHINH.indexOf(nha) >= 0 ? nha : '', nguon: 'tu_hoc', cap_nhat: ctx.now,
+        phan_loai: chuoi_(d.phan_loai), khong_combo: gt };
+  if (i >= 0) cat.skus[i] = moi; else cat.skus.push(moi);
+  ctx.doiSku = true;
+  ghiLog_(ctx, 'khongPhaiCombo', key, cu, Object.assign({ ghi_chu: gt ? 'Không phải combo: ' + chuoi_(d.ten) + (d.phan_loai ? ' – ' + chuoi_(d.phan_loai) : '') : 'Bỏ ghi nhớ "không phải combo"' }, moi));
   return true;
 }
 

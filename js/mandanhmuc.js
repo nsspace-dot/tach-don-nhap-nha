@@ -12,8 +12,21 @@
     return isNaN(d) ? A.esc(s) : d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   }
 
+  /* Tìm không phân biệt dấu, hoa thường, ngoặc, dấu "+": "co tich vn tg" khớp "CỔ TÍCH VN+TG (ML)". Đủ mọi từ là khớp. */
+  function chuanTim(s) { return A.boDau(s).replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function khopTim(q, chu) {
+    if (!q) return true;
+    var h = ' ' + chuanTim(chu) + ' ';
+    return q.split(' ').every(function (w) { return h.indexOf(w) >= 0; });
+  }
+
+  function khopCombo(q, c) {
+    return khopTim(q, c.ten_combo + ' ' + c.ten_xuat + ' ' + c.ma_he_thong + ' ' + c.khoa.join(' ') + ' ' +
+      c.thanh_phan.map(function (t) { return t.sku + ' ' + t.ten; }).join(' '));
+  }
+
   function ve() {
-    var c = DM.catalog, q = A.boDau($('dm-tim').value.trim());
+    var c = DM.catalog, q = chuanTim($('dm-tim').value);
     $('dm-dem-sku').textContent = '(' + c.skus.length + ')';
     $('dm-dem-combo').textContent = '(' + c.combos.length + ')';
     $('dm-dem-mc').textContent = '(' + (c.ma_chuan || []).length + ')';
@@ -40,7 +53,7 @@
     deleteCombo: '🗑 Xóa combo', importBatch: '📥 Nạp Excel', khoiPhuc: '♻️ Khôi phục sao lưu',
     doiKhoaCombo: '🔑 Đổi khóa combo (mã vạch)', capNhatGia: '💲 Cập nhật giá', capNhatGiaCombo: '💸 Cập nhật giá combo',
     thayMaTaiBan: '🔁 Thay mã tái bản', hoanTacTaiBan: '↩️ Hoàn tác thay mã', boQuaTaiBan: '🙅 Không phải tái bản',
-    soMaChuan: '🌐 Sổ mã chuẩn', luuTenSach: '✏️ Khai báo tên sách', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
+    soMaChuan: '🌐 Sổ mã chuẩn', luuTenSach: '✏️ Khai báo tên sách', khongPhaiCombo: '🙅 Không phải combo', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
   };
   function taiLichSu() {
     if (dangTaiLs) return;
@@ -72,7 +85,7 @@
     if (!lichSu && !loiLs) { $('dm-bang').innerHTML = '<div class="trong-bang">Đang tải lịch sử…</div>'; taiLichSu(); return; }
     if (loiLs) { $('dm-bang').innerHTML = '<div class="trong-bang">😿 ' + A.esc(loiLs) + ' <button class="linkish" id="ls-lai">Thử lại</button></div>'; return; }
     var ds = lichSu.filter(function (r) {
-      return !q || A.boDau([r.hanh_dong, r.khoa, r.du_lieu_cu, r.du_lieu_moi].join(' ')).indexOf(q) >= 0;
+      return khopTim(q, [TEN_HD[r.hanh_dong] || r.hanh_dong, r.khoa, r.du_lieu_cu, r.du_lieu_moi].join(' '));
     });
     if (!ds.length) { $('dm-bang').innerHTML = rong(lichSu.length ? 'Không tìm thấy.' : 'Chưa có thay đổi nào.'); return; }
     var daHoanTac = {};
@@ -127,11 +140,15 @@
     $('dm-dem-chuaten').textContent = '(' + list.filter(function (e) { return canTen(e) && !e.ten_sach; }).length + ')';
     var ds = list.filter(function (e) {
       if (locTen && !(canTen(e) && !e.ten_sach)) return false;
-      return !q || A.boDau(e.sku + ' ' + e.ten_sach + ' ' + e.ten + ' ' + e.key + ' ' + e.nha).indexOf(q) >= 0;
+      return khopTim(q, [e.sku, e.ten_sach, e.ten, e.phan_loai, e.key, e.nha].join(' '));
     });
     ds.sort(function (a, b) { return (a.ten_sach || a.ten).localeCompare(b.ten_sach || b.ten, 'vi'); });
     if (!ds.length) {
-      $('dm-bang').innerHTML = rong(locTen ? 'Sách nào cũng đã có tên khai báo rồi 🎉' : list.length ? 'Không tìm thấy.' : 'Danh mục SKU còn trống. Mèo sẽ tự học dần khi bạn tách đơn 🐾');
+      var soCb = q ? DM.catalog.combos.filter(function (c) { return khopCombo(q, c); }).length : 0;
+      $('dm-bang').innerHTML = rong(locTen ? 'Sách nào cũng đã có tên khai báo rồi 🎉' : list.length ? 'Không tìm thấy trong SKU → nhà.' +
+        (soCb ? ' <button class="linkish" type="button" data-sang-combo>Có ' + soCb + ' combo khớp – xem tab Combo</button>' : '') +
+        '<br><small>Dòng chỉ nhận diện tại chỗ (chưa lưu) thì bấm “💾 Lưu vào danh mục” ở màn Tách đơn.</small>'
+        : 'Danh mục SKU còn trống. Mèo sẽ tự học dần khi bạn tách đơn 🐾');
       return;
     }
     var ghi = DM.coTheGhi(), idxDm = PL.buildIndex(DM.catalog);
@@ -147,10 +164,11 @@
         var choThay = PL.isBarcode(e.sku) && !e.ma_moi;
         return '<tr><td class="sku">' + (e.sku ? A.esc(e.sku) : '<span class="sku-la sku-trong">(trống)</span>') + phu + '</td>' +
           oTenSach(e, i, ghi, mc) + '<td class="ten pl">' + A.esc(e.ten) + (e.phan_loai ? ' <span class="nho">' + A.esc(e.phan_loai) + '</span>' : '') + nhanKhoa + '</td><td>' +
-          (ghi ? '<select class="select" data-sua-sku="' + i + '" aria-label="Nhà">' + ['HA', 'KV', 'ML', PL.KHONG_NHAP].map(function (n) {
+          (ghi ? '<select class="select" data-sua-sku="' + i + '" aria-label="Nhà">' + (e.nha ? '' : '<option value="" selected disabled>— chọn nhà —</option>') + ['HA', 'KV', 'ML', PL.KHONG_NHAP].map(function (n) {
             return '<option value="' + n + '"' + (e.nha === n ? ' selected' : '') + '>' + (n === PL.KHONG_NHAP ? 'Không nhập' : n + ' · ' + PL.TEN_NHA[n]) + '</option>';
           }).join('') + '</select>' : A.badge(e.nha === PL.KHONG_NHAP ? 'Không nhập' : e.nha)) +
-          '</td><td class="nguon-' + A.esc(e.nguon) + '">' + (e.nguon === 'tay' ? '✋ gán tay' : e.nguon === 'web' ? '🌐 web' : e.nguon === 'web_tu_khop' ? '🌐 web tự khớp' : '🤖 tự học') + '</td>' +
+          '</td><td class="nguon-' + A.esc(e.nguon) + '">' + (e.nguon === 'tay' ? '✋ gán tay' : e.nguon === 'web' ? '🌐 web' : e.nguon === 'web_tu_khop' ? '🌐 web tự khớp' : '🤖 tự học') +
+            (e.khong_combo ? '<div><span class="nho" title="Bạn đã bấm “Không phải combo” cho dòng này">🙅 không phải combo</span></div>' : '') + '</td>' +
           '<td class="so">' + (e.gia_gan_nhat ? A.so(e.gia_gan_nhat) + '<div class="pl">' + A.esc(e.ngay_gia) + '</div>' : '<span class="muted">—</span>') + '</td>' +
           '<td class="pl">' + ngay(e.cap_nhat) + '</td><td><div class="actions">' +
           (choThay ? A.nutGhi('🔁 Thay mã tái bản', 'class="btn btn-sm" data-tai-ban="' + i + '"') : '') +
@@ -170,7 +188,7 @@
 
   function veCombo(list, q) {
     var ds = list.filter(function (c) {
-      return !q || A.boDau(c.ten_combo + ' ' + c.khoa.join(' ') + ' ' + c.thanh_phan.map(function (t) { return t.sku + ' ' + t.ten; }).join(' ')).indexOf(q) >= 0;
+      return khopCombo(q, c);
     });
     ds.sort(function (a, b) { return a.ten_combo.localeCompare(b.ten_combo, 'vi'); });
     if (!ds.length) { $('dm-bang').innerHTML = rong(list.length ? 'Không tìm thấy.' : 'Chưa có combo nào. Khai báo ở tab Combo của màn Tách đơn nha.'); return; }
@@ -363,6 +381,7 @@
     });
     $('dm-bang').addEventListener('click', function (e) {
       if (e.target.id === 'ls-lai') { lichSu = null; loiLs = ''; ve(); return; }
+      if (e.target.closest('[data-sang-combo]')) { tab = 'combo'; ve(); return; }
       var b = e.target.closest('button');
       if (!b || b.disabled) return;
       if (b.id === 'dm-dung-het') {

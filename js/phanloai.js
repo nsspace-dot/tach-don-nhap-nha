@@ -118,6 +118,69 @@
     return '';
   }
 
+  /* Dạng "A+B" (vd "VN+TG", "Toán + Văn", "Q1+Q2") → nghi combo. Không tính "C++", "Lớp 1+" (không có vế sau).
+   * Dấu "+" chỉ nằm trong TÊN mà phân loại có nghĩa (vd tên "… Lớp 1+2+3", phân loại "Lớp 2") → phân loại đã chọn 1 cuốn → không phải combo. */
+  function coDauCong(t) { return /[\p{L}\p{N})\]]\s*\+\s*[\p{L}\p{N}(\[]/u.test(clean(t).replace(/\+{2,}/g, ' ')); }
+  function lyDoComboCong(row, dsVoNghia) {
+    var pl = clean(row.phanLoai);
+    if (coDauCong(pl)) return 'Phân loại dạng "A+B" (' + pl + ')';
+    if (coDauCong(row.ten) && !plCoNghia(pl, row.ten, dsVoNghia)) return 'Tên dạng "A+B"';
+    return '';
+  }
+  /* Có barcode hợp lệ (đúng dạng mã vạch, đúng số kiểm tra EAN-13) */
+  function barcodeHopLe(sku) { return isBarcode(sku) && ean13HopLe(clean(sku)); }
+
+  /* Các phân loại khác cùng sản phẩm (cùng sàn + cùng tên sàn đã làm gọn) có barcode – gợi ý thành phần combo */
+  function thanhPhanGoiY(row, rows, maKhac, dsVoNghia) {
+    var t = tenSoSanh(row.ten, maKhac), pl = norm(row.phanLoai), seen = {}, out = [];
+    (rows || []).forEach(function (r) {
+      var sku = clean(r.sku).toUpperCase();
+      if (r.san !== row.san || norm(r.phanLoai) === pl || !barcodeHopLe(sku) || seen[sku]) return;
+      if (tenSoSanh(r.ten, maKhac) !== t || comboReason(r) || lyDoComboCong(r, dsVoNghia)) return;
+      seen[sku] = 1;
+      out.push({ sku: sku, ten: tenTam(r.ten, r.phanLoai, maKhac, dsVoNghia), phanLoai: clean(r.phanLoai), gia: soGia(r.gia) });
+    });
+    return out;
+  }
+
+  /* Nghi combo theo giá: trong cùng 1 sản phẩm, phân loại KHÔNG có barcode hợp lệ có giá = tổng giá của ≥ 2 phân loại khác (lệch ≤ 2%).
+   * Trả về Map: dòng → { lyDo, tp: [phân loại thành phần] } */
+  function nghiComboTheoGia(rows, maKhac, dsVoNghia) {
+    var sp = new Map(), out = new Map();
+    rows.forEach(function (r) {
+      if (r.san === 'Web' || !soGia(r.gia)) return;
+      var k = r.san + '|' + tenSoSanh(r.ten, maKhac);
+      if (!sp.has(k)) sp.set(k, new Map());
+      var vs = sp.get(k), kv = norm(r.phanLoai) + '|' + clean(r.sku).toUpperCase();
+      if (!vs.has(kv)) vs.set(kv, { pl: clean(r.phanLoai), sku: clean(r.sku).toUpperCase(), gia: soGia(r.gia), ten: r.ten, rows: [] });
+      vs.get(kv).rows.push(r);
+    });
+    sp.forEach(function (vs) {
+      var ds = Array.from(vs.values());
+      if (ds.length < 3) return;
+      ds.forEach(function (v) {
+        if (barcodeHopLe(v.sku)) return;
+        var khac = ds.filter(function (x) { return x !== v && x.gia < v.gia && norm(x.pl) !== norm(v.pl); })
+          .sort(function (a, b) { return b.gia - a.gia; }).slice(0, 12);
+        var tim = null;
+        (function thu(i, chon, tong) {
+          if (tim) return;
+          if (chon.length >= 2 && Math.abs(tong - v.gia) <= v.gia * 0.02) { tim = chon.slice(); return; }
+          if (i >= khac.length || tong > v.gia * 1.02) return;
+          chon.push(khac[i]); thu(i + 1, chon, tong + khac[i].gia); chon.pop();
+          thu(i + 1, chon, tong);
+        })(0, [], 0);
+        if (!tim) return;
+        var tp = tim.filter(function (x) { return barcodeHopLe(x.sku); }).map(function (x) {
+          return { sku: x.sku, ten: tenTam(x.ten, x.pl, maKhac, dsVoNghia), phanLoai: x.pl, gia: x.gia };
+        });
+        var lyDo = 'Nghi combo theo giá: ' + v.gia + ' = ' + tim.map(function (x) { return (x.pl || '?') + ' ' + x.gia; }).join(' + ');
+        v.rows.forEach(function (r) { out.set(r, { lyDo: lyDo, tp: tp }); });
+      });
+    });
+    return out;
+  }
+
   /* ---------- Danh mục ---------- */
   function buildIndex(catalog) {
     catalog = catalog || {};
@@ -242,14 +305,14 @@
   /* kết quả: { loai: 'nha'|'combo'|'tach_combo'|'chua_ro'|'bo_qua', nha, combo, ghiChu, lyDo, nguonNha, hocSku } */
   function classifyRow(row, idx, reKhac) {
     var text = row.ten + ' ' + row.phanLoai;
-    var cr = comboReason(row);
-    var res = { row: row, key: rowKey(row, !!cr), isCombo: !!cr, comboLyDo: cr, nha: '', ghiChu: '', lyDo: '' };
+    var cr = comboReason(row) || row.comboYeu || ''; // comboYeu: nghi combo (dạng "A+B" / theo giá) – đã trừ dòng bạn bảo "Không phải combo"
+    var res = { row: row, key: rowKey(row, !!cr), isCombo: !!cr, comboLyDo: cr, nghiCombo: !comboReason(row) && !!row.comboYeu, nha: '', ghiChu: '', lyDo: '' };
     res.tronNha = findCodes(text, reKhac).length > 0;
 
     // Bước 0: đơn web có cột "Nhà cung cấp" → theo nhà cung cấp (ưu tiên hơn mọi quy tắc khác). Mỗi dòng web = 1 cuốn sách.
     var ncc = row.san === 'Web' ? nhaTheoNcc(row.ncc) : '';
     if (ncc) {
-      res.isCombo = false; res.comboLyDo = ''; res.tronNha = false; res.key = rowKey(row, false);
+      res.isCombo = false; res.comboLyDo = ''; res.nghiCombo = false; res.tronNha = false; res.key = rowKey(row, false);
       if (ncc === 'KHAC') { res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + clean(row.ncc) + ')'; return res; }
       res.loai = 'nha'; res.nha = ncc; res.nguonNha = 'nhà cung cấp (web)';
       if (isBarcode(row.sku)) res.hocWeb = true;
@@ -257,7 +320,9 @@
     }
 
     // Bước 1: combo đã khai báo (chỉ xét dòng có dấu hiệu combo)
-    var combo = res.isCombo ? lookup(idx.combo, row, true) : null;
+    // Combo đã khai báo – xét cả dòng trông như sách lẻ (bạn bấm "🎁 Đây là combo" ở bảng nhà)
+    var combo = lookup(idx.combo, row, true);
+    if (combo && !res.isCombo) { res.isCombo = true; res.key = rowKey(row, true); res.comboLyDo = 'Đã khai báo là combo'; }
     // Khóa cũ "sku:<mã vạch>" trơn → vẫn nhận, và ghi nhận để đổi sang khóa mới
     if (!combo && res.isCombo && isBarcode(row.sku) && idx.combo.has(skuKey(row.sku))) {
       combo = idx.combo.get(skuKey(row.sku));
@@ -306,6 +371,7 @@
 
     if (NHA.indexOf(res.nha) >= 0) { res.loai = res.isCombo ? 'combo' : 'nha'; return res; }
     if (res.nha && res.isCombo) { res.loai = 'combo'; return res; } // nhiều mã nhà, là combo
+    if (res.nghiCombo) { res.loai = 'combo'; return res; } // nghi combo chưa rõ nhà → vẫn đưa sang tab Combo để xác nhận
     // Bước 7: chưa rõ
     res.loai = 'chua_ro';
     return res;
@@ -355,7 +421,8 @@
       g = { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: 0, nha: line.nha || '',
             ghiChu: line.ghiChu || '', lyDo: line.lyDo || '', comboLyDo: line.comboLyDo || '',
             isCombo: line.isCombo, key: line.key, keys: rowKeys(r, line.isCombo), skuLa: !isBarcode(r.sku),
-            tronNha: !!line.tronNha, tenGon: tenGon(r.ten, maKhac), san: [], lines: [] };
+            tronNha: !!line.tronNha, tenGon: tenGon(r.ten, maKhac), san: [], lines: [],
+            nghiCombo: !!line.nghiCombo, goiYTp: r.goiYTp || null };
       map.set(id, g);
     }
     g.sl += r.sl;
@@ -427,8 +494,20 @@
       return e && NHA.indexOf(e.nha) >= 0 ? e.nha : '';
     }
 
+    // ---------- Nghi combo (dạng "A+B" / theo giá) – bỏ qua dòng bạn đã bảo "Không phải combo" hoặc đã gán tay là sách lẻ ----------
+    var nghiGia = nghiComboTheoGia(rows, maKhac, plVN);
     rows = rows.map(function (row) {
-      if (comboReason(row) && !(row.san === 'Web' && nhaTheoNcc(row.ncc))) return row;
+      if (row.san === 'Web' || comboReason(row)) return row;
+      var cong = lyDoComboCong(row, plVN), gia = nghiGia.get(row);
+      if (!cong && !gia) return row;
+      var e = idx.sku.get(rowKey(row, false));
+      if (e && (clean(e.khong_combo) || e.nguon === 'tay')) return row;
+      return Object.assign({}, row, { comboYeu: cong && gia ? cong + ' · ' + gia.lyDo : cong || gia.lyDo,
+        goiYTp: gia && gia.tp.length ? gia.tp : thanhPhanGoiY(row, rows, maKhac, plVN) });
+    });
+
+    rows = rows.map(function (row) {
+      if ((comboReason(row) || row.comboYeu) && !(row.san === 'Web' && nhaTheoNcc(row.ncc))) return row;
       var r = row, sku = clean(row.sku).toUpperCase(), maVach = isBarcode(sku);
       if (row.san !== 'Web') {
         var khoa = rowKey(row, false), eX = idx.sku.get(khoa);
@@ -626,7 +705,7 @@
     comboReason: comboReason, isNotBook: isNotBook, isBarcode: isBarcode,
     findCodes: findCodes, codeRegex: codeRegex, RE_NHA: RE_NHA,
     maMoiNhat: maMoiNhat, nhaTheoNcc: nhaTheoNcc, giongTen: giongTen, ean13HopLe: ean13HopLe, homNayISO: homNayISO, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
-    plCoNghia: plCoNghia, tenTam: tenTam, tenSoSanhDayDu: tenSoSanhDayDu, PL_VO_NGHIA_MAC_DINH: PL_VO_NGHIA_MAC_DINH,
+    plCoNghia: plCoNghia, tenTam: tenTam, lyDoComboCong: lyDoComboCong, nghiComboTheoGia: nghiComboTheoGia, thanhPhanGoiY: thanhPhanGoiY, barcodeHopLe: barcodeHopLe, tenSoSanhDayDu: tenSoSanhDayDu, PL_VO_NGHIA_MAC_DINH: PL_VO_NGHIA_MAC_DINH,
     skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };

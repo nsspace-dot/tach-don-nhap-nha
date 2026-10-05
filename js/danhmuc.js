@@ -35,7 +35,7 @@
                nguon: String(e.nguon || 'tay'), cap_nhat: e.cap_nhat || '',
                gia_gan_nhat: Number(e.gia_gan_nhat) || 0, ngay_gia: String(e.ngay_gia || ''),
                ma_moi: String(e.ma_moi || ''), khong_tai_ban: String(e.khong_tai_ban || ''), nguon_ma: String(e.nguon_ma || ''),
-               ten_sach: String(e.ten_sach || ''), phan_loai: String(e.phan_loai || '') };
+               ten_sach: String(e.ten_sach || ''), phan_loai: String(e.phan_loai || ''), khong_combo: String(e.khong_combo || '') };
     }).filter(function (e) { return e.key; });
     var combos = (c.combos || []).map(function (x) {
       var khoa = Array.isArray(x.khoa) ? x.khoa : String(x.khoa || '').split(' ;; ');

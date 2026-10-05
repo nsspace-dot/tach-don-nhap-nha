@@ -126,7 +126,7 @@ check('Khai báo hàng loạt: sách chưa có trong danh mục → tạo mới 
 var ls = m.get({ action: 'lichSu' }).lich_su;
 check('Ghi Lịch sử "luuTenSach"', ls.some(function (x) { return x.hanh_dong === 'luuTenSach'; }));
 var sh = m.ss.getSheetByName('SKU_NHA').data[0];
-check('Sheet SKU_NHA có cột ten_sach, phan_loai ở cuối', sh[sh.length - 2] === 'ten_sach' && sh[sh.length - 1] === 'phan_loai', sh);
+check('Sheet SKU_NHA có cột ten_sach, phan_loai', sh.indexOf('ten_sach') === 11 && sh.indexOf('phan_loai') === 12, sh);
 // Sheet cũ thiếu cột → tự thêm tiêu đề, không mất dữ liệu
 var m2 = GL.taoMoiTruong();
 m2.ctx.khoiTao();

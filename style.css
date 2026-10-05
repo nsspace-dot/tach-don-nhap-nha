@@ -409,3 +409,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .input-ten { padding: 6px 9px; font-size: 14px; width: 100%; min-width: 320px; }
 .input-ten.la-goi-y { font-style: italic; color: var(--muted); border-style: dashed; }
 .loc-ten { font-size: 14px; white-space: nowrap; }
+.nho-nghi { background: var(--cb); color: var(--cb-ink); }
+.dong-nut { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.nut-nho { font: 600 11.5px/1 var(--font); color: var(--muted); background: transparent; border: 1px dashed var(--line); border-radius: 999px; padding: 3px 8px; cursor: pointer; }
+.nut-nho:hover, .nut-nho:focus-visible { color: var(--cb-ink); border-color: var(--cb-deep); background: #f6f1ff; }
+.nut-nho:disabled { opacity: .5; cursor: default; }

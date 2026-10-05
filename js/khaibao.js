@@ -128,8 +128,13 @@
   /* Mở form khai báo từ 1 dòng combo chưa khai báo */
   function moKhaiBao(g, cach) {
     var nha = PL.NHA.indexOf(g.nha) >= 0 ? g.nha : 'HA';
-    moHop({ khoa: [g.key], ten_combo: g.ten, tenGoc: g.ten, nhaGoiY: nha, mota: moTaNhom(g), nhom: g,
-            cach_xuat: cach || 'tach', tronNha: !!g.tronNha, maTron: maTron(g) });
+    // Gợi ý thành phần: các phân loại khác cùng sản phẩm có barcode (nghi combo theo giá: đúng các phân loại cộng ra giá)
+    var tp = (g.goiYTp || []).map(function (x) {
+      var gy = goiY(x.sku) || {}, e = DM.catalog.skus.filter(function (s) { return s.key === PL.skuKey(x.sku); })[0];
+      return { sku: x.sku, ten: (e && e.ten_sach) || x.ten || gy.ten, nha: gy.nha || nha, gia_goc: x.gia || gy.gia, so_luong: 1 };
+    });
+    moHop({ khoa: g.khoaCombo || [g.key], ten_combo: g.ten + ((g.khoaCombo || g.nghiCombo) && g.phanLoai ? ' – ' + g.phanLoai : ''), tenGoc: g.ten, nhaGoiY: nha, mota: moTaNhom(g), nhom: g,
+            cach_xuat: cach || 'tach', tronNha: !!g.tronNha, maTron: maTron(g), thanh_phan: tp });
   }
 
   /* Combo đã lưu có thành phần nhà khác → coi là trộn nhà */
