@@ -132,11 +132,41 @@
       (c.khoa || []).forEach(function (k) { if (clean(k)) combo.set(clean(k), c); });
     });
     // Mã tái bản: "sku:X" có ma_moi = Y → X là mã phụ trỏ về Y
-    var maMoi = new Map();
+    // "ten:…" có ma_moi = Y → listing không có barcode (SKU trống / dạng chữ) đã được quy về mã Y
+    var maMoi = new Map(), maMoiTen = new Map();
     sku.forEach(function (e, k) {
-      if (/^sku:/.test(k) && clean(e.ma_moi)) maMoi.set(k.slice(4), clean(e.ma_moi).toUpperCase());
+      if (!clean(e.ma_moi)) return;
+      if (/^sku:/.test(k)) maMoi.set(k.slice(4), clean(e.ma_moi).toUpperCase());
+      else maMoiTen.set(k, clean(e.ma_moi).toUpperCase());
     });
-    return { sku: sku, combo: combo, maMoi: maMoi };
+    return { sku: sku, combo: combo, maMoi: maMoi, maMoiTen: maMoiTen };
+  }
+
+  /* Độ giống 2 tên (0..1) theo khoảng cách Levenshtein */
+  function giongTen(a, b) {
+    if (a === b) return 1;
+    var n = a.length, m = b.length;
+    if (!n || !m || Math.min(n, m) / Math.max(n, m) < 0.85) return 0;
+    var truoc = new Array(m + 1), nay = new Array(m + 1), i, j;
+    for (j = 0; j <= m; j++) truoc[j] = j;
+    for (i = 1; i <= n; i++) {
+      nay[0] = i;
+      for (j = 1; j <= m; j++) nay[j] = Math.min(truoc[j] + 1, nay[j - 1] + 1, truoc[j - 1] + (a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1));
+      var t = truoc; truoc = nay; nay = t;
+    }
+    return 1 - truoc[m] / Math.max(n, m);
+  }
+
+  /* Mã EAN-13 có đúng số kiểm tra không */
+  function ean13HopLe(s) {
+    if (!/^\d{13}$/.test(s)) return true;
+    var tong = 0;
+    for (var i = 0; i < 12; i++) tong += Number(s[i]) * (i % 2 ? 3 : 1);
+    return (10 - tong % 10) % 10 === Number(s[12]);
+  }
+  function homNayISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
   }
 
   /* Đi theo chuỗi tái bản X → Y → Z tới mã mới nhất (chặn vòng lặp) */
@@ -284,6 +314,7 @@
     g.sl += item.sl;
     g.nguon.push(item.src);
     if (item.maCu && (g.maCu = g.maCu || []).indexOf(item.maCu) < 0) g.maCu.push(item.maCu);
+    if (item.quyVeWeb) g.quyVeWeb = true;
   }
 
   function addToList(map, line, maKhac) {
@@ -325,22 +356,104 @@
       theoTen.get(t).push(e);
     });
 
+    // ---------- Sổ mã chuẩn (barcode web) = danh mục MA_CHUAN + các dòng web trong file hôm nay ----------
+    var soChuan = new Map(), maChuanGhi = new Map();
+    function themChuan(e) {
+      var bc = clean(e.barcode).toUpperCase();
+      if (!isBarcode(bc)) return null;
+      var cu = soChuan.get(bc);
+      var kp = (cu ? cu.khongPhai : []).concat(clean(e.khong_phai) ? clean(e.khong_phai).split(/\s*;;\s*/) : []);
+      var moi = { barcode: bc, ten: clean(e.ten_gon || e.ten), gia: soGia(e.gia_bia), nha: clean(e.nha), ncc: clean(e.ncc),
+                  ngay: clean(e.ngay_thay), khongPhai: kp };
+      moi.tenSS = tenSoSanh(moi.ten, maKhac);
+      soChuan.set(bc, moi);
+      return cu;
+    }
+    ((catalog && catalog.ma_chuan) || []).forEach(themChuan);
+    rows.forEach(function (row) {
+      if (row.san !== 'Web' || !isBarcode(row.sku)) return;
+      var n = nhaTheoNcc(row.ncc);
+      var it = { barcode: clean(row.sku).toUpperCase(), ten_gon: tenGon(row.ten, maKhac), gia_bia: soGia(row.gia), ncc: clean(row.ncc),
+                 nha: NHA.indexOf(n) >= 0 ? n : '', ngay_thay: row.ngayXuat || homNayISO() };
+      var cu = themChuan(it);
+      if (!cu || cu.ten !== it.ten_gon || cu.gia !== it.gia_bia || cu.ncc !== it.ncc || cu.ngay < it.ngay_thay) maChuanGhi.set(it.barcode, it);
+    });
+    var soTheoTen = new Map();
+    soChuan.forEach(function (e) { if (!soTheoTen.has(e.tenSS)) soTheoTen.set(e.tenSS, []); soTheoTen.get(e.tenSS).push(e); });
+
+    var maPhuGhi = new Map(), cungCuon = new Map();
+    var LY_DO_MA = { web_tu_khop: 'khớp chắc', xac_nhan: 'tôi xác nhận' };
+    function themListing(row, maCu, maMoiX, lyDo) {
+      var lk = row.san + '|' + maCu + '|' + norm(row.ten) + '|' + lyDo;
+      var l = listing.get(lk) || { san: row.san, ten: row.ten, phanLoai: row.phanLoai, maCu: maCu, maMoi: maMoiX, lyDo: lyDo, soDong: 0 };
+      l.soDong++;
+      listing.set(lk, l);
+    }
+    function nhaGoiY(row) {
+      var c = findCodes(row.ten + ' ' + row.phanLoai, RE_NHA);
+      if (c.length === 1) return c[0];
+      var e = lookup(idx.sku, row, false);
+      return e && NHA.indexOf(e.nha) >= 0 ? e.nha : '';
+    }
+
     rows = rows.map(function (row) {
-      if ((comboReason(row) && !(row.san === 'Web' && nhaTheoNcc(row.ncc))) || !isBarcode(row.sku)) return row;
-      // Đơn còn dùng mã cũ (mã phụ) → tính như mã mới nhất
-      var moi = maMoiNhat(idx, row.sku);
-      var r = row;
-      if (moi !== clean(row.sku).toUpperCase()) {
-        r = Object.assign({}, row, { sku: moi, skuCu: clean(row.sku) });
-        var lk = row.san + '|' + r.skuCu + '|' + norm(row.ten);
-        var l = listing.get(lk) || { san: row.san, ten: row.ten, phanLoai: row.phanLoai, maCu: r.skuCu, maMoi: moi, soDong: 0 };
-        l.soDong++;
-        listing.set(lk, l);
+      if (comboReason(row) && !(row.san === 'Web' && nhaTheoNcc(row.ncc))) return row;
+      var r = row, sku = clean(row.sku).toUpperCase(), maVach = isBarcode(sku);
+      if (row.san !== 'Web') {
+        var khoa = rowKey(row, false), eX = idx.sku.get(khoa);
+        // a. Mã phụ đã lưu (tái bản / tự khớp / tôi xác nhận) → tính như mã mới nhất
+        var dau = maVach ? sku : idx.maMoiTen.get(khoa) || '';
+        var moi = dau ? maMoiNhat(idx, dau) : '';
+        if (moi && moi !== sku) {
+          var lyDo = (eX && LY_DO_MA[eX.nguon_ma]) || 'tái bản';
+          r = Object.assign({}, row, { sku: moi, skuCu: sku || '(trống)', lyDoMa: lyDo, quyVeWeb: lyDo !== 'tái bản' });
+          themListing(row, sku || '(trống)', moi, lyDo);
+        } else if (!(maVach && soChuan.has(sku))) {
+          // b. Chưa có trong sổ mã chuẩn → so tên đã làm gọn với sổ
+          var tss = tenSoSanh(row.ten, maKhac), giaRow = soGia(row.gia);
+          var trungTen = (soTheoTen.get(tss) || []).filter(function (e) { return e.barcode !== sku && e.khongPhai.indexOf(khoa) < 0; });
+          var chac = trungTen.filter(function (e) { return e.gia && e.gia === giaRow; })[0];
+          if (chac && !(eX && eX.nguon === 'tay')) {
+            // KHỚP CHẮC: tên trùng hẳn + cùng giá → tự quy về barcode web (không bao giờ đè dữ liệu gán tay)
+            r = Object.assign({}, row, { sku: chac.barcode, skuCu: sku || '(trống)', lyDoMa: 'khớp chắc', quyVeWeb: true });
+            if (!maPhuGhi.has(khoa)) maPhuGhi.set(khoa, { key: khoa, sku: sku, ten: row.ten, ma_moi: chac.barcode, nha: chac.nha, nguon_ma: 'web_tu_khop' });
+            themListing(row, sku || '(trống)', chac.barcode, 'khớp chắc');
+          } else {
+            // KHỚP VỪA: tên trùng hẳn nhưng khác giá, hoặc tên giống ≥ 90% + cùng nhà + giá chênh ≤ 15% → hỏi
+            var ung = trungTen.filter(function (e) { return e !== chac; }).map(function (e) {
+              return { e: e, lyDo: 'Tên trùng, khác giá (' + giaRow + ' / ' + e.gia + ')' };
+            });
+            var nhaRow = nhaGoiY(row);
+            if (!ung.length && nhaRow && giaRow) {
+              soChuan.forEach(function (e) {
+                if (e.nha !== nhaRow || !e.gia || e.barcode === sku || e.khongPhai.indexOf(khoa) >= 0) return;
+                if (Math.abs(e.gia - giaRow) / Math.max(e.gia, giaRow) > 0.15) return;
+                var sim = giongTen(tss, e.tenSS);
+                if (sim >= 0.9) ung.push({ e: e, lyDo: 'Tên giống ' + Math.floor(sim * 100) + '%' + (e.gia !== giaRow ? ', giá ' + giaRow + ' / ' + e.gia : '') });
+              });
+            }
+            ung.forEach(function (u) {
+              var ck = khoa + '>' + u.e.barcode;
+              var c = cungCuon.get(ck) || { khoa: khoa, sku: sku, ten: row.ten, phanLoai: row.phanLoai, san: row.san, gia: giaRow,
+                maChuan: u.e.barcode, tenChuan: u.e.ten, giaChuan: u.e.gia, nhaChuan: u.e.nha, lyDo: u.lyDo, soDong: 0 };
+              c.soDong++;
+              cungCuon.set(ck, c);
+            });
+          }
+        }
+        // c. Barcode trên sàn sai số kiểm tra (EAN-13)
+        if (maVach && !ean13HopLe(sku)) themListing(row, sku, r.sku !== sku ? r.sku : '', 'mã sai số kiểm tra');
+      }
+      if (!isBarcode(r.sku)) return r;
+      // Sách có trong sổ mã chuẩn → dùng tên đã làm gọn của bản web
+      if (soChuan.has(r.sku) && soChuan.get(r.sku).ten) {
+        if (r === row) r = Object.assign({}, row);
+        r.tenChuan = soChuan.get(r.sku).ten;
       }
       // Giá sách lẻ trong file hôm nay (nhiều giá → lấy cao nhất)
       if (soGia(r.gia) && soGia(r.gia) > (giaFile[r.sku] || 0)) giaFile[r.sku] = soGia(r.gia);
       // Mã vạch MỚI, tên trùng 1 SKU đã có → có thể là bản tái bản
-      if (!idx.sku.has(skuKey(r.sku))) {
+      if (!idx.sku.has(skuKey(r.sku)) && !r.quyVeWeb) {
         (theoTen.get(tenSoSanh(row.ten, maKhac)) || []).forEach(function (e) {
           var x = clean(e.sku).toUpperCase();
           if (x === r.sku) return;
@@ -393,7 +506,7 @@
           break;
         case 'nha':
           addToHouse(houses[ln.nha], { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, maCu: r.skuCu,
-            src: { san: r.san, row: r } }, maKhac);
+            tenXuat: r.tenChuan, quyVeWeb: r.quyVeWeb, src: { san: r.san, row: r } }, maKhac);
           if (ln.hocWeb) {
             // Đơn web: nhà theo nhà cung cấp → nguồn "web" (mạnh hơn tự học, không đè gán tay)
             var kw = skuKey(r.sku), cw = hoc.get(kw);
@@ -439,7 +552,8 @@
                 maKhac: maKhac, doiKhoa: Object.keys(doiKhoa).map(function (k) { return doiKhoa[k]; }),
                 giaFile: giaFile, capNhatGia: capNhatGia, lechGia: lechGia,
                 lechGiaHomNay: lechGia.filter(function (l) { return comboHomNay[l.combo_id]; }),
-                taiBan: Array.from(taiBan.values()), listingCanSua: Array.from(listing.values()) };
+                taiBan: Array.from(taiBan.values()), listingCanSua: Array.from(listing.values()),
+                cungCuon: Array.from(cungCuon.values()), maPhu: Array.from(maPhuGhi.values()), maChuan: Array.from(maChuanGhi.values()) };
     NHA.forEach(function (n) {
       var list = Array.from(houses[n].values());
       var dem = {};
@@ -465,7 +579,7 @@
     classify: classify, classifyRow: classifyRow, buildIndex: buildIndex,
     comboReason: comboReason, isNotBook: isNotBook, isBarcode: isBarcode,
     findCodes: findCodes, codeRegex: codeRegex, RE_NHA: RE_NHA,
-    maMoiNhat: maMoiNhat, nhaTheoNcc: nhaTheoNcc, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
+    maMoiNhat: maMoiNhat, nhaTheoNcc: nhaTheoNcc, giongTen: giongTen, ean13HopLe: ean13HopLe, homNayISO: homNayISO, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
     skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };

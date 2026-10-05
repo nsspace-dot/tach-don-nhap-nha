@@ -16,6 +16,7 @@
     var c = DM.catalog, q = A.boDau($('dm-tim').value.trim());
     $('dm-dem-sku').textContent = '(' + c.skus.length + ')';
     $('dm-dem-combo').textContent = '(' + c.combos.length + ')';
+    $('dm-dem-mc').textContent = '(' + (c.ma_chuan || []).length + ')';
     document.querySelectorAll('.seg-btn').forEach(function (b) {
       var on = b.dataset.dm === tab;
       b.classList.toggle('is-active', on);
@@ -37,7 +38,8 @@
     upsertCombo: '🎁 Lưu combo', addComboKey: '🔗 Gắn khóa combo', boKhoa: '✂️ Chuyển khóa sang combo khác',
     deleteCombo: '🗑 Xóa combo', importBatch: '📥 Nạp Excel', khoiPhuc: '♻️ Khôi phục sao lưu',
     doiKhoaCombo: '🔑 Đổi khóa combo (mã vạch)', capNhatGia: '💲 Cập nhật giá', capNhatGiaCombo: '💸 Cập nhật giá combo',
-    thayMaTaiBan: '🔁 Thay mã tái bản', hoanTacTaiBan: '↩️ Hoàn tác thay mã', boQuaTaiBan: '🙅 Không phải tái bản'
+    thayMaTaiBan: '🔁 Thay mã tái bản', hoanTacTaiBan: '↩️ Hoàn tác thay mã', boQuaTaiBan: '🙅 Không phải tái bản',
+    soMaChuan: '🌐 Sổ mã chuẩn', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
   };
   function taiLichSu() {
     if (dangTaiLs) return;
@@ -109,7 +111,7 @@
           (ghi ? '<select class="select" data-sua-sku="' + i + '" aria-label="Nhà">' + ['HA', 'KV', 'ML', PL.KHONG_NHAP].map(function (n) {
             return '<option value="' + n + '"' + (e.nha === n ? ' selected' : '') + '>' + (n === PL.KHONG_NHAP ? 'Không nhập' : n + ' · ' + PL.TEN_NHA[n]) + '</option>';
           }).join('') + '</select>' : A.badge(e.nha === PL.KHONG_NHAP ? 'Không nhập' : e.nha)) +
-          '</td><td class="nguon-' + A.esc(e.nguon) + '">' + (e.nguon === 'tay' ? '✋ gán tay' : e.nguon === 'web' ? '🌐 web' : '🤖 tự học') + '</td>' +
+          '</td><td class="nguon-' + A.esc(e.nguon) + '">' + (e.nguon === 'tay' ? '✋ gán tay' : e.nguon === 'web' ? '🌐 web' : e.nguon === 'web_tu_khop' ? '🌐 web tự khớp' : '🤖 tự học') + '</td>' +
           '<td class="so">' + (e.gia_gan_nhat ? A.so(e.gia_gan_nhat) + '<div class="pl">' + A.esc(e.ngay_gia) + '</div>' : '<span class="muted">—</span>') + '</td>' +
           '<td class="pl">' + ngay(e.cap_nhat) + '</td><td><div class="actions">' +
           (choThay ? A.nutGhi('🔁 Thay mã tái bản', 'class="btn btn-sm" data-tai-ban="' + i + '"') : '') +
@@ -152,6 +154,38 @@
           '<td><div class="actions">' + A.nutGhi('✏️ Sửa', 'class="btn btn-sm" data-sua-combo="' + i + '"') +
           A.nutGhi('🗑', 'class="btn btn-icon btn-ghost" data-xoa-combo="' + i + '" aria-label="Xóa combo"') + '</div></td></tr>';
       }).join('') + '</tbody></table>';
+  }
+
+  /* ---------- Nạp sổ mã chuẩn từ nhiều file web cũ ---------- */
+  function napSoMaChuan(files) {
+    Promise.all(files.map(function (f) {
+      return f.arrayBuffer().then(function (buf) { return root.DocFile.parseWorkbook(root.XLSX.read(buf, { type: 'array' }), root.XLSX, f.name); })
+        .catch(function () { return { error: 'hỏng', file: f.name }; });
+    })).then(function (ds) {
+      var web = ds.filter(function (p) { return p.san === 'Web'; });
+      var boQua = ds.length - web.length;
+      var theoMa = {};
+      web.forEach(function (p) {
+        p.rows.forEach(function (r) {
+          if (!PL.isBarcode(r.sku)) return;
+          var n = PL.nhaTheoNcc(r.ncc);
+          var it = { barcode: r.sku.toUpperCase(), ten_gon: PL.tenGon(r.ten, DM.caiDat.maKhac), gia_bia: Number(r.gia) || 0, ncc: r.ncc,
+                     nha: PL.NHA.indexOf(n) >= 0 ? n : '', ngay_thay: r.ngayXuat || PL.homNayISO() };
+          var cu = theoMa[it.barcode];
+          if (!cu || it.ngay_thay >= cu.ngay_thay) theoMa[it.barcode] = it; // giữ bản mới nhất
+        });
+      });
+      var items = Object.keys(theoMa).map(function (k) { return theoMa[k]; });
+      if (!items.length) { A.toast('Không tìm thấy dòng có barcode trong các file web đã chọn.', 'loi'); return; }
+      return A.hoi('Nạp ' + items.length + ' barcode từ ' + web.length + ' file web vào sổ mã chuẩn?' +
+        (boQua ? '\n\n(' + boQua + ' file không phải "Danh sách lấy hàng" của web – bỏ qua.)' : '') +
+        '\n\nBản cũ hơn sẽ không đè bản mới hơn đã có trong sổ.', 'Nạp', { nhe: true }).then(function (ok) {
+        if (!ok) return;
+        return DM.goi('upsertMaChuan', { items: items }).then(function (r) {
+          A.toast('🌐 Sổ mã chuẩn: thêm ' + r.soMaChuan.moi + ', cập nhật ' + r.soMaChuan.doi + ' barcode.', 'ok');
+        });
+      });
+    }).catch(function (e) { A.toast('Không nạp được: ' + e.message, 'loi'); });
   }
 
   /* ---------- Thao tác ---------- */
@@ -293,6 +327,12 @@
     $('dm-nap-input').addEventListener('change', function (e) {
       if (e.target.files[0]) napExcel(e.target.files[0]);
       e.target.value = '';
+    });
+    $('dm-nap-web').addEventListener('click', function () { $('dm-nap-web-input').click(); });
+    $('dm-nap-web-input').addEventListener('change', function (e) {
+      var files = Array.prototype.slice.call(e.target.files);
+      e.target.value = '';
+      if (files.length) napSoMaChuan(files);
     });
   });
 

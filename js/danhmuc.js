@@ -32,7 +32,7 @@
       return { key: String(e.key || ''), sku: String(e.sku || ''), ten: String(e.ten || ''), nha: String(e.nha || ''),
                nguon: String(e.nguon || 'tay'), cap_nhat: e.cap_nhat || '',
                gia_gan_nhat: Number(e.gia_gan_nhat) || 0, ngay_gia: String(e.ngay_gia || ''),
-               ma_moi: String(e.ma_moi || ''), khong_tai_ban: String(e.khong_tai_ban || '') };
+               ma_moi: String(e.ma_moi || ''), khong_tai_ban: String(e.khong_tai_ban || ''), nguon_ma: String(e.nguon_ma || '') };
     }).filter(function (e) { return e.key; });
     var combos = (c.combos || []).map(function (x) {
       var khoa = Array.isArray(x.khoa) ? x.khoa : String(x.khoa || '').split(' ;; ');
@@ -47,7 +47,11 @@
         })
       };
     }).filter(function (x) { return x.combo_id; });
-    return { skus: skus, combos: combos };
+    var maChuan = (c.ma_chuan || []).map(function (x) {
+      return { barcode: String(x.barcode || ''), ten_gon: String(x.ten_gon || ''), gia_bia: Number(x.gia_bia) || 0, ncc: String(x.ncc || ''),
+               nha: String(x.nha || ''), ngay_thay: String(x.ngay_thay || ''), khong_phai: String(x.khong_phai || '') };
+    }).filter(function (x) { return x.barcode; });
+    return { skus: skus, combos: combos, ma_chuan: maChuan };
   }
 
   function phat(loai) { nghe.forEach(function (f) { f(loai); }); }

@@ -31,7 +31,7 @@ App giúp lọc file đơn hàng **Shopee** + **TikTok** thành danh sách nhậ
    - **Xem xét quyền (Review permissions)** → chọn tài khoản của bạn.
    - Nếu thấy *"Google chưa xác minh ứng dụng này" (Google hasn't verified this app)*: bấm **Nâng cao (Advanced)** → **Đi tới … (không an toàn) / Go to … (unsafe)** → **Cho phép (Allow)**.
      (Đây là script của chính bạn nên an toàn.)
-8. Quay lại tab Google Sheets: sẽ thấy 4 sheet **SKU_NHA**, **COMBO**, **COMBO_THANH_PHAN**, **LICH_SU**. ✅
+8. Quay lại tab Google Sheets: sẽ thấy 5 sheet **SKU_NHA**, **COMBO**, **COMBO_THANH_PHAN**, **LICH_SU**, **MA_CHUAN**. ✅ (bản cập nhật sau này có thể tự thêm sheet mới khi cần)
 
 > ⚠️ Không đổi tên, không đổi thứ tự cột của 4 sheet này. Muốn sửa danh mục thì nên sửa trong app (để có lịch sử).
 > Sheet **LICH_SU** chỉ được thêm dòng – đừng xóa dòng trong đó.
@@ -184,6 +184,24 @@ Trên màn hình app cũng hiện tên gọn; **rê chuột vào tên** để xe
   Thứ tự ưu tiên: **gán tay > web > tự học** (web không bao giờ đè gán tay).
 - **Chống trùng:** thả lại **đúng file web đã thả** (cùng "Thời gian xuất" và cùng nội dung) → app báo *"File web này đã được thả"* và bỏ qua. Hai file web khác nhau thì cộng dồn.
 
+### Sổ mã chuẩn 🌐 (barcode web làm gốc)
+Barcode trên sàn đôi khi sai (quên sửa sau tái bản, gõ nhầm, listing cũ). **Barcode trong file đơn web là chuẩn.**
+- Mỗi lần thả file web, các dòng có barcode được ghi / cập nhật vào **sổ mã chuẩn** (sheet `MA_CHUAN`): barcode, tên đã làm gọn, giá bìa, nhà cung cấp, ngày thấy gần nhất. Gom chung lần ghi tự học.
+- Nạp nhiều file web cũ một lúc: **Danh mục → 🌐 Nạp sổ mã chuẩn từ file web cũ** (chọn được nhiều file; bản cũ hơn không đè bản mới hơn).
+
+**App tự so sách lẻ trên Shopee/TikTok với sổ mã chuẩn** (chỉ xét listing có barcode KHÔNG có trong sổ, hoặc SKU trống / dạng chữ; so tên đã làm gọn, không dấu, chữ thường):
+- **Khớp chắc** – tên trùng hẳn **và** cùng giá bìa → **tự quy về barcode web**: cộng chung 1 dòng với cuốn đó, dùng tên của bản web, ghi chú *"🌐 đã quy về mã web"*. App lưu listing đó thành **mã phụ → mã web** (nguồn *web tự khớp*) để lần sau tự nhận.
+- **Khớp vừa** – tên trùng hẳn nhưng khác giá, **hoặc** tên giống ≥ 90% + cùng nhà + giá chênh ≤ 15% → **không tự gộp**, hiện khung **"🔁 Có thể cùng 1 cuốn"**:
+  - **✅ Đúng, cùng cuốn** → lưu mã phụ (nguồn *gán tay*), lần sau tự tính vào mã web.
+  - **Không phải** → ghi nhớ, không hỏi lại listing đó nữa.
+- Thứ tự ưu tiên: **gán tay > mã phụ > web > tự học**. App **không bao giờ** tự đè dữ liệu bạn đã gán tay.
+
+### Listing cần sửa barcode 🏷️
+Mục **"🏷️ Listing cần sửa barcode"** (dưới bảng kết quả) liệt kê các listing trên sàn nên sửa SKU tận gốc:
+**Sàn | Tên sản phẩm trên sàn | Phân loại | Barcode trên sàn | Barcode web (chuẩn) | Lý do**. Lý do gồm:
+*khớp chắc* (app tự quy về mã web), *tôi xác nhận* (bạn đã bấm "Đúng, cùng cuốn"), *tái bản* (mã cũ sau khi thay mã), *mã sai số kiểm tra* (barcode 13 số sai chữ số kiểm tra EAN-13).
+Bấm **📤 Xuất Excel** để gửi nhân viên sửa trên sàn.
+
 ### Shopee: xuất file tất cả trạng thái 🛍️
 - Có thể xuất file Shopee **tất cả trạng thái** (vd `Order.all.….xlsx`) để lấy cả đơn thiếu từ hôm trước còn treo.
 - App chỉ lấy dòng có **"Trạng Thái Đơn Hàng"** đúng là **"Chờ giao hàng"** hoặc **"Chờ xác nhận"**; các trạng thái khác (Đang giao, Đã giao, Đã hủy, Người mua xác nhận…) đều bỏ.
@@ -274,5 +292,6 @@ node test/kiemtra.js              # cần 2 file mẫu thật trong thư mục m
 node test/kiemtra-appscript.js    # kiểm thử Code.gs bằng môi trường giả lập
 node test/kiemtra-taiban.js        # giá gần nhất + thay mã tái bản (Code.gs giả lập + phân loại, cần file mẫu)
 node test/kiemtra-web.js           # đơn web + Shopee tất cả trạng thái (cần mau/web.xlsx, mau/shopee-all.xlsx)
+node test/kiemtra-machuan.js       # sổ mã chuẩn, khớp sách lẻ trùng, listing cần sửa barcode
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

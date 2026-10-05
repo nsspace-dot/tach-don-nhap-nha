@@ -142,6 +142,11 @@
           var m = /Thời gian xuất\s*:\s*(.+)$/i.exec(clean((aoa[t] || []).join(' ')));
           if (m) { out.thoiGianXuat = clean(m[1]); break; }
         }
+        var mN = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(out.thoiGianXuat || '');
+        if (mN) {
+          out.ngayXuat = mN[3] + '-' + ('0' + mN[2]).slice(-2) + '-' + ('0' + mN[1]).slice(-2);
+          rows.forEach(function (x) { x.ngayXuat = out.ngayXuat; });
+        }
         out.webKey = (out.thoiGianXuat || '') + '#' + rows.map(function (x) { return [x.sku, x.ten, x.sl, x.gia, x.ncc].join('|'); }).join('¦');
       }
       return out;

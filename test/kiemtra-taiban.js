@@ -151,7 +151,7 @@ m2.ctx.khoiTao();
 var sh = m2.ss.getSheetByName('SKU_NHA');
 sh.data = [['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat'], ['sku:' + KATA, KATA, TEN_KATA, 'HA', 'tay', '2026-10-01 10:00:00']];
 r = m2.post('upsertSkuBatch', { items: [], gia: [{ key: 'sku:' + KATA, gia: 26000 }] });
-check('Tự thêm tiêu đề cột mới, không mất dữ liệu', sh.data[0].join(',') === 'key,sku,ten,nha,nguon,cap_nhat,gia_gan_nhat,ngay_gia,ma_moi,khong_tai_ban' &&
+check('Tự thêm tiêu đề cột mới, không mất dữ liệu', sh.data[0].join(',') === 'key,sku,ten,nha,nguon,cap_nhat,gia_gan_nhat,ngay_gia,ma_moi,khong_tai_ban,nguon_ma' &&
   m2.get().skus[0].nha === 'HA' && Number(m2.get().skus[0].gia_gan_nhat) === 26000, sh.data[0]);
 r = m2.post('upsertSku', { key: 'sku:' + KATA, sku: KATA, ten: TEN_KATA, nha: 'KV', nguon: 'tay' });
 check('Đổi nhà không làm mất giá gần nhất', Number(m2.get().skus[0].gia_gan_nhat) === 26000 && m2.get().skus[0].nha === 'KV');

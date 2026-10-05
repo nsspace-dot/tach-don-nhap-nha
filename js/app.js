@@ -165,20 +165,25 @@
     var ds = S.kq.hoc.filter(function (h) { return !S.hocDaGui[h.key]; });
     // Giá gần nhất của SKU đã có trong danh mục – gom chung vào 1 lần ghi
     var gia = S.kq.capNhatGia.filter(function (g) { return !S.hocDaGui[g.key + '@' + g.gia]; });
-    if (!ds.length && !gia.length) return;
+    // Sổ mã chuẩn (barcode web) + mã phụ tự khớp – cũng gom chung
+    var mc = S.kq.maChuan.filter(function (x) { return !S.hocDaGui['mc:' + x.barcode + '@' + x.ngay_thay + '@' + x.gia_bia]; });
+    var mp = S.kq.maPhu.filter(function (x) { return !S.hocDaGui['mp:' + x.key + '>' + x.ma_moi]; });
+    var dau = [].concat(ds.map(function (h) { return h.key; }), gia.map(function (g) { return g.key + '@' + g.gia; }),
+      mc.map(function (x) { return 'mc:' + x.barcode + '@' + x.ngay_thay + '@' + x.gia_bia; }), mp.map(function (x) { return 'mp:' + x.key + '>' + x.ma_moi; }));
+    if (!dau.length) return;
     S.hocDangGui = true;
-    ds.forEach(function (h) { S.hocDaGui[h.key] = true; });
-    gia.forEach(function (g) { S.hocDaGui[g.key + '@' + g.gia] = true; });
-    DM.goi('upsertSkuBatch', { items: ds, gia: gia.map(function (g) { return { key: g.key, gia: g.gia }; }) })
+    dau.forEach(function (k) { S.hocDaGui[k] = true; });
+    DM.goi('upsertSkuBatch', { items: ds, gia: gia.map(function (g) { return { key: g.key, gia: g.gia }; }), maChuan: mc, maPhu: mp })
       .then(function () {
         var tin = [];
         if (ds.length) tin.push('ghi nhớ thêm ' + ds.length + ' SKU');
         if (gia.length) tin.push('cập nhật giá ' + gia.length + ' SKU');
+        if (mc.length) tin.push('lưu ' + mc.length + ' barcode web vào sổ mã chuẩn');
+        if (mp.length) tin.push('quy ' + mp.length + ' listing về mã web');
         toast('🐾 Mèo đã ' + tin.join(' và ') + '.', 'ok');
       })
       .catch(function (e) {
-        ds.forEach(function (h) { delete S.hocDaGui[h.key]; });
-        gia.forEach(function (g) { delete S.hocDaGui[g.key + '@' + g.gia]; });
+        dau.forEach(function (k) { delete S.hocDaGui[k]; });
         toast('Không lưu được SKU tự học / giá: ' + e.message, 'loi');
       })
       .then(function () { S.hocDangGui = false; });
@@ -252,7 +257,7 @@
   function oSku(g) {
     if (g.maCu && g.maCu.length) {
       return '<span class="ma-cu" title="Có đơn còn dùng mã cũ ' + esc(g.maCu.join(', ')) + ' – đã tính vào mã mới">' + esc(g.sku) + '</span>' +
-        '<div><span class="nho nho-macu">Mã cũ trên sàn – nên sửa listing</span></div>';
+        '<div><span class="nho nho-macu">' + (g.quyVeWeb ? 'Barcode sàn khác web' : 'Mã cũ trên sàn') + ' – nên sửa listing</span></div>';
     }
     if (!g.sku) return '<span class="sku-la sku-trong" title="Không có SKU – nhận diện bằng tên + phân loại">(trống)</span>';
     if (g.skuLa) return '<span class="sku-la" title="SKU không phải mã vạch – nhận diện bằng tên + phân loại">' + esc(g.sku) + '</span>';
@@ -274,6 +279,7 @@
     var h = Object.keys(san).map(function (s) { return '<span class="nho">' + s + '</span>'; }).join('');
     h += Object.keys(combo).map(function (c) { return '<span class="nho nho-combo" title="Tách từ combo">🎁 ' + esc(PL.tenGon(c, DM.caiDat.maKhac)) + '</span>'; }).join('');
     if (nguyen) h += '<span class="nho nho-combo" title="Xuất nguyên combo, không tách thành từng cuốn">📦 nguyên combo</span>';
+    if (g.quyVeWeb) h += '<span class="nho nho-macu" title="Barcode trên sàn khác barcode web – đã quy về mã web">🌐 đã quy về mã web</span>';
     if (g.canhBaoGia) h += '<span class="nho nho-warn">⚠ giá khác</span>';
     return h;
   }
@@ -364,19 +370,40 @@
         ' — mã cũ <b>' + esc(t.maCu) + '</b> (' + giaChu(t.giaCu) + ') → mã mới <b>' + esc(t.maMoi) + '</b> (' + giaChu(t.giaMoi) + ')</div>' +
         nutGhi('✅ Đúng, thay mã', 'class="btn btn-sm btn-primary" data-tb-dung="' + i + '"') +
         nutGhi('Không phải', 'class="btn btn-sm" data-tb-khong="' + i + '"') + '</div>';
+    }).join('') + (S.kq.cungCuon || []).map(function (c, i) {
+      return '<div class="tai-ban-item cung-cuon" role="status"><div class="tb-text">🔁 <b>Có thể cùng 1 cuốn:</b> [' + c.san + '] ' + esc(PL.tenGon(c.ten, DM.caiDat.maKhac)) +
+        ' (' + esc(c.sku || 'SKU trống') + ', ' + giaChu(c.gia) + ') ↔ web <b>' + esc(c.maChuan) + '</b> ' + esc(c.tenChuan) + ' (' + giaChu(c.giaChuan) + ')' +
+        '<div class="pl">' + esc(c.lyDo) + '</div></div>' +
+        nutGhi('✅ Đúng, cùng cuốn', 'class="btn btn-sm btn-primary" data-cc-dung="' + i + '"') +
+        nutGhi('Không phải', 'class="btn btn-sm" data-cc-khong="' + i + '"') + '</div>';
     }).join('');
+    $('tai-ban').hidden = !$('tai-ban').innerHTML;
   }
   function veListing() {
     var ds = S.kq.listingCanSua;
     $('listing').hidden = !ds.length;
     if (!ds.length) return;
-    $('listing-tieu-de').textContent = '🏷️ Mã cũ trên sàn – nên sửa listing (' + ds.length + ')';
-    $('bang-listing').innerHTML = '<div class="legend" style="padding:12px 16px">Các listing dưới đây còn dùng mã vạch cũ (sách đã tái bản). App đã tự tính vào mã mới; nên sửa SKU trên sàn cho khớp.</div>' +
-      '<table class="tbl"><thead><tr><th>Sàn</th><th>Tên sản phẩm</th><th>Phân loại</th><th>Mã cũ → mã mới</th><th class="so">Số dòng</th></tr></thead><tbody>' +
+    $('listing-tieu-de').textContent = '🏷️ Listing cần sửa barcode (' + ds.length + ')';
+    $('bang-listing').innerHTML = '<div class="legend" style="padding:12px 16px">Barcode trên sàn khác barcode chuẩn (web / mã mới) hoặc sai số kiểm tra. ' +
+      'App đã tự tính đúng; nhân viên nên sửa SKU trên sàn cho khớp. <button class="btn btn-sm" id="listing-xuat" type="button">📤 Xuất Excel</button></div>' +
+      '<table class="tbl"><thead><tr><th>Sàn</th><th>Tên sản phẩm trên sàn</th><th>Phân loại</th><th>Barcode trên sàn</th><th>Barcode web (chuẩn)</th><th>Lý do</th><th class="so">Số dòng</th></tr></thead><tbody>' +
       ds.map(function (l) {
         return '<tr><td><span class="tag tag-' + l.san + '">' + l.san + '</span></td><td class="ten">' + esc(l.ten) + '</td><td class="pl">' + esc(l.phanLoai) +
-          '</td><td class="sku">' + esc(l.maCu) + ' → <b>' + esc(l.maMoi) + '</b></td><td class="so">' + l.soDong + '</td></tr>';
+          '</td><td class="sku">' + esc(l.maCu) + '</td><td class="sku"><b>' + esc(l.maMoi || '—') + '</b></td><td><span class="ly-do">' + esc(l.lyDo || 'tái bản') +
+          '</span></td><td class="so">' + l.soDong + '</td></tr>';
       }).join('') + '</tbody></table>';
+  }
+  function xuatListing() {
+    var ds = S.kq.listingCanSua;
+    var aoa = [['Sàn', 'Tên sản phẩm trên sàn', 'Phân loại', 'Barcode trên sàn', 'Barcode web (chuẩn)', 'Lý do']].concat(ds.map(function (l) {
+      return [l.san, l.ten, l.phanLoai, l.maCu, l.maMoi || '', l.lyDo || 'tái bản'];
+    }));
+    var ws = root.XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 8 }, { wch: 70 }, { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 20 }];
+    var wb = root.XLSX.utils.book_new();
+    root.XLSX.utils.book_append_sheet(wb, ws, 'Listing can sua');
+    var d = new Date(), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    root.XLSX.writeFile(wb, 'Listing-can-sua-barcode_' + p2(d.getDate()) + '-' + p2(d.getMonth() + 1) + '-' + d.getFullYear() + '.xlsx');
   }
   function thayMa(t) {
     return DM.goi('thayMaTaiBan', { ma_cu: t.maCu, ma_moi: t.maMoi, gia: t.giaMoi || '', ten: t.tenMoi || '' })
@@ -586,9 +613,21 @@
     });
 
     $('btn-tai').addEventListener('click', function () { taiNha(PL.NHA.slice(), $('btn-tai')); });
+    $('bang-listing').addEventListener('click', function (e) { if (e.target.id === 'listing-xuat') xuatListing(); });
     $('tai-ban').addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b || b.disabled) return;
+      if (b.dataset.ccDung || b.dataset.ccKhong) {
+        var c = S.kq.cungCuon[+(b.dataset.ccDung || b.dataset.ccKhong)];
+        b.disabled = true;
+        var viec = b.dataset.ccDung
+          ? DM.goi('luuMaPhu', { key: c.khoa, sku: c.sku, ten: c.ten, ma_moi: c.maChuan, nha: c.nhaChuan })
+            .then(function () { toast('✅ Đã quy "' + PL.tenGon(c.ten, DM.caiDat.maKhac).slice(0, 40) + '" về mã web ' + c.maChuan + '.', 'ok'); })
+          : DM.goi('boQuaCungCuon', { barcode: c.maChuan, khoa: c.khoa, ten_gon: c.tenChuan, gia_bia: c.giaChuan, nha: c.nhaChuan })
+            .then(function () { toast('👌 Đã ghi nhớ: không phải cùng cuốn – sẽ không hỏi lại.', 'ok'); });
+        viec.catch(function (er) { b.disabled = false; toast('Không lưu được: ' + er.message, 'loi'); });
+        return;
+      }
       if (b.dataset.tbDung) {
         var t = S.kq.taiBan[+b.dataset.tbDung];
         hoi('Thay mã ' + t.maCu + ' → ' + t.maMoi + ' cho "' + PL.tenGon(t.ten, DM.caiDat.maKhac) + '"?\n\n' +
