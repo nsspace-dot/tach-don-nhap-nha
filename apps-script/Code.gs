@@ -268,14 +268,18 @@ function khongPhaiCombo_(cat, d, ctx) {
   var key = chuoi_(d.key);
   if (!/^(sku|ten):/.test(key)) throw new Error('Khóa không hợp lệ: ' + key);
   var i = timViTri_(cat.skus, 'key', key), cu = i >= 0 ? cat.skus[i] : null, gt = d.bo ? '' : '1';
-  if (cu && chuoi_(cu.khong_combo) === gt) return false;
   var nha = chuoi_(d.nha).toUpperCase();
-  var moi = cu ? Object.assign({}, cu, { khong_combo: gt, cap_nhat: ctx.now })
-    : { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: NHA_CHINH.indexOf(nha) >= 0 ? nha : '', nguon: 'tu_hoc', cap_nhat: ctx.now,
+  // "Là sách lẻ của nhà X" (chọn nhà) → gán tay luôn nhà đó
+  var ganNha = !d.bo && NHA_SKU.indexOf(nha) >= 0;
+  var moi = cu ? Object.assign({}, cu, { khong_combo: gt }, ganNha ? { nha: nha, nguon: 'tay' } : {})
+    : { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: ganNha ? nha : '', nguon: ganNha ? 'tay' : 'tu_hoc',
         phan_loai: chuoi_(d.phan_loai), khong_combo: gt };
+  if (cu && ['khong_combo', 'nha', 'nguon'].every(function (f) { return chuoi_(cu[f]) === chuoi_(moi[f]); })) return false;
+  moi.cap_nhat = ctx.now;
   if (i >= 0) cat.skus[i] = moi; else cat.skus.push(moi);
   ctx.doiSku = true;
-  ghiLog_(ctx, 'khongPhaiCombo', key, cu, Object.assign({ ghi_chu: gt ? 'Không phải combo: ' + chuoi_(d.ten) + (d.phan_loai ? ' – ' + chuoi_(d.phan_loai) : '') : 'Bỏ ghi nhớ "không phải combo"' }, moi));
+  ghiLog_(ctx, 'khongPhaiCombo', key, cu, Object.assign({ ghi_chu: gt ? 'Không phải combo – là sách lẻ' + (ganNha ? ' ' + nha : '') + ': ' + chuoi_(d.ten || moi.ten) +
+    (d.phan_loai ? ' – ' + chuoi_(d.phan_loai) : '') : 'Bỏ ghi nhớ "không phải combo"' }, moi));
   return true;
 }
 

@@ -36,6 +36,8 @@
     }
     return isBarcode(row.sku) ? skuKey(row.sku) : tenKey(row.ten, row.phanLoai);
   }
+  /* Khóa ghi nhớ "Không phải combo – là sách lẻ": mã vạch kèm phân loại (không ảnh hưởng phân loại khác cùng mã), không mã vạch → tên|phân loại */
+  function khoaKhongCombo(row) { return isBarcode(row.sku) ? skuPlKey(row.sku, row.phanLoai) : rowKey(row, false); }
   function rowKeys(row, isCombo) {
     var k = [rowKey(row, isCombo)];
     var t = tenKey(row.ten, row.phanLoai);
@@ -306,7 +308,11 @@
   function classifyRow(row, idx, reKhac) {
     var text = row.ten + ' ' + row.phanLoai;
     var cr = comboReason(row) || row.comboYeu || ''; // comboYeu: nghi combo (dạng "A+B" / theo giá) – đã trừ dòng bạn bảo "Không phải combo"
-    var res = { row: row, key: rowKey(row, !!cr), isCombo: !!cr, comboLyDo: cr, nghiCombo: !comboReason(row) && !!row.comboYeu, nha: '', ghiChu: '', lyDo: '' };
+    // Bạn đã bấm "Không phải combo – là sách lẻ" cho dòng này → bỏ mọi lý do combo (combo đã khai báo vẫn được ưu tiên ở bước 1)
+    var eLe = idx.sku.get(khoaKhongCombo(row));
+    var laLe = !!(eLe && clean(eLe.khong_combo));
+    if (laLe) cr = '';
+    var res = { row: row, key: rowKey(row, !!cr), isCombo: !!cr, comboLyDo: cr, nghiCombo: !!cr && !comboReason(row) && !!row.comboYeu, nha: '', ghiChu: '', lyDo: '' };
     res.tronNha = findCodes(text, reKhac).length > 0;
 
     // Bước 0: đơn web có cột "Nhà cung cấp" → theo nhà cung cấp (ưu tiên hơn mọi quy tắc khác). Mỗi dòng web = 1 cuốn sách.
@@ -323,6 +329,11 @@
     // Combo đã khai báo – xét cả dòng trông như sách lẻ (bạn bấm "🎁 Đây là combo" ở bảng nhà)
     var combo = lookup(idx.combo, row, true);
     if (combo && !res.isCombo) { res.isCombo = true; res.key = rowKey(row, true); res.comboLyDo = 'Đã khai báo là combo'; }
+    // "Không phải combo – là sách lẻ của nhà X" → sách lẻ nhà X
+    if (!combo && laLe && eLe.nguon === 'tay' && NHA.indexOf(eLe.nha) >= 0) {
+      res.loai = 'nha'; res.nha = eLe.nha; res.nguonNha = 'danh mục (không phải combo)';
+      return res;
+    }
     // Khóa cũ "sku:<mã vạch>" trơn → vẫn nhận, và ghi nhận để đổi sang khóa mới
     if (!combo && res.isCombo && isBarcode(row.sku) && idx.combo.has(skuKey(row.sku))) {
       combo = idx.combo.get(skuKey(row.sku));
@@ -337,7 +348,8 @@
 
     // Bước 2: gán tay trong danh mục → coi là 1 cuốn sách của nhà đó
     var e = lookup(idx.sku, row, res.isCombo);
-    if (e && e.nguon === 'tay') {
+    // Dòng NGHI combo: gán tay / sửa tên trên khóa sách lẻ không tính là "đây là sách lẻ" – chỉ nút "Không phải combo" mới tắt nghi
+    if (e && e.nguon === 'tay' && !res.nghiCombo) {
       if (e.nha === KHONG_NHAP) { res.loai = 'bo_qua'; res.lyDo = 'Đã đánh dấu "Không nhập"'; return res; }
       if (NHA.indexOf(e.nha) >= 0) {
         res.loai = 'nha'; res.nha = e.nha; res.isCombo = false; res.key = rowKey(row, false);
@@ -500,8 +512,8 @@
       if (row.san === 'Web' || comboReason(row)) return row;
       var cong = lyDoComboCong(row, plVN), gia = nghiGia.get(row);
       if (!cong && !gia) return row;
-      var e = idx.sku.get(rowKey(row, false));
-      if (e && (clean(e.khong_combo) || e.nguon === 'tay')) return row;
+      var e = idx.sku.get(khoaKhongCombo(row));
+      if (e && clean(e.khong_combo)) return row; // chỉ ghi nhớ "Không phải combo" mới tắt nghi (sửa tên / gán nhà không tắt)
       return Object.assign({}, row, { comboYeu: cong && gia ? cong + ' · ' + gia.lyDo : cong || gia.lyDo,
         goiYTp: gia && gia.tp.length ? gia.tp : thanhPhanGoiY(row, rows, maKhac, plVN) });
     });
@@ -706,7 +718,7 @@
     findCodes: findCodes, codeRegex: codeRegex, RE_NHA: RE_NHA,
     maMoiNhat: maMoiNhat, nhaTheoNcc: nhaTheoNcc, giongTen: giongTen, ean13HopLe: ean13HopLe, homNayISO: homNayISO, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
     plCoNghia: plCoNghia, tenTam: tenTam, lyDoComboCong: lyDoComboCong, nghiComboTheoGia: nghiComboTheoGia, thanhPhanGoiY: thanhPhanGoiY, barcodeHopLe: barcodeHopLe, tenSoSanhDayDu: tenSoSanhDayDu, PL_VO_NGHIA_MAC_DINH: PL_VO_NGHIA_MAC_DINH,
-    skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
+    khoaKhongCombo: khoaKhongCombo, skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };
 });

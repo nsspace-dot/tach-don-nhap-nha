@@ -326,11 +326,10 @@
     if (g.chuaCoTen) h += ' <span class="nho nho-chuaten" title="Đang dùng tên tạm = tên sàn + phân loại. Bấm ✏️ để khai báo tên sách.">chưa có tên khai báo</span>';
     else if (g.nguonTen === 'web') h += ' <span class="nho nguon-web" title="Tên lấy theo sổ mã chuẩn web">🌐 tên web</span>';
     if (g.khoaTen && DM.coTheGhi()) h += ' <button type="button" class="btn-sua-ten" data-sua-ten="' + i + '" title="Sửa tên sách (lưu vào danh mục)" aria-label="Sửa tên sách">✏️</button>';
+    // 🎁 cạnh cây bút: mọi dòng sách lẻ có đơn sàn (không phải đơn web, không phải cuốn tách từ combo)
     if (DM.coTheGhi() && dongSanCua(g).length) {
-      h += '<div class="dong-nut">' +
-        '<button type="button" class="nut-nho" data-la-combo="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần">🎁 Đây là combo</button>' +
-        (g.key && !coTrongDanhMuc(g.key) ? '<button type="button" class="nut-nho" data-luu-dm="' + i + '" title="Sách này đang nhận diện tại chỗ (chưa có trong danh mục) – lưu để sửa tên / đổi nhà ở màn Danh mục">💾 Lưu vào danh mục</button>' : '') +
-        '</div>';
+      h += ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' +
+        (g.key && !coTrongDanhMuc(g.key) ? ' <button type="button" class="nut-nho" data-luu-dm="' + i + '" title="Sách này đang nhận diện tại chỗ (chưa có trong danh mục) – lưu để sửa tên / đổi nhà ở màn Danh mục">💾 Lưu vào danh mục</button>' : '');
     }
     return h;
   }
@@ -443,7 +442,10 @@
           '<td><div class="actions">' +
           nutGhi('🧩 Khai báo thành phần', 'class="btn btn-sm btn-primary" data-khai-bao="' + i + '"') +
           nutGhi('🔗 Đây là combo đã có', 'class="btn btn-sm" data-co-san="' + i + '"') +
-          (g.nghiCombo ? nutGhi('🙅 Không phải combo', 'class="btn btn-sm" data-khong-combo="' + i + '" title="Trả về sách lẻ – mèo ghi nhớ, lần sau không nghi nữa"') : '') +
+          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; })
+            ? '<select class="select select-sm" data-khong-combo="' + i + '" aria-label="Không phải combo – là sách lẻ của nhà" title="Trả về sách lẻ – mèo ghi nhớ, lần sau không coi là combo nữa">' +
+              '<option value="">📖 Không phải combo – là sách lẻ của…</option>' +
+              PL.NHA.map(function (n) { return '<option value="' + n + '"' + '>' + n + ' · ' + PL.TEN_NHA[n] + (g.nha === n ? ' (đoán)' : '') + '</option>'; }).join('') + '</select>' : '') +
           (g.tronNha
             ? '<button type="button" class="btn btn-sm" disabled title="Combo có sách nhà khác nên không xuất nguyên được – hãy tách để lấy phần ' + esc(g.nha) + '">📦 Xuất nguyên combo</button>'
             : nutGhi('📦 Xuất nguyên combo', 'class="btn btn-sm" data-nguyen="' + i + '"')) +
@@ -469,7 +471,7 @@
           '<td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td>' +
           '<td>' + nutNha('chuaRo', i) +
           '<div class="actions" style="margin-top:6px">' + (g.isCombo ? nutGhi('🧩 Khai báo combo', 'class="btn btn-sm" data-khai-bao-cr="' + i + '"')
-            : nutGhi('🎁 Đây là combo', 'class="btn btn-sm" data-la-combo-cr="' + i + '"')) + '</div>' +
+            : nutGhi('🎁 Chuyển thành combo', 'class="btn btn-sm" data-la-combo-cr="' + i + '"')) + '</div>' +
           '</td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -493,6 +495,7 @@
       '<table class="tbl"><thead><tr><th>Lý do</th><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">SL</th><th>Gán lại nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td><span class="ly-do">' + esc(g.lyDo) + '</span></td><td class="sku">' + esc(g.sku) + '</td><td class="ten">' + tenHien(g) +
+          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo-bq="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' : '') +
           '</td><td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.sl) + '</td><td>' +
           (DM.coTheGhi()
             ? '<select class="select" data-gan-bq="' + i + '" aria-label="Gán lại nhà"><option value="">— chọn —</option>' +
@@ -778,12 +781,6 @@
         DM.goi('upsertSku', { key: gl.key, sku: PL.isBarcode(gl.sku) ? gl.sku : '', ten: gl.tenSan || gl.ten, nha: S.tab, nguon: 'tay', phan_loai: gl.phanLoai || '' })
           .then(function () { toast('💾 Đã lưu vào danh mục (' + PL.TEN_NHA[S.tab] + ') – sửa tên / đổi nhà ở màn Danh mục.', 'ok'); })
           .catch(function (e) { b.disabled = false; toast('Không lưu được: ' + e.message, 'loi'); });
-      } else if (b.dataset.khongCombo) {
-        var gk = S.kq.combo[+b.dataset.khongCombo], rk = gk.lines[0].row;
-        b.disabled = true;
-        DM.goi('khongPhaiCombo', { key: PL.rowKey(rk, false), sku: PL.isBarcode(rk.sku) ? rk.sku : '', ten: rk.ten, phan_loai: rk.phanLoai, nha: gk.nha })
-          .then(function () { toast('🙅 Đã ghi nhớ: "' + PL.tenTam(rk.ten, rk.phanLoai, DM.caiDat.maKhac, DM.caiDat.plVoNghia).slice(0, 60) + '" không phải combo.', 'ok'); })
-          .catch(function (e) { b.disabled = false; toast('Không lưu được: ' + e.message, 'loi'); });
       }
       else if (b.dataset.dpThem || b.dataset.dpBo) {
         var x = S.dpGoiY.filter(function (y) { return y.i === +(b.dataset.dpThem || b.dataset.dpBo); })[0];
@@ -803,6 +800,27 @@
         S.duPhong[S.tab] = {};
         veKetQua(false);
       }
+    });
+    // "📖 Không phải combo – là sách lẻ của nhà …" (tab Combo)
+    $('bang').addEventListener('change', function (e) {
+      var s = e.target.closest('[data-khong-combo]');
+      if (!s || !s.value) return;
+      var gk = S.kq.combo[+s.dataset.khongCombo], nhaLe = s.value, khoa = {};
+      s.disabled = true;
+      // Mọi dòng sàn của nhóm (cùng SKU + tên + phân loại) – thường chỉ 1 khóa
+      gk.lines.forEach(function (l) { if (l.row.san !== 'Web') khoa[PL.khoaKhongCombo(l.row)] = l.row; });
+      Object.keys(khoa).reduce(function (p, k) {
+        var rk = khoa[k];
+        return p.then(function () { return DM.goi('khongPhaiCombo', { key: k, sku: PL.isBarcode(rk.sku) ? rk.sku : '', ten: rk.ten, phan_loai: rk.phanLoai, nha: nhaLe }); });
+      }, Promise.resolve())
+        .then(function () { toast('📖 Đã ghi nhớ: không phải combo – là sách lẻ ' + PL.TEN_NHA[nhaLe] + '.', 'ok'); })
+        .catch(function (er) { s.disabled = false; s.value = ''; toast('Không lưu được: ' + er.message, 'loi'); });
+    });
+    $('bang-bo-qua').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-la-combo-bq]');
+      if (!b) return;
+      var gb = S.kq.boQua[+b.dataset.laComboBq];
+      root.KhaiBao.moKhaiBao(nhomCombo(gb.lines.map(function (l) { return l.row; }).filter(function (r) { return r.san !== 'Web'; }), '', gb.sl));
     });
     $('bang-bo-qua').addEventListener('change', function (e) {
       var s = e.target.closest('[data-gan-bq]');

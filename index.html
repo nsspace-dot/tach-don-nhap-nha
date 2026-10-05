@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261005c">
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -241,7 +241,7 @@
       <div id="cb-khoi-tach">
         <div class="table-wrap">
           <table class="tbl tbl-tp">
-            <thead><tr><th>SKU</th><th>Tên sách</th><th>Nhà</th><th>Giá gốc</th><th>SL / combo</th><th><span class="sr">Xóa</span></th></tr></thead>
+            <thead><tr><th title="Bỏ tick = không lấy cuốn này">Chọn</th><th>SKU</th><th>Tên sách <small>(gõ tên hoặc SKU)</small></th><th>Nhà</th><th>Giá gốc</th><th>SL / combo</th><th><span class="sr">Xóa</span></th></tr></thead>
             <tbody id="cb-tp"></tbody>
           </table>
         </div>
@@ -254,6 +254,7 @@
       </div>
     </form>
     <datalist id="ds-sku"></datalist>
+    <datalist id="ds-ten"></datalist>
   </dialog>
 
   <dialog class="dlg" id="dlg-coSan" aria-labelledby="dlg-cosan-title">
@@ -319,17 +320,17 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js"></script>
-  <script src="js/phanloai.js"></script>
-  <script src="js/thongke.js"></script>
-  <script src="js/xuatfile.js"></script>
-  <script src="js/danhmuc.js"></script>
-  <script src="js/danhmuc-excel.js"></script>
-  <script src="js/linhvat.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/khaibao.js"></script>
-  <script src="js/mandanhmuc.js"></script>
-  <script src="js/caidat.js"></script>
-  <script src="js/manthongke.js"></script>
+  <script src="js/docfile.js?v=20261005c"></script>
+  <script src="js/phanloai.js?v=20261005c"></script>
+  <script src="js/thongke.js?v=20261005c"></script>
+  <script src="js/xuatfile.js?v=20261005c"></script>
+  <script src="js/danhmuc.js?v=20261005c"></script>
+  <script src="js/danhmuc-excel.js?v=20261005c"></script>
+  <script src="js/linhvat.js?v=20261005c"></script>
+  <script src="js/app.js?v=20261005c"></script>
+  <script src="js/khaibao.js?v=20261005c"></script>
+  <script src="js/mandanhmuc.js?v=20261005c"></script>
+  <script src="js/caidat.js?v=20261005c"></script>
+  <script src="js/manthongke.js?v=20261005c"></script>
 </body>
 </html>

@@ -289,10 +289,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .khoa-chip button { border: 0; background: #fff; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; }
 .tbl-tp td { padding: 6px; }
 .tbl-tp .input { padding: 7px 9px; font-size: 14px; }
-.tbl-tp td:nth-child(1) { width: 170px; }
-.tbl-tp td:nth-child(3) { width: 110px; }
-.tbl-tp td:nth-child(4) { width: 120px; }
-.tbl-tp td:nth-child(5) { width: 90px; }
+.tbl-tp td:nth-child(1) { width: 44px; }
+.tbl-tp td:nth-child(2) { width: 160px; }
+.tbl-tp td:nth-child(4) { width: 100px; }
+.tbl-tp td:nth-child(5) { width: 110px; }
+.tbl-tp td:nth-child(6) { width: 80px; }
 #hoi-noidung { white-space: pre-line; margin: 0; }
 .cach-xuat { border: 2px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin: 0; }
 .cach-xuat legend { font-weight: 700; padding: 0 6px; }
@@ -414,3 +415,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .nut-nho { font: 600 11.5px/1 var(--font); color: var(--muted); background: transparent; border: 1px dashed var(--line); border-radius: 999px; padding: 3px 8px; cursor: pointer; }
 .nut-nho:hover, .nut-nho:focus-visible { color: var(--cb-ink); border-color: var(--cb-deep); background: #f6f1ff; }
 .nut-nho:disabled { opacity: .5; cursor: default; }
+.nut-combo { margin-left: 2px; }
+.select-sm { padding: 6px 10px; font-size: 13px; border-radius: 999px; }
+.tp-chon-o { width: 44px; text-align: center; }
+.tp-chon { width: 18px; height: 18px; accent-color: var(--brand); }

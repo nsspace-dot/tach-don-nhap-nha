@@ -145,9 +145,15 @@ Ngoài màn hình Desktop sẽ có biểu tượng để mở app trong cửa s�
      - **App nhận ra combo khi:** tên/phân loại có chữ "combo", "bộ 3 cuốn", "(2 cuốn)", "Tập 1 + 2", **hoặc dạng "A+B"** (vd phân loại "VN+TG", "Toán + Văn", "Q1+Q2").
        Không tính "C++", "Lớp 1+" (không có vế sau). Dấu "+" chỉ nằm trong tên sản phẩm mà phân loại đã chọn 1 cuốn (vd tên "… Lớp 1+2+3", phân loại "Lớp 2") → vẫn là sách lẻ.
      - **🎁 nghi combo:** dòng dạng "A+B", hoặc 1 phân loại **không có barcode** mà giá **bằng tổng giá của ≥ 2 phân loại khác** cùng sản phẩm (lệch ≤ 2%) – vd "CỔ TÍCH VN+TG" 250.000 = Thế Giới 125.000 + Việt Nam 125.000.
-       Dòng này vào tab Combo kèm lý do. Bấm **🧩 Khai báo thành phần** (form đã gợi ý sẵn các phân loại khác cùng sản phẩm có barcode) hoặc **🙅 Không phải combo** → trả về sách lẻ, app ghi nhớ không hỏi lại.
-   - **🎁 Đây là combo** (nút nhỏ dưới tên ở bảng Hồng Ân / Khang Việt / Minh Long và tab Chưa rõ nhà): dòng bị nhận là sách lẻ nhưng thật ra là combo → bấm để khai báo combo. Lưu xong kết quả tự tính lại.
-   - **💾 Lưu vào danh mục** (nút nhỏ dưới tên): sách đang nhận diện tại chỗ (vd từ mã nhà trong tên, chưa có trong danh mục, thường là listing không có barcode) → lưu lại để sửa tên / đổi nhà ở màn Danh mục.
+       Dòng này vào tab Combo kèm lý do. Bấm **🧩 Khai báo thành phần** (form đã gợi ý sẵn các phân loại khác cùng sản phẩm có barcode) hoặc chọn **📖 Không phải combo – là sách lẻ của…** → trả về sách lẻ, app ghi nhớ không hỏi lại.
+   - **🎁 Chuyển thành combo** (cạnh cây bút ✏️ ở bảng Hồng Ân / Khang Việt / Minh Long, tab Chưa rõ nhà và tab Đã bỏ qua): dòng bị nhận là sách lẻ nhưng thật ra là combo → bấm để mở form khai báo combo.
+     - Chọn **✂️ Tách thành từng cuốn** hoặc **📦 Xuất nguyên combo**.
+     - Form gợi ý sẵn các phân loại **khác** cùng sản phẩm có barcode (vd dòng "CỔ TÍCH VN+TG" → gợi ý CỔ TÍCH TG và CỔ TÍCH VN, mỗi cuốn 1). **Bỏ tick** cuốn không lấy, sửa số lượng, bấm **＋ Thêm cuốn** rồi gõ **SKU hoặc tên sách** (có gợi ý, chọn tên là tự điền SKU / nhà / giá).
+     - Khóa nhận diện: barcode **kèm phân loại** (chỉ đúng phân loại đó thành combo, phân loại khác cùng mã vẫn là sách lẻ); không có barcode thì **tên sàn + phân loại**.
+     - Nếu đã có combo **cùng thành phần** (cùng SKU + số lượng) → app hỏi **gắn vào combo cũ** để khỏi tạo 2 combo trùng.
+     - Lưu xong, dòng rời sheet nhà và được tách vào đúng nhà (hoặc xuất nguyên) ngay – không cần thả file lại.
+   - **📖 Không phải combo – là sách lẻ của…** (ô chọn ở mỗi dòng tab Combo): chọn nhà → dòng trở về sách lẻ của nhà đó, app ghi nhớ (sheet SKU_NHA cột `khong_combo`), lần sau không đưa vào Combo nữa. Sửa tên / gán nhà bằng cách khác **không** tắt nghi combo – chỉ ô này mới tắt.
+   - **💾 Lưu vào danh mục** (nút nhỏ cạnh tên): sách đang nhận diện tại chỗ (vd từ mã nhà trong tên, chưa có trong danh mục, thường là listing không có barcode) → lưu lại để sửa tên / đổi nhà ở màn Danh mục.
    - **🙈 Đã bỏ qua:** lịch, tranh, trà… và sách nhà khác. Nếu bị bỏ nhầm thì chọn lại nhà ở cột cuối.
 5. **Tải đơn đặt hàng gửi nhà** – mỗi nhà 1 file riêng:
    - Mỗi thẻ **Hồng Ân / Khang Việt / Minh Long** có nút **⬇️ Tải file** (nhà 0 cuốn thì nút mờ).

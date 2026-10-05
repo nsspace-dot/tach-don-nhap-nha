@@ -53,7 +53,7 @@
     deleteCombo: '🗑 Xóa combo', importBatch: '📥 Nạp Excel', khoiPhuc: '♻️ Khôi phục sao lưu',
     doiKhoaCombo: '🔑 Đổi khóa combo (mã vạch)', capNhatGia: '💲 Cập nhật giá', capNhatGiaCombo: '💸 Cập nhật giá combo',
     thayMaTaiBan: '🔁 Thay mã tái bản', hoanTacTaiBan: '↩️ Hoàn tác thay mã', boQuaTaiBan: '🙅 Không phải tái bản',
-    soMaChuan: '🌐 Sổ mã chuẩn', luuTenSach: '✏️ Khai báo tên sách', khongPhaiCombo: '🙅 Không phải combo', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
+    soMaChuan: '🌐 Sổ mã chuẩn', luuTenSach: '✏️ Khai báo tên sách', khongPhaiCombo: '📖 Không phải combo – sách lẻ', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
   };
   function taiLichSu() {
     if (dangTaiLs) return;

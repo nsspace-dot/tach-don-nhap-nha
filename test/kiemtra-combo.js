@@ -67,7 +67,7 @@ m.ctx.khoiTao();
 var r3 = coTich[2];
 var r = m.post('khongPhaiCombo', { key: PL.rowKey(r3, false), sku: '', ten: r3.ten, phan_loai: r3.phanLoai, nha: 'ML' });
 var e = r.catalog.skus[0];
-check('Lưu khong_combo trên khóa sách lẻ (tên|phân loại), nguồn tự học', e && e.key === PL.rowKey(r3, false) && e.khong_combo === '1' && e.nguon === 'tu_hoc' && e.nha === 'ML', e);
+check('Lưu khong_combo trên khóa (tên|phân loại), chọn nhà ML → gán tay ML', e && e.key === PL.rowKey(r3, false) && e.khong_combo === '1' && e.nguon === 'tay' && e.nha === 'ML', e);
 kq = PL.classify(coTich, m.get());
 check('Lần sau: dòng VN+TG trả về sách lẻ Minh Long (không nghi nữa)', kq.combo.length === 0 && kq.nha.ML.length === 3, kq.nha.ML.map(function (g) { return g.tenGon; }));
 check('Ghi Lịch sử "khongPhaiCombo"', m.get({ action: 'lichSu' }).lich_su.some(function (x) { return x.hanh_dong === 'khongPhaiCombo'; }));
@@ -77,7 +77,14 @@ m.post('khongPhaiCombo', { key: PL.rowKey(r3, false), bo: true });
 check('Bỏ ghi nhớ → lại nghi combo', PL.classify(coTich, m.get()).combo.length === 1);
 cat = rong();
 cat.skus.push({ key: PL.rowKey(r3, false), sku: '', ten: r3.ten, nha: 'ML', nguon: 'tay' });
-check('Dòng đã gán tay là sách lẻ → không nghi', PL.classify(coTich, cat).combo.length === 0);
+check('Sửa tên / gán tay trên dòng nghi combo KHÔNG tắt nghi (chỉ "Không phải combo" mới tắt)', PL.classify(coTich, cat).combo.length === 1);
+r = m.post('khongPhaiCombo', { key: PL.khoaKhongCombo(coTich[0]), sku: TG, ten: TEN, phan_loai: 'x', nha: '' });
+check('"Không phải combo" không chọn nhà → nguồn tự học, nhà trống', r.catalog.skus.filter(function (x) { return x.sku === TG; })[0].nguon === 'tu_hoc' && PL.khoaKhongCombo(coTich[0]) === 'sku:' + TG + '|cổ tích thế giới');
+var strong = [sp('7', '', 'Combo Sách Tô Màu - KV', 'Mẫu 1', 50000)];
+check('Combo "cứng" (có chữ combo) đang ở tab Combo', PL.classify(strong, rong()).combo.length === 1);
+r = m.post('khongPhaiCombo', { key: PL.rowKey(strong[0], false), sku: '', ten: strong[0].ten, phan_loai: 'Mẫu 1', nha: 'KV' });
+kq = PL.classify(strong, m.get());
+check('"📖 Không phải combo – là sách lẻ" (chọn KV) → trả về sách lẻ Khang Việt, lần sau không vào Combo', kq.combo.length === 0 && kq.nha.KV.length === 1, [kq.combo.length, kq.nha.KV.length]);
 
 console.log('\n6. "🎁 Đây là combo" cho dòng trông như sách lẻ có barcode');
 var le = [sp('1', '8935092845425', 'Sách - Bộ Đề Toán Lớp 5 - HA', 'Bản đặc biệt', 90000, 2)];
@@ -93,6 +100,32 @@ check('Khóa combo = barcode|phân loại; sau khi khai báo → tách 2 cuốn 
 kq = PL.classify([sp('1', '8935092845425', 'Sách - Bộ Đề Toán Lớp 5 - HA', 'Bản thường', 90000, 1)], cat);
 check('Cùng barcode nhưng phân loại khác → vẫn là sách lẻ', kq.nha.HA.length === 1 && kq.nha.HA[0].sku === '8935092845425');
 check('thanhPhanGoiY: các phân loại khác cùng sản phẩm có barcode', PL.thanhPhanGoiY(coTich[2], coTich).length === 2);
+
+// Barcode combo "COMBO.HA": "Không phải combo" chỉ áp dụng đúng phân loại đó
+var bcx = [sp('8', '8935092825724', 'Tập Viết Hiragana (HA)', 'COMBO.HA', 50000), sp('9', '8935092825724', 'Tập Viết Hiragana (HA)', 'COMBO.KV', 50000)];
+var m3 = GL.taoMoiTruong(); m3.ctx.khoiTao();
+m3.post('khongPhaiCombo', { key: PL.khoaKhongCombo(bcx[0]), sku: bcx[0].sku, ten: bcx[0].ten, phan_loai: 'COMBO.HA', nha: 'HA' });
+kq = PL.classify(bcx, m3.get());
+check('Barcode + "COMBO.HA" là sách lẻ HA; "COMBO.KV" cùng mã vẫn là combo', kq.nha.HA.length === 1 && kq.combo.length === 1 && kq.combo[0].phanLoai === 'COMBO.KV',
+  [kq.nha.HA.length, kq.combo.map(function (g) { return g.phanLoai; })]);
+
+console.log('\n7. Đúng tên phân loại thực tế: "CỔ TÍCH TG (ML)" / "CỔ TÍCH VN (ML)" / "CỔ TÍCH VN+TG (ML)"');
+var T2 = 'Sách - Tuyển Tập Truyện Cổ Tích Dành Cho Thiếu Nhi - Newshop';
+var that = [sp('1', TG, T2, 'CỔ TÍCH TG (ML)', 125000), sp('2', VN, T2, 'CỔ TÍCH VN (ML)', 125000), sp('3', '', T2, 'CỔ TÍCH VN+TG (ML)', 250000)];
+kq = PL.classify(that, rong());
+var cvt = kq.combo[0];
+check('VN+TG tự vào tab Combo, nghi combo, nhà ML; ML còn 2 dòng lẻ', kq.combo.length === 1 && cvt.nghiCombo && cvt.nha === 'ML' && kq.nha.ML.length === 2);
+check('Khóa combo = tên sàn + phân loại (SKU trống)', cvt.key === PL.tenKey(T2, 'CỔ TÍCH VN+TG (ML)'), cvt.key);
+check('Gợi ý thành phần TG + VN', cvt.goiYTp.map(function (x) { return x.sku; }).sort().join(',') === [TG, VN].sort().join(','));
+cat = rong();
+cat.combos.push({ combo_id: 'C9', ten_combo: 'Cổ tích VN+TG', khoa: [cvt.key], cach_xuat: 'tach', thanh_phan: cvt.goiYTp.map(function (x) { return { sku: x.sku, ten: x.ten, nha: 'ML', gia_goc: x.gia, so_luong: 1 }; }) });
+kq = PL.classify(that, cat);
+d = XuatFile.dongCuaNha(kq, 'ML');
+check('Sau khai báo: Minh Long Thế Giới 2, Việt Nam 2, không còn dòng 250.000', d.length === 2 && d.every(function (x) { return x.sl === 2 && x.gia === 125000; }), d);
+// Đã sửa tên bằng ✏️ trước đó (tạo dòng gán tay) → vẫn nghi combo
+cat = rong();
+cat.skus.push({ key: PL.rowKey(that[2], false), sku: '', ten: T2, nha: 'ML', nguon: 'tay', ten_sach: 'Cổ tích VN+TG' });
+check('Đã sửa tên bằng ✏️ trước đó → vẫn vào tab Combo (không bị kẹt ở sách lẻ)', PL.classify(that, cat).combo.length === 1);
 
 console.log('\nKẾT QUẢ: ' + dat + ' đạt, ' + loi + ' lỗi.');
 if (loi) process.exitCode = 1;
