@@ -14,7 +14,7 @@ var m = GL.taoMoiTruong();
 
 console.log('\n1. Khởi tạo & đọc');
 m.ctx.khoiTao();
-check('Tạo đủ 5 sheet, bỏ Sheet1', m.ss.getSheets().map(function (s) { return s.getName(); }).join(',') === 'SKU_NHA,COMBO,COMBO_THANH_PHAN,LICH_SU,MA_CHUAN');
+check('Tạo đủ 7 sheet, bỏ Sheet1', m.ss.getSheets().map(function (s) { return s.getName(); }).join(',') === 'SKU_NHA,COMBO,COMBO_THANH_PHAN,LICH_SU,MA_CHUAN,LS_DAT_HANG,DON_DA_GHI');
 var g = m.get();
 check('GET danh mục rỗng', g.ok && g.skus.length === 0 && g.combos.length === 0, g);
 check('POST ping (không cần PIN)', m.post('ping', {}).ok === true);

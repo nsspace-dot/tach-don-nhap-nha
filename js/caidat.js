@@ -1,4 +1,4 @@
-/* Màn Cài đặt: URL Apps Script, mã nhà khác, kiểm tra kết nối, thông tin trên đơn đặt hàng.
+/* Màn Cài đặt: URL Apps Script, mã nhà khác, trạng thái Shopee, gợi ý dự phòng, kiểm tra kết nối.
  * URL chỉ lưu trong localStorage của máy này – không ghi vào code hay repo. */
 (function (root) {
   'use strict';
@@ -13,6 +13,8 @@
     $('cd-sdt').value = c.sdt || '';
     $('cd-diachi').value = c.diaChi || '';
     $('cd-ghichu').value = c.ghiChu || '';
+    $('cd-dp-bat').checked = c.duPhongBat !== false;
+    $('cd-dp-ngay').value = c.soNgayDuPhong === undefined ? 2 : c.soNgayDuPhong;
     $('cd-trangthai').value = (c.trangThaiShopee || root.DocFile.TRANG_THAI_MAC_DINH).join('\n');
   }
 
@@ -24,6 +26,8 @@
         var ds = $('cd-trangthai').value.split(/\n/).map(function (x) { return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
         return ds.length ? ds : root.DocFile.TRANG_THAI_MAC_DINH.slice();
       })(),
+      duPhongBat: $('cd-dp-bat').checked,
+      soNgayDuPhong: Math.max(0, Math.min(30, Math.round(Number($('cd-dp-ngay').value) || 0))),
       tenShop: $('cd-tenshop').value.trim(), sdt: $('cd-sdt').value.trim(), diaChi: $('cd-diachi').value.trim(), ghiChu: $('cd-ghichu').value.trim() };
   }
 

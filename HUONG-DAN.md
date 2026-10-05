@@ -31,9 +31,9 @@ App giúp lọc file đơn hàng **Shopee** + **TikTok** thành danh sách nhậ
    - **Xem xét quyền (Review permissions)** → chọn tài khoản của bạn.
    - Nếu thấy *"Google chưa xác minh ứng dụng này" (Google hasn't verified this app)*: bấm **Nâng cao (Advanced)** → **Đi tới … (không an toàn) / Go to … (unsafe)** → **Cho phép (Allow)**.
      (Đây là script của chính bạn nên an toàn.)
-8. Quay lại tab Google Sheets: sẽ thấy 5 sheet **SKU_NHA**, **COMBO**, **COMBO_THANH_PHAN**, **LICH_SU**, **MA_CHUAN**. ✅ (bản cập nhật sau này có thể tự thêm sheet mới khi cần)
+8. Quay lại tab Google Sheets: sẽ thấy 7 sheet **SKU_NHA**, **COMBO**, **COMBO_THANH_PHAN**, **LICH_SU**, **MA_CHUAN**, **LS_DAT_HANG**, **DON_DA_GHI**. ✅ (bản cập nhật sau này có thể tự thêm sheet mới khi cần)
 
-> ⚠️ Không đổi tên, không đổi thứ tự cột của 4 sheet này. Muốn sửa danh mục thì nên sửa trong app (để có lịch sử).
+> ⚠️ Không đổi tên, không đổi thứ tự cột của các sheet này. Muốn sửa danh mục thì nên sửa trong app (để có lịch sử).
 > Sheet **LICH_SU** chỉ được thêm dòng – đừng xóa dòng trong đó.
 
 ## Phần C. Bật sao lưu tự động mỗi ngày (làm 1 lần)
@@ -239,6 +239,36 @@ Khi thay mã cũ **X** → mã mới **Y**, app làm một lần:
 
 **Hoàn tác:** Danh mục > 🕘 Lịch sử → dòng **"🔁 Thay mã tái bản"** → **↩️ Hoàn tác** → danh mục SKU và combo liên quan trở về đúng như trước khi thay (việc hoàn tác cũng được ghi Lịch sử; mỗi lần thay mã chỉ hoàn tác được 1 lần).
 
+## Thống kê & dự báo 📊🔮
+
+### Lịch sử đặt hàng (tự ghi)
+- Mỗi lần bấm **⬇️ Tải file** (1 nhà hoặc cả 3 nhà), app ghi số đã đặt **hôm nay** vào sheet **LS_DAT_HANG**: ngày, nhà, barcode (đã quy về mã chuẩn), tên sách, giá bìa, số lượng, số lượng **tách theo Shopee / TikTok / Web**, và **số lượng đơn treo từ ngày trước** (đơn có ngày đặt trước hôm nay).
+- **Không lưu thông tin khách** (không tên, SĐT, địa chỉ…). Sheet **DON_DA_GHI** chỉ giữ mã đơn + ngày để không nạp trùng.
+- Tải lại trong cùng ngày → app **ghi đè** số của ngày đó cho nhà vừa tải, không cộng dồn. Số dự phòng đã thêm **không** tính vào lịch sử.
+- Mọi thứ gom thành **1 lần ghi**. Khi sheet vượt khoảng 30.000 dòng app nhắc; vượt 40.000 dòng app tự gom các ngày cũ hơn 6 tháng thành 1 dòng/tháng.
+
+### Nạp lịch sử từ file đơn cũ
+Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê → 📥 Nạp lịch sử từ file đơn cũ** → chọn **nhiều file** cùng lúc: file Order_all Shopee (tất cả trạng thái), file TikTok, "Danh sách lấy hàng" web cũ.
+- Mỗi đơn tính vào **ngày đặt** của đơn (web: ngày xuất file).
+- **Đơn đã hủy không tính.** Đơn trùng mã (giữa các file, hoặc đã có trong lịch sử) **bỏ qua** – nạp lại cùng file cũng không bị cộng 2 lần.
+- Combo chưa khai báo / sách chưa rõ nhà không được tính (app báo số cuốn bị bỏ trước khi nạp).
+
+### Tab 📊 Thống kê
+- **Bộ lọc:** nhà (cả 3 / HA / KV / ML), thời gian (7 / 30 / 90 ngày / tùy chọn từ–đến), nguồn (tất cả / Shopee / TikTok / Web).
+- **Top sách**, **biểu đồ cột** tổng theo tuần của từng nhà, **biểu đồ đường** số cuốn theo ngày (rê chuột vào cột/điểm để xem số).
+- **📈 Đang tăng:** 7 ngày gần nhất so với 7 ngày trước, tăng ≥ 50% và thêm ≥ 5 cuốn.
+- **💤 Lâu không có đơn:** từng có đơn nhưng ≥ 30 ngày nay không thấy.
+- **⚠️ Hay bị thiếu:** có đơn treo từ ngày trước ≥ 3 lần trong 30 ngày (dấu hiệu nhà hay giao thiếu / hết hàng).
+- **📤 Xuất Excel các bảng:** 1 file nhiều sheet (Top sách, Theo tuần, Theo ngày, Đang tăng, Lâu không có đơn, Hay bị thiếu).
+- Số cuốn "tất cả nguồn" = số đặt trừ phần đơn treo từ ngày trước (vì phần đó đã tính ở ngày trước), để không đếm 2 lần.
+
+### Gợi ý đặt dự phòng 🔮
+- Ở màn Tách đơn, bảng của từng nhà có thêm cột **Gợi ý dự phòng**.
+- Cách tính: trung bình bán mỗi ngày trong **28 ngày gần nhất** (tính đến hôm qua), ngày càng gần càng nặng (hôm qua × 28, hôm kia × 27, …). Gợi ý = **làm tròn lên (trung bình × số ngày dự phòng)**.
+- Chỉ gợi ý cho sách **bán đều**: có đơn ít nhất **10 trong 28 ngày**. Lịch sử chưa đủ **14 ngày** → hiện *"Chưa đủ dữ liệu để dự báo"*.
+- **Chỉ là gợi ý – mặc định không cộng vào file.** Bấm **➕ Thêm vào đơn** (từng cuốn) hoặc **➕ Thêm tất cả** (cả nhà) thì số đó mới được cộng vào file tải về; bấm **Bỏ** / **↩️ Bỏ hết dự phòng** để gỡ.
+- Số ngày dự phòng chỉnh ở **Cài đặt** (mặc định 2). Để 0 hoặc bỏ tick → ẩn cột.
+
 ## Màn Danh mục
 
 - **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
@@ -255,6 +285,7 @@ Khi thay mã cũ **X** → mã mới **Y**, app làm một lần:
 - **Kiểm tra kết nối.**
 - **Trạng thái đơn Shopee cần lấy:** mỗi dòng 1 trạng thái (mặc định *Chờ giao hàng*, *Chờ xác nhận*). Ghi đúng như cột "Trạng Thái Đơn Hàng" trong file Shopee.
 - **Mã nhà khác:** có nhà mới (vd sách ghi "(STK)") thì tự thêm vào ô này – app không tự thêm.
+- **Gợi ý đặt dự phòng:** bật/tắt cột gợi ý và số ngày dự phòng (mặc định 2, để 0 = tắt).
 
 ---
 
@@ -280,7 +311,8 @@ js/phanloai.js             quy tắc phân loại nhà, combo, tự học
 js/xuatfile.js             xuất file gửi nhà (4 cột, mỗi nhà 1 file) + kiểm tra trước khi tải (ExcelJS)
 js/danhmuc.js              gọi Apps Script, cache danh mục, cài đặt (localStorage)
 js/danhmuc-excel.js        xuất / nạp danh mục bằng Excel, file mẫu
-js/app.js, khaibao.js, mandanhmuc.js, caidat.js, linhvat.js   các màn hình
+js/thongke.js              lịch sử đặt hàng, thống kê, dự báo dự phòng (phần tính toán)
+js/app.js, khaibao.js, mandanhmuc.js, manthongke.js, caidat.js, linhvat.js   các màn hình
 lib/                       SheetJS 0.18.5, ExcelJS 4.4.0 (để sẵn, không cần mạng)
 apps-script/Code.gs        Apps Script cho Google Sheets
 test/                      kiểm thử tự động
@@ -293,5 +325,6 @@ node test/kiemtra-appscript.js    # kiểm thử Code.gs bằng môi trường g
 node test/kiemtra-taiban.js        # giá gần nhất + thay mã tái bản (Code.gs giả lập + phân loại, cần file mẫu)
 node test/kiemtra-web.js           # đơn web + Shopee tất cả trạng thái (cần mau/web.xlsx, mau/shopee-all.xlsx)
 node test/kiemtra-machuan.js       # sổ mã chuẩn, khớp sách lẻ trùng, listing cần sửa barcode
+node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp file cũ), thống kê, dự báo dự phòng
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

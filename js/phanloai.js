@@ -312,7 +312,7 @@
     var rank = SAN_RANK[item.rankSan];
     if (rank < g.rank) { g.rank = rank; g.ten = ten; g.tenGon = gon; if (item.nhom && !item.skuCoDinh) { g.sku = clean(item.sku); g.skuLa = !g.sku; } }
     g.sl += item.sl;
-    g.nguon.push(item.src);
+    g.nguon.push(Object.assign({ sl: item.sl }, item.src)); // sl: số cuốn dòng này góp vào (dùng cho lịch sử đặt hàng)
     if (item.maCu && (g.maCu = g.maCu || []).indexOf(item.maCu) < 0) g.maCu.push(item.maCu);
     if (item.quyVeWeb) g.quyVeWeb = true;
   }

@@ -24,6 +24,20 @@
     return isNaN(n) ? 0 : n;
   }
 
+  /* Ngày đặt hàng → 'yyyy-MM-dd'. Nhận "2026-10-01 00:05" (Shopee), "02/10/2026 09:34:05" (TikTok), số ngày Excel. */
+  function ngayISO(v) {
+    if (typeof v === 'number' && v > 20000 && v < 80000) {
+      var d = new Date(Math.round((v - 25569) * 864e5));
+      return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+    }
+    var s = clean(v), m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+    if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+    m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s);
+    if (m) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+    return '';
+  }
+  var RE_HUY = /hủy|huỷ|cancel/i;
+
   /* File TikTok ghi sai vùng dữ liệu (!ref) -> quét toàn bộ ô để tính lại. */
   function fixRef(ws, XLSX) {
     var minR = Infinity, minC = Infinity, maxR = -1, maxC = -1;
@@ -52,7 +66,9 @@
           ten: clean(get('Product Name')),
           phanLoai: clean(get('Variation')),
           gia: toNum(get('SKU Unit Original Price')),
-          sl: toNum(get('Quantity'))
+          sl: toNum(get('Quantity')),
+          ngayDat: ngayISO(get('Created Time')),
+          daHuy: RE_HUY.test(clean(get('Order Status')) + ' ' + clean(get('Order Substatus')) + ' ' + clean(get('Cancelation/Return Type')))
         };
       }
     },
@@ -68,7 +84,9 @@
           ten: ten,
           phanLoai: clean(get('Tên phân loại hàng')),
           gia: toNum(get('Giá gốc')),
-          sl: toNum(get('Số lượng'))
+          sl: toNum(get('Số lượng')),
+          ngayDat: ngayISO(get('Ngày đặt hàng')),
+          daHuy: RE_HUY.test(clean(get('Trạng Thái Đơn Hàng')))
         };
       }
     }
@@ -200,5 +218,5 @@
     return files;
   }
 
-  return { parseWorkbook: parseWorkbook, gopFile: gopFile, locTrangThai: locTrangThai, TRANG_THAI_MAC_DINH: TRANG_THAI_MAC_DINH, fixRef: fixRef, toNum: toNum, clean: clean };
+  return { ngayISO: ngayISO, parseWorkbook: parseWorkbook, gopFile: gopFile, locTrangThai: locTrangThai, TRANG_THAI_MAC_DINH: TRANG_THAI_MAC_DINH, fixRef: fixRef, toNum: toNum, clean: clean };
 });

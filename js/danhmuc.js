@@ -2,6 +2,7 @@
  * - Đọc: GET <url>  → { ok, skus, combos }
  * - Ghi: POST <url> body {action, data} (Content-Type text/plain để tránh CORS preflight)
  * - Lịch sử: GET <url>?action=lichSu → { ok, lich_su }
+ * - Lịch sử đặt hàng: GET <url>?action=lichSuDatHang&tu=yyyy-MM-dd → { ok, cot, dong }
  * URL chỉ lưu trong localStorage của từng máy, không bao giờ nằm trong code.
  *        → { ok, catalog } hoặc { ok:false, error } */
 (function (root) {
@@ -18,7 +19,7 @@
   }
 
   var caiDat = Object.assign({ url: '', maKhac: root.PhanLoai.MA_KHAC_MAC_DINH.slice(), tenShop: '', sdt: '', diaChi: '', ghiChu: '',
-    trangThaiShopee: root.DocFile.TRANG_THAI_MAC_DINH.slice() },
+    trangThaiShopee: root.DocFile.TRANG_THAI_MAC_DINH.slice(), duPhongBat: true, soNgayDuPhong: 2 },
     docLS(LS_CAIDAT, {}));
   if ('pin' in caiDat) { delete caiDat.pin; ghiLS(LS_CAIDAT, caiDat); } // bản cũ có PIN – không dùng nữa
   var cache = docLS(LS_DANHMUC, null);
@@ -110,17 +111,26 @@
       });
   }
 
-  /* 100 thay đổi gần nhất (sheet LICH_SU) */
-  function lichSu() {
+  function docGet(thamSo) {
     if (!caiDat.url) return Promise.reject(new Error('Chưa dán URL Apps Script ở màn Cài đặt.'));
-    var u = caiDat.url + (caiDat.url.indexOf('?') >= 0 ? '&' : '?') + 'action=lichSu';
+    var u = caiDat.url + (caiDat.url.indexOf('?') >= 0 ? '&' : '?') + thamSo;
     return fetch(u, { method: 'GET', redirect: 'follow', cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (j) {
         if (!j || !j.ok) throw new Error((j && j.error) || 'Lỗi không rõ');
-        return j.lich_su || [];
+        return j;
       })
       .catch(function (e) { throw new Error(moTaLoi(e)); });
+  }
+
+  /* 100 thay đổi gần nhất (sheet LICH_SU) */
+  function lichSu() {
+    return docGet('action=lichSu').then(function (j) { return j.lich_su || []; });
+  }
+
+  /* Lịch sử đặt hàng (sheet LS_DAT_HANG) từ ngày tu → { cot, dong, tongDong, canhBaoLon, ngayCuNhat } */
+  function lichSuDatHang(tu) {
+    return docGet('action=lichSuDatHang' + (tu ? '&tu=' + encodeURIComponent(tu) : ''));
   }
 
   function luuCaiDat(moi) {
@@ -137,6 +147,7 @@
     get trangThai() { return trangThai; },
     coTheGhi: function () { return !!caiDat.url; },
     lichSu: lichSu,
+    lichSuDatHang: lichSuDatHang,
     taiLai: taiLai,
     goi: goi,
     luuCaiDat: luuCaiDat,

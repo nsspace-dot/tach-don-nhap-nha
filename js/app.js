@@ -1,7 +1,7 @@
 /* Màn chính: thả file → phân loại → xem kết quả → tải Excel. Cùng các tiện ích dùng chung. */
 (function (root) {
   'use strict';
-  var PL = root.PhanLoai, DM = root.DanhMuc, LV = root.LinhVat;
+  var PL = root.PhanLoai, DM = root.DanhMuc, LV = root.LinhVat, TK = root.ThongKe;
   var $ = function (id) { return document.getElementById(id); };
 
   /* ---------- Tiện ích ---------- */
@@ -50,7 +50,39 @@
   }
 
   /* ---------- Trạng thái ---------- */
-  var S = { files: [], demFile: 0, kq: null, tab: 'HA', hocDaGui: {}, hocDangGui: false };
+  var S = { files: [], demFile: 0, kq: null, tab: 'HA', hocDaGui: {}, hocDangGui: false,
+            duPhong: { HA: {}, KV: {}, ML: {} }, dpGoiY: [] }; // duPhong: số dự phòng ĐÃ BẤM thêm (theo nhà → khóa sách)
+
+  /* ---------- Lịch sử đặt hàng (dùng chung cho gợi ý dự phòng + tab Thống kê) ---------- */
+  var LS = { rows: null, tu: '', url: '', dangTai: null, loi: '', tongDong: 0, canhBaoLon: false, ngayCuNhat: '', nghe: [] };
+  function phatLS() { LS.nghe.forEach(function (f) { f(); }); if (S.kq && PL.NHA.indexOf(S.tab) >= 0) veBang(); }
+  /* tu: ngày bắt đầu cần (mặc định 150 ngày gần nhất). epBuoc: tải lại kể cả đã có */
+  function taiLichSu(tu, epBuoc) {
+    if (!DM.coTheGhi()) { LS.rows = null; return Promise.resolve(null); }
+    tu = tu || TK.congNgay(TK.homNay(), -150);
+    if (LS.url !== DM.caiDat.url) { LS.rows = null; epBuoc = true; }
+    if (!epBuoc && LS.rows && LS.tu <= tu) return Promise.resolve(LS.rows);
+    if (LS.dangTai && !epBuoc && LS.dangTu <= tu) return LS.dangTai;
+    LS.loi = '';
+    LS.dangTu = tu;
+    var url = DM.caiDat.url;
+    var p = LS.dangTai = DM.lichSuDatHang(tu).then(function (j) {
+      if (url !== DM.caiDat.url) return null;
+      LS.rows = TK.chuanHoa(j); LS.tu = tu; LS.url = url;
+      LS.tongDong = j.tongDong || 0; LS.canhBaoLon = !!j.canhBaoLon; LS.ngayCuNhat = j.ngayCuNhat || '';
+      return LS.rows;
+    }).catch(function (e) { LS.loi = e.message; return null; })
+      .then(function (r) { if (LS.dangTai === p) LS.dangTai = null; phatLS(); return r; });
+    phatLS();
+    return p;
+  }
+  /* Vừa ghi (ngày, nhà) lên Sheets → sửa luôn bản trên máy, khỏi tải lại */
+  function capNhatLichSuCucBo(bg) {
+    if (!LS.rows) return;
+    LS.rows = LS.rows.filter(function (r) { return !(r.ngay === bg.ngay && bg.nhas.indexOf(r.nha) >= 0); }).concat(TK.chuanHoa(bg.dong));
+    phatLS();
+  }
+  function dpBat() { return DM.caiDat.duPhongBat !== false && Number(DM.caiDat.soNgayDuPhong) > 0; }
 
   var THE = [
     { k: 'HA', ten: 'Hồng Ân', emoji: '🌸' },
@@ -139,6 +171,7 @@
   function xuLy(moi) {
     var r = rows();
     S.kq = r.length ? PL.classify(r, DM.catalog, { maKhac: DM.caiDat.maKhac }) : null;
+    if (!S.kq) S.duPhong = { HA: {}, KV: {}, ML: {} };
     veChips();
     veKetQua(moi);
     tuHoc();
@@ -217,7 +250,7 @@
         '<span class="card-emoji" aria-hidden="true">' + t.emoji + '</span>' +
         '<span class="card-ten">' + t.ten + '</span>' +
         '<div class="card-so">' + so(tg.cuon) + ' <small>cuốn</small></div>' +
-        '<div class="card-phu">' + so(tg.dong) + ' dòng</div></button>' +
+        '<div class="card-phu">' + so(tg.dong) + ' dòng' + (laNha && dpBat() && soDuPhong(t.k) ? ' · <span class="dp-cong">+' + so(soDuPhong(t.k)) + ' dự phòng</span>' : '') + '</div></button>' +
         (laNha ? '<button type="button" class="btn btn-sm tai-nha" data-tai-nha="' + t.k + '"' +
           (tg.cuon ? ' title="Tải đơn đặt hàng ' + t.ten + '"' : ' disabled title="' + t.ten + ' không có cuốn nào"') + '>⬇️ Tải file</button>' : '') +
         '</div>';
@@ -235,7 +268,9 @@
     var list = listTheo(S.tab);
     $('panel').className = 'panel theme-' + S.tab;
     var legend = '';
+    var dp = '';
     if (PL.NHA.indexOf(S.tab) >= 0) {
+      dp = khungDuPhong(S.tab, list);
       legend = '<div class="legend"><span><i style="background:var(--sku-la)"></i>SKU trống / dạng chữ</span>' +
         '<span><i style="background:#cfe5ff"></i>Có đơn dùng mã cũ (tái bản) – nên sửa listing</span>' +
         '<span><i style="background:var(--warn)"></i>Cùng SKU nhưng giá gốc khác</span></div>';
@@ -244,12 +279,12 @@
     } else {
       legend = '<div class="legend">Khai báo 1 lần, lần sau combo tự tách thành từng cuốn 🐾</div>';
     }
-    $('panel-head').innerHTML = '<h2>' + t.emoji + ' ' + t.ten + '</h2>' + legend;
+    $('panel-head').innerHTML = '<h2>' + t.emoji + ' ' + t.ten + '</h2>' + legend + dp;
     if (!list.length) {
       $('bang').innerHTML = (S.tab === 'combo' ? khungLechGia(S.kq.lechGiaHomNay, 'kq') : '') + '<div class="trong-bang"><div class="mini-cat">' + LV.meo('ngu') + '</div>Không có dòng nào ở đây.</div>';
       return;
     }
-    if (PL.NHA.indexOf(S.tab) >= 0) $('bang').innerHTML = bangNha(list);
+    if (PL.NHA.indexOf(S.tab) >= 0) $('bang').innerHTML = bangNha(list, S.tab);
     else if (S.tab === 'combo') $('bang').innerHTML = khungLechGia(S.kq.lechGiaHomNay, 'kq') + bangCombo(list);
     else $('bang').innerHTML = bangChuaRo(list);
   }
@@ -284,11 +319,66 @@
     return h;
   }
 
-  function bangNha(list) {
-    return '<table class="tbl"><thead><tr><th class="stt">#</th><th>SKU</th><th>Tên sản phẩm</th><th class="so">Giá gốc</th><th class="so">Số lượng</th></tr></thead><tbody>' +
+  /* ---------- Gợi ý đặt dự phòng (chỉ gợi ý – chỉ cộng vào file khi bấm "Thêm") ---------- */
+  function soDuPhong(nha) {
+    var m = S.duPhong[nha] || {};
+    return Object.keys(m).reduce(function (s, k) { return s + m[k]; }, 0);
+  }
+  /* Danh sách gợi ý của 1 nhà (mỗi cuốn 1 lần, theo thứ tự bảng). null = không hiện cột */
+  function goiYNha(nha, list) {
+    if (!dpBat() || !LS.rows) return null;
+    var db = TK.duBao(LS.rows, Number(DM.caiDat.soNgayDuPhong) || 0);
+    if (!db.duDuLieu) return { duDuLieu: false, ngayDuLieu: db.ngayDuLieu, ds: [] };
+    var thay = {}, ds = [];
+    list.forEach(function (g, i) {
+      var k = TK.khoaSach(g);
+      if (thay[k]) return;
+      thay[k] = 1;
+      var x = db.theoSach[nha + '|' + k];
+      if (x && x.goiY > 0) ds.push({ i: i, k: k, goiY: x.goiY, tb: x.tb, soNgayCo: x.soNgayCo });
+    });
+    return { duDuLieu: true, ds: ds };
+  }
+  function khungDuPhong(nha, list) {
+    if (!DM.coTheGhi() || !dpBat()) return '';
+    if (!LS.rows) {
+      return '<div class="dp-khung">' + (LS.loi ? '🔮 Chưa tải được lịch sử để gợi ý dự phòng: ' + esc(LS.loi)
+        : '🔮 Đang tải lịch sử để gợi ý dự phòng…') + '</div>';
+    }
+    var gy = goiYNha(nha, list);
+    S.dpGoiY = gy.ds;
+    if (!gy.duDuLieu) {
+      return '<div class="dp-khung">🔮 Chưa đủ dữ liệu để dự báo <span class="muted">(cần ít nhất 14 ngày lịch sử, hiện có ' + gy.ngayDuLieu +
+        ' ngày – có thể nạp từ file đơn cũ ở tab 📊 Thống kê)</span></div>';
+    }
+    var chua = gy.ds.filter(function (x) { return !S.duPhong[nha][x.k]; });
+    var tongChua = chua.reduce(function (s, x) { return s + x.goiY; }, 0);
+    return '<div class="dp-khung">🔮 <b>Gợi ý đặt dự phòng ' + DM.caiDat.soNgayDuPhong + ' ngày</b> <span class="muted">– chỉ là gợi ý, bấm “Thêm” mới cộng vào file</span>' +
+      (gy.ds.length ? '' : ' · <span class="muted">Không có sách nào bán đều để gợi ý.</span>') +
+      (chua.length ? ' <button type="button" class="btn btn-sm btn-primary" data-dp-tatca="1">➕ Thêm tất cả (' + chua.length + ' đầu sách · ' + so(tongChua) + ' cuốn)</button>' : '') +
+      (soDuPhong(nha) ? ' <button type="button" class="btn btn-sm" data-dp-bohet="1">↩️ Bỏ hết dự phòng (' + so(soDuPhong(nha)) + ' cuốn)</button>' : '') + '</div>';
+  }
+  function oDuPhong(nha, x) {
+    if (!x) return '<td class="so dp"><span class="muted">—</span></td>';
+    var tip = 'Trung bình ' + x.tb.toFixed(2).replace('.', ',') + ' cuốn/ngày · có đơn ' + x.soNgayCo + '/28 ngày gần nhất';
+    var da = S.duPhong[nha][x.k];
+    if (da) return '<td class="so dp"><span class="dp-da" title="' + tip + '">✅ +' + so(da) + ' đã thêm</span> ' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-dp-bo="' + x.i + '">Bỏ</button></td>';
+    return '<td class="so dp"><span title="' + tip + '">' + so(x.goiY) + ' cuốn</span> ' +
+      '<button type="button" class="btn btn-sm" data-dp-them="' + x.i + '">➕ Thêm vào đơn</button></td>';
+  }
+
+  function bangNha(list, nha) {
+    var gy = DM.coTheGhi() && dpBat() && LS.rows ? goiYNha(nha, list) : null;
+    var cot = gy && gy.duDuLieu, theoDong = {};
+    if (cot) gy.ds.forEach(function (x) { theoDong[x.i] = x; });
+    return '<table class="tbl"><thead><tr><th class="stt">#</th><th>SKU</th><th>Tên sản phẩm</th><th class="so">Giá gốc</th><th class="so">Số lượng</th>' +
+      (cot ? '<th class="so">Gợi ý dự phòng</th>' : '') + '</tr></thead><tbody>' +
       list.map(function (g, i) {
+        var x = theoDong[i], da = x && S.duPhong[nha][x.k];
         return '<tr' + (g.canhBaoGia ? ' class="canh-bao"' : '') + '><td class="stt">' + (i + 1) + '</td><td class="sku">' + oSku(g) +
-          '</td><td class="ten">' + tenHien(g) + '<div>' + nguonNho(g) + '</div></td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td></tr>';
+          '</td><td class="ten">' + tenHien(g) + '<div>' + nguonNho(g) + '</div></td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b>' +
+          (da ? '<div class="dp-cong">+' + so(da) + ' dự phòng</div>' : '') + '</td>' + (cot ? oDuPhong(nha, x) : '') + '</tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -469,7 +559,8 @@
   function taiNha(nhas, btn) {
     if (!S.kq) return;
     if (!root.ExcelJS) { toast('Thư viện Excel chưa tải xong, thử lại sau 1 giây nha.', 'loi'); return; }
-    var coHang = XF().nhaCoHang(S.kq);
+    var kqXuat = dpBat() ? TK.apDungDuPhong(S.kq, S.duPhong) : S.kq; // chỉ cộng số dự phòng đã bấm "Thêm"
+    var coHang = XF().nhaCoHang(kqXuat);
     nhas = nhas.filter(function (n) { return coHang.indexOf(n) >= 0; });
     if (!nhas.length) { toast('Không có nhà nào có hàng để tải.', 'loi'); return; }
     var kt = XF().kiemTraTruocKhiTai(S.kq, nhas.length === 1 ? nhas : XF().NHA);
@@ -490,7 +581,7 @@
       // Tải lần lượt từng nhà (cách nhau một chút để trình duyệt không chặn)
       return nhas.reduce(function (p, n, i) {
         return p.then(function () {
-          return XF().buildDonDatHang(S.kq, n, info, root.ExcelJS, ngay).xlsx.writeBuffer().then(function (buf) {
+          return XF().buildDonDatHang(kqXuat, n, info, root.ExcelJS, ngay).xlsx.writeBuffer().then(function (buf) {
             taiVe(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), XF().fileName(n, ngay));
             return i < nhas.length - 1 ? cho(600) : null;
           });
@@ -498,10 +589,27 @@
       }, Promise.resolve())
         .then(function () {
           toast('📥 Đã tải ' + nhas.length + ' đơn đặt hàng: ' + nhas.map(function (n) { return PL.TEN_NHA[n]; }).join(', '), 'ok');
+          ghiLichSu(nhas);
         })
         .catch(function (e) { toast('Lỗi tạo file Excel: ' + e.message, 'loi'); })
         .then(function () { if (btn) btn.disabled = false; });
     });
+  }
+
+  /* Ghi lịch sử đặt hàng của hôm nay (1 lần ghi cho các nhà vừa tải; tải lại trong ngày thì ghi đè).
+   * Dùng kết quả GỐC – số dự phòng không tính vào lịch sử. Không lưu thông tin khách. */
+  function ghiLichSu(nhas) {
+    if (!DM.coTheGhi()) return;
+    var bg = TK.banGhiNgay(S.kq, nhas);
+    DM.goi('ghiLichSuDatHang', bg).then(function (j) {
+      capNhatLichSuCucBo(bg);
+      toast('📊 Đã ghi lịch sử đặt hàng hôm nay (' + so(j.soDong) + ' đầu sách) để làm thống kê.', 'ok');
+      nhacLichSuLon(j);
+    }).catch(function (e) { toast('Không ghi được lịch sử đặt hàng: ' + e.message, 'loi'); });
+  }
+  function nhacLichSuLon(j) {
+    if (j.gomThang) toast('🗜️ Lịch sử đã nhiều – mèo đã gom ' + so(j.gomThang) + ' dòng cũ hơn 6 tháng thành từng tháng cho nhẹ.');
+    else if (j.canhBaoLon) toast('📦 Lịch sử đặt hàng đã khá lớn (' + so(j.tongDong) + ' dòng). Khi vượt 40.000 dòng, mèo sẽ tự gom các tháng cũ.');
   }
 
   /* ---------- Thanh trạng thái, banner, điều hướng ---------- */
@@ -526,7 +634,7 @@
   }
 
   function diToi(man) {
-    ['chinh', 'danhmuc', 'caidat'].forEach(function (m) {
+    ['chinh', 'thongke', 'danhmuc', 'caidat'].forEach(function (m) {
       $('man-' + m).hidden = m !== man;
     });
     document.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -536,6 +644,7 @@
     });
     if (man === 'danhmuc' && root.ManDanhMuc) root.ManDanhMuc.ve();
     if (man === 'caidat' && root.CaiDat) root.CaiDat.ve();
+    if (man === 'thongke' && root.ManThongKe) root.ManThongKe.ve();
   }
 
   function veLai() {
@@ -604,6 +713,24 @@
       else if (b.dataset.nguyen) root.KhaiBao.moKhaiBao(S.kq.combo[+b.dataset.nguyen], 'nguyen');
       else if (b.dataset.giaCombo) { b.disabled = true; capNhatGiaCombo([S.kq.lechGiaHomNay[+b.dataset.giaCombo]]); }
       else if (b.dataset.giaTatca) { b.disabled = true; capNhatGiaCombo(S.kq.lechGiaHomNay); }
+      else if (b.dataset.dpThem || b.dataset.dpBo) {
+        var x = S.dpGoiY.filter(function (y) { return y.i === +(b.dataset.dpThem || b.dataset.dpBo); })[0];
+        if (!x) return;
+        if (b.dataset.dpThem) S.duPhong[S.tab][x.k] = x.goiY; else delete S.duPhong[S.tab][x.k];
+        veKetQua(false);
+      }
+    });
+    $('panel-head').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.dpTatca) {
+        S.dpGoiY.forEach(function (x) { if (!S.duPhong[S.tab][x.k]) S.duPhong[S.tab][x.k] = x.goiY; });
+        toast('➕ Đã thêm số dự phòng vào đơn ' + PL.TEN_NHA[S.tab] + '.', 'ok');
+        veKetQua(false);
+      } else if (b.dataset.dpBohet) {
+        S.duPhong[S.tab] = {};
+        veKetQua(false);
+      }
     });
     $('bang-bo-qua').addEventListener('change', function (e) {
       var s = e.target.closest('[data-gan-bq]');
@@ -654,7 +781,7 @@
     DM.nghe(function (loai) {
       if (loai === 'trangthai') veTrangThai();
       if (loai === 'catalog' || loai === 'caidat') veLai();
-      if (loai === 'caidat') veTrangThai();
+      if (loai === 'caidat') { veTrangThai(); taiLichSu(); }
     });
   }
 
@@ -665,11 +792,13 @@
     ganSuKien();
     veTrangThai();
     DM.taiLai();
+    taiLichSu();
   }
 
   root.App = {
     S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge,
-    rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa
+    rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
+    LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon
   };
   document.addEventListener('DOMContentLoaded', khoiDong);
 })(typeof self !== 'undefined' ? self : this);

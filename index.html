@@ -24,6 +24,7 @@
     </div>
     <nav class="nav" aria-label="Chuyển màn hình">
       <button class="nav-btn is-active" data-man="chinh" aria-current="page">📦 Tách đơn</button>
+      <button class="nav-btn" data-man="thongke">📊 Thống kê</button>
       <button class="nav-btn" data-man="danhmuc">📚 Danh mục</button>
       <button class="nav-btn" data-man="caidat">⚙️ Cài đặt</button>
     </nav>
@@ -84,6 +85,50 @@
       <div class="confetti" id="confetti" aria-hidden="true"></div>
     </section>
 
+    <!-- ============ MÀN THỐNG KÊ ============ -->
+    <section class="man" id="man-thongke" aria-label="Thống kê" hidden>
+      <div class="tk-loc panel">
+        <div class="tk-loc-hang">
+          <span class="tk-nhan">Nhà</span>
+          <div class="seg" role="group" aria-label="Lọc theo nhà" id="tk-nha">
+            <button class="seg-btn is-active" data-v="">Cả 3 nhà</button>
+            <button class="seg-btn" data-v="HA">🌸 Hồng Ân</button>
+            <button class="seg-btn" data-v="KV">🌿 Khang Việt</button>
+            <button class="seg-btn" data-v="ML">🧈 Minh Long</button>
+          </div>
+        </div>
+        <div class="tk-loc-hang">
+          <span class="tk-nhan">Thời gian</span>
+          <div class="seg" role="group" aria-label="Khoảng thời gian" id="tk-tg">
+            <button class="seg-btn" data-v="7">7 ngày</button>
+            <button class="seg-btn is-active" data-v="30">30 ngày</button>
+            <button class="seg-btn" data-v="90">90 ngày</button>
+            <button class="seg-btn" data-v="tuy">Tùy chọn</button>
+          </div>
+          <span id="tk-tuy" hidden>
+            <label>Từ <input class="input input-ngay" type="date" id="tk-tu"></label>
+            <label>đến <input class="input input-ngay" type="date" id="tk-den"></label>
+          </span>
+        </div>
+        <div class="tk-loc-hang">
+          <span class="tk-nhan">Nguồn</span>
+          <div class="seg" role="group" aria-label="Lọc theo nguồn đơn" id="tk-nguon">
+            <button class="seg-btn is-active" data-v="">Tất cả</button>
+            <button class="seg-btn" data-v="Shopee">Shopee</button>
+            <button class="seg-btn" data-v="TikTok">TikTok</button>
+            <button class="seg-btn" data-v="Web">Web</button>
+          </div>
+        </div>
+        <div class="tk-loc-hang tk-nut">
+          <button class="btn" id="tk-tailai" type="button">🔄 Tải lại</button>
+          <button class="btn" id="tk-xuat" type="button">📤 Xuất Excel các bảng</button>
+          <button class="btn can-write" id="tk-nap" type="button" title="Chọn nhiều file Order_all Shopee / TikTok / Danh sách lấy hàng web cũ">📥 Nạp lịch sử từ file đơn cũ</button>
+          <input type="file" id="tk-nap-input" accept=".xlsx,.xls" multiple hidden>
+        </div>
+      </div>
+      <div id="tk-noidung"></div>
+    </section>
+
     <!-- ============ MÀN DANH MỤC ============ -->
     <section class="man" id="man-danhmuc" aria-label="Danh mục" hidden>
       <div class="dm-head">
@@ -127,6 +172,14 @@
           <textarea class="input" id="cd-trangthai" rows="3"></textarea>
           <small>Mỗi dòng 1 trạng thái, ghi đúng như cột “Trạng Thái Đơn Hàng” trong file Shopee. Dòng có trạng thái khác (Đang giao, Đã giao, Đã hủy…) sẽ bị bỏ qua.
             Để trống = mặc định “Chờ giao hàng” và “Chờ xác nhận”.</small>
+        </label>
+        <h2 class="h-phu">🔮 Gợi ý đặt dự phòng</h2>
+        <label class="radio"><input type="checkbox" id="cd-dp-bat"> Hiện cột “Gợi ý dự phòng” ở màn Tách đơn</label>
+        <label class="field">
+          <span>Số ngày dự phòng</span>
+          <input class="input input-ngan" id="cd-dp-ngay" type="number" min="0" max="30" step="1">
+          <small>Gợi ý = trung bình bán mỗi ngày (28 ngày gần nhất, ngày gần nặng hơn) × số ngày này, làm tròn lên. Chỉ gợi ý cho sách bán đều (có đơn ít nhất 10/28 ngày).
+            Để 0 = tắt. Số gợi ý chỉ cộng vào file khi bấm “Thêm vào đơn”.</small>
         </label>
         <div hidden><!-- Thông tin trên đơn đặt hàng: không còn dùng (file nhà chỉ còn 4 cột) -->
         <h2 class="h-phu">Thông tin trên đơn đặt hàng</h2>
@@ -245,6 +298,7 @@
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
   <script src="js/docfile.js"></script>
   <script src="js/phanloai.js"></script>
+  <script src="js/thongke.js"></script>
   <script src="js/xuatfile.js"></script>
   <script src="js/danhmuc.js"></script>
   <script src="js/danhmuc-excel.js"></script>
@@ -253,5 +307,6 @@
   <script src="js/khaibao.js"></script>
   <script src="js/mandanhmuc.js"></script>
   <script src="js/caidat.js"></script>
+  <script src="js/manthongke.js"></script>
 </body>
 </html>
