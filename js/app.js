@@ -457,7 +457,7 @@
     var gy = DM.coTheGhi() && dpBat() && LS.rows ? goiYNha(nha, list) : null;
     var cot = gy && gy.duDuLieu, theoDong = {};
     if (cot) gy.ds.forEach(function (x) { theoDong[x.i] = x; });
-    return '<table class="tbl"><thead><tr><th class="stt">#</th><th>SKU</th><th>Tên sản phẩm</th><th class="so">Giá gốc</th><th class="so">Số lượng</th>' +
+    return '<table class="tbl tbl-ghim3 c1-stt"><thead><tr><th class="stt">#</th><th>SKU</th><th>Tên sản phẩm</th><th class="so">Giá gốc</th><th class="so">Số lượng</th>' +
       (cot ? '<th class="so">Gợi ý dự phòng</th>' : '') + '</tr></thead><tbody>' +
       list.map(function (g, i) {
         var x = theoDong[i], da = x && S.duPhong[nha][x.k];
@@ -468,7 +468,7 @@
   }
 
   function bangCombo(list) {
-    return '<table class="tbl"><thead><tr><th>Nhà</th><th>SKU</th><th>Tên sản phẩm / phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Khai báo</th></tr></thead><tbody>' +
+    return '<table class="tbl tbl-ghim3 c1-nha"><thead><tr><th>Nhà</th><th>SKU</th><th>Tên sản phẩm / phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Khai báo</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td>' + badge(g.nha) + '</td><td class="sku">' + (g.sku ? esc(g.sku) : '<span class="sku-trong">(trống)</span>') + '</td>' +
           '<td class="ten">' + tenHien(g) + '<div class="pl">' + esc(g.phanLoai) + '</div>' +
@@ -500,7 +500,7 @@
   }
 
   function bangChuaRo(list) {
-    return '<table class="tbl"><thead><tr><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Chọn nhà</th></tr></thead><tbody>' +
+    return '<table class="tbl tbl-ghim2 c1-sku"><thead><tr><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Chọn nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td class="sku">' + oSku(g) + '</td><td class="ten">' + tenHien(g) +
           (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-cr', i) : '') +
@@ -530,7 +530,7 @@
       '<div class="legend" style="padding:12px 16px">' + Object.keys(dem).map(function (k) {
         return '<span class="ly-do">' + esc(k) + ': ' + dem[k] + '</span>';
       }).join(' ') + '<span class="muted">Bỏ nhầm? Chọn lại nhà ở cột cuối.</span></div>' +
-      '<table class="tbl"><thead><tr><th>Lý do</th><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">SL</th><th>Gán lại nhà</th></tr></thead><tbody>' +
+      '<table class="tbl tbl-ghim3 c1-lydo"><thead><tr><th>Lý do</th><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">SL</th><th>Gán lại nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td><span class="ly-do">' + esc(g.lyDo) + '</span></td><td class="sku">' + esc(g.sku) + '</td><td class="ten">' + tenHien(g) +
           (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-bq', i) + ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo-bq="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' : '') +
@@ -569,7 +569,7 @@
     $('listing-tieu-de').textContent = '🏷️ Listing cần sửa barcode (' + ds.length + ')';
     $('bang-listing').innerHTML = '<div class="legend" style="padding:12px 16px">Barcode trên sàn khác barcode chuẩn (web / mã mới) hoặc sai số kiểm tra. ' +
       'App đã tự tính đúng; nhân viên nên sửa SKU trên sàn cho khớp. <button class="btn btn-sm" id="listing-xuat" type="button">📤 Xuất Excel</button></div>' +
-      '<table class="tbl"><thead><tr><th>Sàn</th><th>Tên sản phẩm trên sàn</th><th>Phân loại</th><th>Barcode trên sàn</th><th>Barcode web (chuẩn)</th><th>Lý do</th><th class="so">Số dòng</th></tr></thead><tbody>' +
+      '<table class="tbl tbl-ghim2 c1-san"><thead><tr><th>Sàn</th><th>Tên sản phẩm trên sàn</th><th>Phân loại</th><th>Barcode trên sàn</th><th>Barcode web (chuẩn)</th><th>Lý do</th><th class="so">Số dòng</th></tr></thead><tbody>' +
       ds.map(function (l) {
         return '<tr><td><span class="tag tag-' + l.san + '">' + l.san + '</span></td><td class="ten">' + esc(l.ten) + '</td><td class="pl">' + esc(l.phanLoai) +
           '</td><td class="sku">' + esc(l.maCu) + '</td><td class="sku"><b>' + esc(l.maMoi || '—') + '</b></td><td><span class="ly-do">' + esc(l.lyDo || 'tái bản') +

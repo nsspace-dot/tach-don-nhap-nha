@@ -94,7 +94,7 @@
     lichSu.forEach(function (r) { if (r.hanh_dong === 'hoanTacTaiBan') daHoanTac[String(r.khoa).split(' ')[0]] = true; });
     $('dm-bang').innerHTML = '<div class="legend" style="padding:12px 16px">100 thay đổi gần nhất (mới nhất ở trên). Bản đầy đủ nằm ở sheet LICH_SU. ' +
       '<button class="linkish" id="ls-lai">Tải lại</button></div>' +
-      '<table class="tbl"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Khóa</th><th>Trước</th><th>Sau</th></tr></thead><tbody>' +
+      '<table class="tbl tbl-ghim1"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Khóa</th><th>Trước</th><th>Sau</th></tr></thead><tbody>' +
       ds.map(function (r) {
         var nutHt = ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode'].indexOf(r.hanh_dong) >= 0 && r.dong
           ? (daHoanTac['LS#' + r.dong] ? '<div class="pl">(đã hoàn tác)</div>'
@@ -158,7 +158,7 @@
     var soGoiY = dsDangHien.filter(function (e) { return canTen(e) && !e.ten_sach; }).length;
     $('dm-bang').innerHTML = (locTen ? '<div class="legend" style="padding:12px 16px">Ô tên đang điền sẵn <b>gợi ý</b> (tên web, hoặc tên sàn – phân loại). Sửa ô nào thì lưu ô đó; ' +
         'hoặc bấm “✔ Dùng gợi ý” để lưu nguyên gợi ý. ' + (ghi && soGoiY ? A.nutGhi('✔ Dùng gợi ý cho ' + soGoiY + ' sách đang hiện', 'class="btn btn-sm btn-primary" id="dm-dung-het"') : '') + '</div>' : '') +
-      '<table class="tbl"><thead><tr><th>SKU</th><th>Tên sách <small class="muted">(in ra file)</small></th><th>Tên trên sàn</th><th>Nhà</th><th>Nguồn</th><th class="so">Giá gần nhất (ngày)</th><th>Cập nhật</th><th><span class="sr">Thao tác</span></th></tr></thead><tbody>' +
+      '<table class="tbl tbl-ghim2 c1-sku"><thead><tr><th>SKU</th><th>Tên sách <small class="muted">(in ra file)</small></th><th>Tên trên sàn</th><th>Nhà</th><th>Nguồn</th><th class="so">Giá gần nhất (ngày)</th><th>Cập nhật</th><th><span class="sr">Thao tác</span></th></tr></thead><tbody>' +
       ds.slice(0, TOI_DA).map(function (e) {
         var i = list.indexOf(e);
         var nhanKhoa = /^ten:/.test(e.key) ? '<div class="pl">nhận diện theo tên: ' + A.esc(e.key.split('|')[1] || '') + '</div>' : '';
@@ -204,7 +204,7 @@
       return e ? (e.ten_sach || PL.tenGon(e.ten, DM.caiDat.maKhac)) + ' · ' + (e.nha === PL.KHONG_NHAP ? 'Không nhập' : e.nha) : w ? w.ten_gon + ' · 🌐 web' : '(chưa có trong danh mục)';
     };
     $('dm-bang').innerHTML = '<div class="legend" style="padding:12px 16px">Dòng trên sàn có SKU trống / SKU chữ / barcode sai được quy về barcode đúng. Sửa ô barcode để đổi, 🗑 để bỏ. Mọi thay đổi hoàn tác được ở 🕘 Lịch sử.</div>' +
-      '<table class="tbl"><thead><tr><th>Trên sàn</th><th>Tên sản phẩm / phân loại</th><th>Barcode đúng</th><th>Sách của barcode đúng</th><th>Cập nhật</th><th><span class="sr">Thao tác</span></th></tr></thead><tbody>' +
+      '<table class="tbl tbl-ghim2 c1-trensan"><thead><tr><th>Trên sàn</th><th>Tên sản phẩm / phân loại</th><th>Barcode đúng</th><th>Sách của barcode đúng</th><th>Cập nhật</th><th><span class="sr">Thao tác</span></th></tr></thead><tbody>' +
       ds.slice(0, TOI_DA).map(function (e) {
         var i = list.indexOf(e), laTen = /^ten:/.test(e.key);
         var tren = laTen ? '<span class="sku-la sku-trong">SKU trống</span>' : PL.isBarcode(e.key.slice(4)) ? '<span class="sku">' + A.esc(e.key.slice(4)) + '</span> <span class="nho nho-warn">barcode sai</span>'
@@ -227,7 +227,7 @@
     lechDm = PL.lechGiaCombo(DM.catalog, A.S.kq ? A.S.kq.giaFile : {});
     var lechTheoId = {};
     lechDm.forEach(function (l) { lechTheoId[l.combo_id] = l; });
-    $('dm-bang').innerHTML = A.khungLechGia(lechDm, 'dm') + '<table class="tbl"><thead><tr><th>Tên combo</th><th>Cách xuất</th><th>Khóa nhận diện</th><th>Thành phần</th><th>Cập nhật</th><th><span class="sr">Thao tác</span></th></tr></thead><tbody>' +
+    $('dm-bang').innerHTML = A.khungLechGia(lechDm, 'dm') + '<table class="tbl tbl-ghim1"><thead><tr><th>Tên combo</th><th>Cách xuất</th><th>Khóa nhận diện</th><th>Thành phần</th><th>Cập nhật</th><th><span class="sr">Thao tác</span></th></tr></thead><tbody>' +
       ds.slice(0, TOI_DA).map(function (c) {
         var i = list.indexOf(c), nguyen = c.cach_xuat === 'nguyen', tron = root.KhaiBao.comboTron(c);
         var oCach = ghi

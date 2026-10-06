@@ -110,6 +110,7 @@ code { background: #fbefe6; padding: 1px 6px; border-radius: 6px; }
 .banner a, .linkish { color: var(--focus); text-decoration: underline; cursor: pointer; background: none; border: 0; font: inherit; padding: 0; }
 
 main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
+:root { --cao-dau: 80px; } /* chiều cao thanh đầu trang (để tính khung bảng) */
 .man { display: flex; flex-direction: column; gap: 18px; }
 
 /* ---------- Ô thả file ---------- */
@@ -184,7 +185,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; }
 .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 4px; border: 1px solid rgba(0, 0, 0, .1); }
 
-.table-wrap { overflow-x: auto; }
+/* Bảng dài: cuộn dọc + ngang BÊN TRONG khung cao vừa màn hình → thanh cuộn ngang luôn thấy, tiêu đề cột đứng yên */
+.table-wrap { overflow: auto; max-height: calc(100vh - var(--cao-dau) - 32px); overscroll-behavior: contain; }
+.dlg .table-wrap { max-height: none; }
 .tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
 .tbl th {
   text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted);
@@ -428,3 +431,42 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .bc-goi-y small { color: var(--muted); }
 .bc-canh-bao { background: var(--warn); color: #6f5300; border-radius: var(--r-sm); padding: 8px 12px; margin: 0; font-size: 13px; }
 .input-ma { padding: 6px 9px; font: 600 13px ui-monospace, Consolas, monospace; width: 160px; }
+
+/* ---------- Cột cố định bên trái khi cuộn ngang (SKU + Tên) ----------
+ * tbl-ghim1/2/3: ghim 1/2/3 cột đầu. c1-*: bề rộng cố định cột 1 (để tính vị trí cột 2, 3). */
+.tbl { --w1: 150px; --w2: 170px; --w3: 340px; }
+.tbl.c1-stt { --w1: 48px; }
+.tbl.c1-nha { --w1: 72px; }
+.tbl.c1-lydo { --w1: 150px; }
+.tbl.c1-san { --w1: 90px; }
+.tbl.c1-sku { --w1: 170px; --w2: 380px; }
+.tbl.c1-trensan { --w1: 200px; --w2: 340px; }
+.tbl-ghim1 > * > tr > :nth-child(1),
+.tbl-ghim2 > * > tr > :nth-child(-n+2),
+.tbl-ghim3 > * > tr > :nth-child(-n+3) { position: sticky; z-index: 1; background-color: var(--paper); }
+.tbl-ghim1 > thead > tr > :nth-child(1),
+.tbl-ghim2 > thead > tr > :nth-child(-n+2),
+.tbl-ghim3 > thead > tr > :nth-child(-n+3) { z-index: 3; background-color: #fffaf6; }
+.tbl-ghim1 > * > tr > :nth-child(1),
+.tbl-ghim2 > * > tr > :nth-child(1),
+.tbl-ghim3 > * > tr > :nth-child(1) { left: 0; }
+.tbl-ghim2 > * > tr > :nth-child(1),
+.tbl-ghim3 > * > tr > :nth-child(1) { width: var(--w1); min-width: var(--w1); max-width: var(--w1); }
+.tbl-ghim2 > * > tr > :nth-child(2),
+.tbl-ghim3 > * > tr > :nth-child(2) { left: var(--w1); }
+.tbl-ghim2 > * > tr > :nth-child(2) { width: var(--w2); min-width: var(--w2); }
+.tbl-ghim3 > * > tr > :nth-child(2) { width: var(--w2); min-width: var(--w2); max-width: var(--w2); }
+.tbl-ghim3 > * > tr > :nth-child(3) { left: calc(var(--w1) + var(--w2)); width: var(--w3); min-width: var(--w3); }
+/* đường viền mép cột ghim cuối */
+.tbl-ghim1 > * > tr > :nth-child(1),
+.tbl-ghim2 > * > tr > :nth-child(2),
+.tbl-ghim3 > * > tr > :nth-child(3) { box-shadow: inset -2px 0 0 var(--line); }
+.tbl td.sku .nho, .tbl td.sku div { white-space: normal; }
+
+/* ---------- Màn Danh mục: hết chiều rộng, bảng cao bằng phần còn lại của màn hình ---------- */
+main:has(> #man-danhmuc:not([hidden])) {
+  max-width: none; padding: 12px 16px; height: calc(100vh - var(--cao-dau)); display: flex; flex-direction: column;
+}
+#man-danhmuc:not([hidden]) { flex: 1; min-height: 0; gap: 12px; }
+#man-danhmuc > .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#man-danhmuc #dm-bang { flex: 1; min-height: 0; max-height: none; }
