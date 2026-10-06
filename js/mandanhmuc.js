@@ -55,7 +55,7 @@
     deleteCombo: '🗑 Xóa combo', importBatch: '📥 Nạp Excel', khoiPhuc: '♻️ Khôi phục sao lưu',
     doiKhoaCombo: '🔑 Đổi khóa combo (mã vạch)', capNhatGia: '💲 Cập nhật giá', capNhatGiaCombo: '💸 Cập nhật giá combo',
     thayMaTaiBan: '🔁 Thay mã tái bản', hoanTacTaiBan: '↩️ Hoàn tác thay mã', boQuaTaiBan: '🙅 Không phải tái bản',
-    soMaChuan: '🌐 Sổ mã chuẩn', luuTenSach: '✏️ Khai báo tên sách', ganBarcode: '🏷️ Gán / sửa barcode', boGanBarcode: '🗑 Bỏ barcode gán tay', khongPhaiCombo: '📖 Không phải combo – sách lẻ', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
+    soMaChuan: '🌐 Sổ mã chuẩn', luuTenSach: '✏️ Khai báo tên sách', suaSku: '✏️ Sửa dòng danh mục', ganBarcode: '🏷️ Gán / sửa barcode', boGanBarcode: '🗑 Bỏ barcode gán tay', khongPhaiCombo: '📖 Không phải combo – sách lẻ', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
   };
   function taiLichSu() {
     if (dangTaiLs) return;
@@ -96,7 +96,7 @@
       '<button class="linkish" id="ls-lai">Tải lại</button></div>' +
       '<table class="tbl tbl-ghim1"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Khóa</th><th>Trước</th><th>Sau</th></tr></thead><tbody>' +
       ds.map(function (r) {
-        var nutHt = ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode'].indexOf(r.hanh_dong) >= 0 && r.dong
+        var nutHt = ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku'].indexOf(r.hanh_dong) >= 0 && r.dong
           ? (daHoanTac['LS#' + r.dong] ? '<div class="pl">(đã hoàn tác)</div>'
             : '<div>' + A.nutGhi('↩️ Hoàn tác', 'class="btn btn-sm" data-hoan-tac="' + r.dong + '" data-khoa-ls="' + A.esc(r.khoa) + '"') + '</div>')
           : '';
@@ -163,7 +163,7 @@
         var i = list.indexOf(e);
         var nhanKhoa = /^ten:/.test(e.key) ? '<div class="pl">nhận diện theo tên: ' + A.esc(e.key.split('|')[1] || '') + '</div>' : '';
         var phu = e.ma_moi ? '<div><span class="nho nho-macu" title="Mã cũ – đơn dùng mã này được tính vào mã mới nhất">mã phụ → ' + A.esc(PL.maMoiNhat(idxDm, e.sku)) + '</span></div>' : '';
-        var choThay = PL.isBarcode(e.sku) && !e.ma_moi;
+        var choThay = PL.isBarcode(e.sku);
         return '<tr><td class="sku">' + (e.sku ? A.esc(e.sku) : '<span class="sku-la sku-trong">(trống)</span>') + phu + '</td>' +
           oTenSach(e, i, ghi, mc) + '<td class="ten pl">' + A.esc(e.ten) + (e.phan_loai ? ' <span class="nho">' + A.esc(e.phan_loai) + '</span>' : '') + nhanKhoa + '</td><td>' +
           (ghi ? '<select class="select" data-sua-sku="' + i + '" aria-label="Nhà">' + (e.nha ? '' : '<option value="" selected disabled>— chọn nhà —</option>') + ['HA', 'KV', 'ML', PL.KHONG_NHAP].map(function (n) {
@@ -173,6 +173,7 @@
             (e.khong_combo ? '<div><span class="nho" title="Bạn đã bấm “Không phải combo” cho dòng này">🙅 không phải combo</span></div>' : '') + '</td>' +
           '<td class="so">' + (e.gia_gan_nhat ? A.so(e.gia_gan_nhat) + '<div class="pl">' + A.esc(e.ngay_gia) + '</div>' : '<span class="muted">—</span>') + '</td>' +
           '<td class="pl">' + ngay(e.cap_nhat) + '</td><td><div class="actions">' +
+          A.nutGhi('✏️ Sửa', 'class="btn btn-sm" data-sua-dong="' + i + '"') +
           (choThay ? A.nutGhi('🔁 Thay mã tái bản', 'class="btn btn-sm" data-tai-ban="' + i + '"') : '') +
           A.nutGhi('🗑', 'class="btn btn-icon btn-ghost" data-xoa-sku="' + i + '" aria-label="Xóa ' + A.esc(e.sku || e.ten) + '"') + '</div></td></tr>';
       }).join('') + '</tbody></table>' +
@@ -186,6 +187,72 @@
     return '<td class="ten"><input class="input input-ten' + (gy ? ' la-goi-y' : '') + '" data-ten-sach="' + i + '" value="' + A.esc(gt) + '" aria-label="Tên sách">' +
       (gy ? '<div class="pl"><span class="nho nho-chuaten">chưa có tên khai báo</span> gợi ý theo ' + gy.nguon + ' ' +
         A.nutGhi('✔ Dùng', 'class="btn btn-sm" data-dung-goi-y="' + i + '"') + '</div>' : '') + '</td>';
+  }
+
+  /* ---------- Sửa tay mọi trường của 1 dòng danh mục (kể cả mã phụ, web, tự học) ---------- */
+  function canhBaoMa(ma) {
+    if (!ma) return '';
+    if (!PL.isBarcode(ma)) return '⚠ "' + ma + '" không giống mã vạch (chỉ gồm chữ số, từ 7 ký tự).';
+    if (/^\d{13}$/.test(ma) && !PL.ean13HopLe(ma)) return '⚠ Mã ' + ma + ' sai số kiểm tra (số cuối) – có thể gõ nhầm.';
+    return '';
+  }
+  var dangSua = null;
+  function moSuaDong(e) {
+    dangSua = e;
+    $('ss-goc').textContent = 'Nguồn hiện tại: ' + (e.nguon || '?') + (e.nguon_ma ? ' · mã phụ (' + e.nguon_ma + ')' : '');
+    $('ss-key').value = e.key; $('ss-sku').value = e.sku; $('ss-ten').value = e.ten; $('ss-pl').value = e.phan_loai || '';
+    $('ss-tensach').value = e.ten_sach || ''; $('ss-nha').value = e.nha || ''; $('ss-gia').value = e.gia_gan_nhat || '';
+    $('ss-mamoi').value = e.ma_moi || ''; $('ss-ktb').value = e.khong_tai_ban || ''; $('ss-kcombo').checked = !!e.khong_combo;
+    $('ss-loi').textContent = '';
+    $('dlg-sua-sku').showModal();
+  }
+  /* Kiểm tra chỉ để CẢNH BÁO – không chặn */
+  function canhBaoDong(d) {
+    var cb = [];
+    if (!/^(sku|ten):/.test(d.key)) cb.push('⚠ Khóa "' + d.key + '" không bắt đầu bằng sku: hoặc ten: – app sẽ không nhận ra dòng nào trên sàn.');
+    var m1 = canhBaoMa(PL.isBarcode(d.sku) || /^\d+$/.test(d.sku) ? d.sku : '');
+    if (m1) cb.push(m1.replace('Mã', 'SKU'));
+    if (d.ma_moi) {
+      var m2 = canhBaoMa(d.ma_moi);
+      if (m2) cb.push(m2.replace('Mã', 'Mã chính'));
+      if (d.ma_moi === PL.clean(d.sku).toUpperCase()) cb.push('⚠ Mã chính trùng SKU của chính dòng này.');
+      // Vòng lặp: đi theo mã chính trong danh mục có quay về dòng này không
+      var cur = d.ma_moi, da = {}, goc = d.key.indexOf('sku:') === 0 ? d.key.slice(4) : '';
+      while (cur && !da[cur]) {
+        if (goc && cur === goc) { cb.push('⚠ Mã chính tạo vòng lặp (' + d.ma_moi + ' lại trỏ về ' + goc + ').'); break; }
+        da[cur] = 1;
+        var x = DM.catalog.skus.filter(function (s) { return s.key === 'sku:' + cur; })[0];
+        cur = x ? PL.clean(x.ma_moi).toUpperCase() : '';
+      }
+    }
+    if (!d.nha && !d.ma_moi) cb.push('⚠ Chưa chọn nhà.');
+    if (d.key !== dangSua.key && DM.catalog.skus.some(function (s) { return s.key === d.key; })) cb.push('⚠ Khóa mới trùng 1 dòng khác – dòng đó sẽ bị ghi đè.');
+    return cb;
+  }
+  function luuSuaDong(ghiDe) {
+    var key = PL.clean($('ss-key').value);
+    if (key && !/^(sku|ten):/i.test(key)) key = PL.skuKey(key); // gõ trơn mã → sku:<mã>
+    else if (/^sku:/i.test(key)) key = PL.skuKey(key.slice(4));
+    var d = { key_cu: dangSua.key, key: key || dangSua.key, sku: PL.clean($('ss-sku').value), ten: PL.clean($('ss-ten').value),
+      phan_loai: PL.clean($('ss-pl').value), ten_sach: PL.clean($('ss-tensach').value), nha: $('ss-nha').value,
+      gia_gan_nhat: Number($('ss-gia').value) || '', ma_moi: PL.clean($('ss-mamoi').value).replace(/\s+/g, '').toUpperCase(),
+      khong_tai_ban: PL.clean($('ss-ktb').value), khong_combo: $('ss-kcombo').checked, ghi_de: !!ghiDe };
+    var cb = ghiDe ? [] : canhBaoDong(d);
+    var tiep = cb.length ? A.hoi(cb.join('\n') + '\n\nVẫn lưu?', 'Vẫn lưu', { tieuDe: 'Kiểm tra dữ liệu', nhe: true }) : Promise.resolve(true);
+    tiep.then(function (ok) {
+      if (!ok) return;
+      if (cb.length) d.ghi_de = true; // đã xác nhận cảnh báo (kể cả trùng khóa)
+      var btn = $('ss-luu');
+      btn.disabled = true;
+      DM.goi('suaSku', d)
+        .then(function () { $('dlg-sua-sku').close(); A.toast('✏️ Đã lưu dòng ' + d.key + '.', 'ok'); })
+        .catch(function (err) {
+          var m = /CAN_XAC_NHAN:\s*(.*)$/.exec(err.message);
+          if (m) { A.hoi(m[1], 'Ghi đè', { tieuDe: 'Xác nhận' }).then(function (ok2) { if (ok2) luuSuaDong(true); }); return; }
+          $('ss-loi').textContent = 'Không lưu được: ' + err.message;
+        })
+        .then(function () { btn.disabled = false; });
+    });
   }
 
   /* ---------- Barcode gán tay (khóa dòng → barcode) ---------- */
@@ -213,7 +280,8 @@
         return '<tr><td>' + tren + '</td><td class="ten">' + A.esc(e.ten) + (pl ? '<div class="pl">' + A.esc(pl) + '</div>' : '') + '</td>' +
           '<td>' + (ghi ? '<input class="input input-ma" data-sua-gantay="' + i + '" value="' + A.esc(e.ma_moi) + '" inputmode="numeric" aria-label="Barcode đúng">' : '<b class="sku">' + A.esc(e.ma_moi) + '</b>') + '</td>' +
           '<td class="pl">' + A.esc(tenMa(e.ma_moi)) + '</td><td class="pl">' + ngay(e.cap_nhat) + '</td>' +
-          '<td>' + A.nutGhi('🗑', 'class="btn btn-icon btn-ghost" data-bo-gantay="' + i + '" aria-label="Bỏ barcode gán tay"') + '</td></tr>';
+          '<td><div class="actions">' + A.nutGhi('✏️ Sửa', 'class="btn btn-sm" data-sua-dong="' + i + '"') +
+          A.nutGhi('🗑', 'class="btn btn-icon btn-ghost" data-bo-gantay="' + i + '" aria-label="Bỏ barcode gán tay"') + '</div></td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -233,7 +301,7 @@
         var oCach = ghi
           ? '<select class="select" data-cach="' + i + '" aria-label="Cách xuất">' +
             '<option value="tach"' + (nguyen ? '' : ' selected') + '>✂️ Tách</option>' +
-            '<option value="nguyen"' + (nguyen ? ' selected' : '') + (tron ? ' disabled' : '') + '>📦 Nguyên combo</option></select>'
+            '<option value="nguyen"' + (nguyen ? ' selected' : '') + '>📦 Nguyên combo</option></select>'
           : '<span class="badge-cach badge-' + (nguyen ? 'nguyen' : 'tach') + '">' + (nguyen ? '📦 Nguyên combo' : '✂️ Tách') + '</span>';
         var chiTiet = nguyen
           ? '<div>' + A.badge(c.nha) + ' xuất 1 dòng: <b>' + A.esc(c.ten_xuat || PL.tenGon(c.ten_combo, DM.caiDat.maKhac)) + '</b></div>' +
@@ -327,7 +395,11 @@
     var c = DM.catalog.combos[i];
     if (cach === c.cach_xuat) return;
     if (cach === 'nguyen') {
-      if (root.KhaiBao.comboTron(c)) { A.toast('Combo có sách nhà khác – không xuất nguyên được.', 'loi'); ve(); return; }
+      if (root.KhaiBao.comboTron(c) && !doiCachXuat.daHoi) {
+        A.hoi('⚠ Combo có sách nhà khác – xuất nguyên thì cả combo vào 1 nhà (phần nhà khác cũng bị đặt).\n\nVẫn đổi?', 'Vẫn đổi', { nhe: true, tieuDe: 'Kiểm tra dữ liệu' })
+          .then(function (ok) { if (ok) { doiCachXuat.daHoi = true; doiCachXuat(i, cach); doiCachXuat.daHoi = false; } else ve(); });
+        return;
+      }
       var nha = PL.NHA.indexOf(c.nha) >= 0 ? c.nha
         : c.thanh_phan.map(function (t) { return t.nha; }).filter(function (n) { return PL.NHA.indexOf(n) >= 0; })[0];
       if (!nha) { ve(); root.KhaiBao.moSua(c, 'nguyen', 'Chọn nhà cho combo xuất nguyên rồi bấm Lưu.'); return; }
@@ -400,6 +472,7 @@
     });
     $('dm-tim').addEventListener('input', ve);
     $('dm-loc-ten').addEventListener('change', ve);
+    $('ss-luu').addEventListener('click', function () { luuSuaDong(false); });
     $('dm-bang').addEventListener('change', function (e) {
       var s = e.target.closest('[data-sua-sku]');
       if (s) suaSku(+s.dataset.suaSku, s.value);
@@ -407,12 +480,12 @@
       if (sg) {
         var eg = DM.catalog.skus[+sg.dataset.suaGantay], ma = PL.clean(sg.value).replace(/\s+/g, '').toUpperCase();
         if (ma === eg.ma_moi) return;
-        if (!PL.isBarcode(ma)) { A.toast('Barcode phải gồm toàn chữ số, ít nhất 7 số.', 'loi'); sg.value = eg.ma_moi; return; }
-        var tiep = /^\d{13}$/.test(ma) && !PL.ean13HopLe(ma)
-          ? A.hoi('Mã ' + ma + ' sai số kiểm tra (số cuối) – có thể gõ nhầm. Vẫn lưu?', 'Vẫn lưu', { tieuDe: 'Barcode có thể sai' }) : Promise.resolve(true);
+        if (!ma) { sg.value = eg.ma_moi; return; }
+        var cb = canhBaoMa(ma);
+        var tiep = cb ? A.hoi(cb + '\n\nVẫn lưu?', 'Vẫn lưu', { tieuDe: 'Barcode có thể sai', nhe: true }) : Promise.resolve(true);
         tiep.then(function (ok) {
           if (!ok) { sg.value = eg.ma_moi; return; }
-          DM.goi('ganBarcode', { items: [{ key: eg.key, sku: eg.sku, ten: eg.ten, phan_loai: eg.phan_loai }], ma_moi: ma, ghi_de: true })
+          DM.goi('ganBarcode', { items: [{ key: eg.key, sku: eg.sku, ten: eg.ten, phan_loai: eg.phan_loai }], ma_moi: ma, ghi_de: true, ep: true })
             .then(function () { A.toast('🏷️ Đã đổi barcode → ' + ma, 'ok'); })
             .catch(function (err) { A.toast('Không lưu được: ' + err.message, 'loi'); ve(); });
         });
@@ -431,6 +504,7 @@
       if (e.target.closest('[data-sang-combo]')) { tab = 'combo'; ve(); return; }
       var b = e.target.closest('button');
       if (!b || b.disabled) return;
+      if (b.dataset.suaDong) { moSuaDong(DM.catalog.skus[+b.dataset.suaDong]); return; }
       if (b.dataset.boGantay) {
         var ex0 = DM.catalog.skus[+b.dataset.boGantay];
         A.hoi('Bỏ barcode gán tay cho "' + ex0.ten + (ex0.phan_loai ? ' – ' + ex0.phan_loai : '') + '" (→ ' + ex0.ma_moi + ')?\n\nLần sau dòng này lại dùng SKU trên sàn. Hoàn tác được ở Lịch sử.', 'Bỏ')

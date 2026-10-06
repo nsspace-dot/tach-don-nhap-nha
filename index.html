@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261006b">
+  <link rel="stylesheet" href="style.css?v=20261006c">
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -220,6 +220,8 @@
       <div class="field">
         <span>Khóa nhận diện <small>(mỗi sàn có thể đặt mã khác nhau)</small></span>
         <div class="khoa-list" id="cb-khoa"></div>
+        <div class="khoa-them"><input class="input" id="cb-khoa-moi" placeholder="Thêm khóa: SKU, barcode|phân loại, hoặc ten:tên|phân loại" autocomplete="off">
+          <button class="btn btn-sm" type="button" id="cb-khoa-them">＋ Thêm khóa</button></div>
       </div>
       <fieldset class="cach-xuat">
         <legend>Cách xuất ra file Excel</legend>
@@ -336,6 +338,33 @@
     </form>
   </dialog>
 
+  <dialog class="dlg dlg-wide" id="dlg-sua-sku" aria-labelledby="dlg-sua-sku-title">
+    <form method="dialog">
+      <h2 id="dlg-sua-sku-title">✏️ Sửa dòng danh mục</h2>
+      <p class="muted" id="ss-goc"></p>
+      <div class="grid-2">
+        <label class="field"><span>Khóa nhận diện <small>(sku:… hoặc ten:tên|phân loại)</small></span><input class="input" id="ss-key" autocomplete="off"></label>
+        <label class="field"><span>SKU / barcode trên sàn</span><input class="input" id="ss-sku" autocomplete="off"></label>
+        <label class="field"><span>Tên trên sàn</span><input class="input" id="ss-ten"></label>
+        <label class="field"><span>Phân loại</span><input class="input" id="ss-pl"></label>
+        <label class="field"><span>Tên sách <small>(in ra file)</small></span><input class="input" id="ss-tensach"></label>
+        <label class="field"><span>Nhà</span>
+          <select class="input" id="ss-nha"><option value="">— chưa rõ —</option><option value="HA">HA · Hồng Ân</option><option value="KV">KV · Khang Việt</option><option value="ML">ML · Minh Long</option><option value="KHONG_NHAP">Không nhập</option></select>
+        </label>
+        <label class="field"><span>Giá gần nhất</span><input class="input" id="ss-gia" type="number" min="0" step="1000"></label>
+        <label class="field"><span>Mã chính <small>(dòng này là mã phụ → tính theo mã này; để trống = không)</small></span><input class="input" id="ss-mamoi" inputmode="numeric" autocomplete="off"></label>
+        <label class="field field-rong"><span>Không phải tái bản của <small>(các mã, cách nhau “ ;; ”)</small></span><input class="input" id="ss-ktb"></label>
+      </div>
+      <label class="radio"><input type="checkbox" id="ss-kcombo"> Không phải combo (là sách lẻ)</label>
+      <small class="muted">Sửa tay luôn được ưu tiên (nguồn chuyển thành “gán tay”), có ghi Lịch sử và hoàn tác được.</small>
+      <p class="err" id="ss-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" type="button" id="ss-luu">💾 Lưu</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="dlg-hoi" aria-labelledby="dlg-hoi-title">
     <form method="dialog">
       <h2 id="dlg-hoi-title">Chắc chưa nè?</h2>
@@ -351,18 +380,18 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261006b"></script>
-  <script src="js/phanloai.js?v=20261006b"></script>
-  <script src="js/thongke.js?v=20261006b"></script>
-  <script src="js/xuatfile.js?v=20261006b"></script>
-  <script src="js/danhmuc.js?v=20261006b"></script>
-  <script src="js/danhmuc-excel.js?v=20261006b"></script>
-  <script src="js/linhvat.js?v=20261006b"></script>
-  <script src="js/app.js?v=20261006b"></script>
-  <script src="js/khaibao.js?v=20261006b"></script>
-  <script src="js/barcode.js?v=20261006b"></script>
-  <script src="js/mandanhmuc.js?v=20261006b"></script>
-  <script src="js/caidat.js?v=20261006b"></script>
-  <script src="js/manthongke.js?v=20261006b"></script>
+  <script src="js/docfile.js?v=20261006c"></script>
+  <script src="js/phanloai.js?v=20261006c"></script>
+  <script src="js/thongke.js?v=20261006c"></script>
+  <script src="js/xuatfile.js?v=20261006c"></script>
+  <script src="js/danhmuc.js?v=20261006c"></script>
+  <script src="js/danhmuc-excel.js?v=20261006c"></script>
+  <script src="js/linhvat.js?v=20261006c"></script>
+  <script src="js/app.js?v=20261006c"></script>
+  <script src="js/khaibao.js?v=20261006c"></script>
+  <script src="js/barcode.js?v=20261006c"></script>
+  <script src="js/mandanhmuc.js?v=20261006c"></script>
+  <script src="js/caidat.js?v=20261006c"></script>
+  <script src="js/manthongke.js?v=20261006c"></script>
 </body>
 </html>

@@ -28,7 +28,7 @@
  *   POST <url>  body {action, data}  (Content-Type: text/plain)
  *        action: ping, upsertSku, upsertSkuBatch (kèm cập nhật giá), deleteSku, upsertCombo, addComboKey, doiKhoaCombo,
  *                deleteCombo, importBatch, thayMaTaiBan, hoanTacTaiBan, boQuaTaiBan, capNhatGiaCombo,
- *                upsertMaChuan, luuMaPhu, boQuaCungCuon, luuTenSach, khongPhaiCombo, ganBarcode, boGanBarcode   (upsertSkuBatch nhận thêm maChuan, maPhu)
+ *                upsertMaChuan, luuMaPhu, boQuaCungCuon, luuTenSach, khongPhaiCombo, ganBarcode, boGanBarcode, suaSku   (upsertSkuBatch nhận thêm maChuan, maPhu)
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
@@ -125,6 +125,9 @@ function xuLy_(action, data) {
       break;
     case 'ganBarcode':
       extra.soKhoa = ganBarcode_(cat, data, ctx);
+      break;
+    case 'suaSku':
+      suaSku_(cat, data, ctx);
       break;
     case 'boGanBarcode':
       boGanBarcode_(cat, data, ctx);
@@ -305,7 +308,8 @@ function ganBarcode_(cat, d, ctx) {
   var viec = items.map(function (it) {
     var key = chuoi_(it.key), Y = chuoi_(it.ma_moi || Ychung).toUpperCase();
     if (!/^(sku|ten):/.test(key)) throw new Error('Khóa không hợp lệ: ' + key);
-    if (!/^\d{7,}$/.test(Y)) throw new Error('Barcode phải là mã vạch (chỉ gồm chữ số, từ 7 ký tự): ' + Y);
+    if (!Y) throw new Error('Thiếu barcode.');
+    if (!/^\d{7,}$/.test(Y) && !d.ep) throw new Error('CAN_XAC_NHAN: "' + Y + '" không giống mã vạch (chỉ gồm chữ số, từ 7 ký tự). Vẫn lưu?');
     var X = key.indexOf('sku:') === 0 ? key.slice(4) : '';
     if (X === Y) throw new Error('Barcode mới trùng barcode đang có.');
     var i = timViTri_(cat.skus, 'key', key), cu = i >= 0 ? cat.skus[i] : null;
@@ -315,7 +319,7 @@ function ganBarcode_(cat, d, ctx) {
     }
     var cur = Y, da = {};
     while (cur && !da[cur]) {
-      if (X && cur === X) throw new Error('Không thể trỏ ' + X + ' về ' + Y + ' vì sẽ tạo vòng lặp.');
+      if (X && cur === X && !d.ep) throw new Error('CAN_XAC_NHAN: Trỏ ' + X + ' về ' + Y + ' sẽ tạo vòng lặp (' + Y + ' đang trỏ về ' + X + '). Vẫn lưu?');
       da[cur] = 1;
       var j = timSku_(cat, cur);
       cur = j >= 0 ? chuoi_(cat.skus[j].ma_moi).toUpperCase() : '';
@@ -370,6 +374,33 @@ function ganBarcode_(cat, d, ctx) {
   if (tp && Ychung) moTa.push('thành phần "' + tp.ten + '" → ' + Ychung);
   ghiLog_(ctx, 'ganBarcode', moTa.join('; ').slice(0, 300), truoc, sau);
   return viec.length;
+}
+
+/* Sửa tay MỌI trường của 1 dòng danh mục (kể cả khóa, mã chính của mã phụ). Nguồn → tay. Không chặn dữ liệu lạ
+ * (app đã cảnh báo); chỉ hỏi lại (CAN_XAC_NHAN) khi đổi khóa trùng 1 dòng khác. Ảnh chụp trước/sau → hoàn tác được. */
+function suaSku_(cat, d, ctx) {
+  var keyCu = chuoi_(d.key_cu), key = chuoi_(d.key) || keyCu;
+  if (!key) throw new Error('Thiếu khóa.');
+  var iCu = keyCu ? timViTri_(cat.skus, 'key', keyCu) : -1, iMoi = timViTri_(cat.skus, 'key', key);
+  if (key !== keyCu && iMoi >= 0 && !d.ghi_de) throw new Error('CAN_XAC_NHAN: Khóa ' + key + ' đã có dòng khác trong danh mục. Ghi đè dòng đó?');
+  var truoc = [{ key: keyCu || key, dong: iCu >= 0 ? saoChep_(cat.skus[iCu]) : null }];
+  if (key !== keyCu) truoc.push({ key: key, dong: iMoi >= 0 ? saoChep_(cat.skus[iMoi]) : null });
+  var cu = iCu >= 0 ? cat.skus[iCu] : {};
+  var maMoi = chuoi_(d.ma_moi).toUpperCase();
+  var moi = Object.assign({}, cu, {
+    key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), ten_sach: chuoi_(d.ten_sach), phan_loai: chuoi_(d.phan_loai),
+    nha: chuoi_(d.nha).toUpperCase(), nguon: 'tay', cap_nhat: ctx.now, ma_moi: maMoi,
+    nguon_ma: maMoi ? (maMoi === chuoi_(cu.ma_moi).toUpperCase() && chuoi_(cu.nguon_ma) ? cu.nguon_ma : 'gan_tay') : '',
+    khong_combo: d.khong_combo ? '1' : '', khong_tai_ban: chuoi_(d.khong_tai_ban)
+  });
+  var gia = soDuong_(d.gia_gan_nhat);
+  if (gia !== soDuong_(cu.gia_gan_nhat)) { moi.gia_gan_nhat = gia || ''; moi.ngay_gia = gia ? homNay_() : ''; }
+  // Bỏ dòng cũ (khi đổi khóa) và dòng trùng khóa mới (đã xác nhận ghi đè), rồi ghi dòng mới
+  cat.skus = cat.skus.filter(function (e) { return e.key !== keyCu && e.key !== key; });
+  cat.skus.push(moi);
+  ctx.doiSku = true;
+  var sau = truoc.map(function (x) { return { key: x.key, dong: x.key === key ? saoChep_(moi) : null }; });
+  ghiLog_(ctx, 'suaSku', key === keyCu ? key : keyCu + ' → ' + key, { skus: truoc, combos: [] }, { skus: sau, combos: [] });
 }
 
 /* Xóa ánh xạ "Barcode gán tay" của 1 khóa (bỏ ma_moi / nguon_ma). Hoàn tác được. */
@@ -620,7 +651,6 @@ function thayMaTaiBan_(cat, d, ctx) {
   var iX = timSku_(cat, X);
   if (iX < 0) throw new Error('Mã cũ ' + X + ' chưa có trong danh mục.');
   var rx = cat.skus[iX];
-  if (chuoi_(rx.ma_moi)) throw new Error('Mã ' + X + ' đã được thay bằng ' + rx.ma_moi + ' – hãy thay mã trên mã mới nhất.');
   // Chặn vòng lặp: đi theo chuỗi từ Y không được quay về X
   var cur = Y, da = {};
   while (cur && !da[cur]) {
@@ -682,7 +712,7 @@ function hoanTacTaiBan_(cat, d, ctx) {
   var s = sheet_(SH.LS);
   if (!(dong >= 2 && dong <= s.getLastRow())) throw new Error('Không tìm thấy bản ghi lịch sử cần hoàn tác.');
   var r = s.getRange(dong, 1, 1, COT.LICH_SU.length).getValues()[0];
-  if (['thayMaTaiBan', 'ganBarcode', 'boGanBarcode'].indexOf(String(r[1])) < 0) throw new Error('Bản ghi này không hoàn tác được.');
+  if (['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku'].indexOf(String(r[1])) < 0) throw new Error('Bản ghi này không hoàn tác được.');
   var maLs = 'LS#' + dong;
   var n = s.getLastRow();
   var cot = s.getRange(2, 2, n - 1, 2).getValues();
@@ -732,30 +762,25 @@ function deleteSku_(cat, d, ctx) {
 }
 
 function chuanCombo_(d) {
-  var ten = chuoi_(d.ten_combo);
-  if (!ten) throw new Error('Thiếu tên combo.');
+  // Sửa tay luôn được lưu: thiếu dữ liệu thì điền mặc định (app đã cảnh báo trước khi gửi)
+  var ten = chuoi_(d.ten_combo) || chuoi_(d.combo_id) || chuoi_([].concat(d.khoa || [])[0]) || '(combo chưa đặt tên)';
   var khoa = [];
   [].concat(d.khoa || []).forEach(function (k) {
     k = chuoi_(k);
     if (k && khoa.indexOf(k) < 0) khoa.push(k);
   });
-  if (!khoa.length) throw new Error('Combo "' + ten + '" chưa có khóa nhận diện.');
   var cachXuat = chuoi_(d.cach_xuat) === 'nguyen' ? 'nguyen' : 'tach';
   var nha = chuoi_(d.nha).toUpperCase();
-  if (cachXuat === 'nguyen' && NHA_CHINH.indexOf(nha) < 0) throw new Error('Combo "' + ten + '" xuất nguyên combo cần chọn nhà HA / KV / ML.');
   if (nha && NHA_CHINH.indexOf(nha) < 0) nha = '';
   var tps = (d.thanh_phan || []).map(function (t) {
     var nha = chuoi_(t.nha).toUpperCase();
-    if (NHA_TP.indexOf(nha) < 0) throw new Error('Nhà của thành phần không hợp lệ: ' + t.nha);
-    var tenTp = chuoi_(t.ten);
-    if (!tenTp) throw new Error('Thành phần thiếu tên sách.');
+    if (NHA_TP.indexOf(nha) < 0) nha = 'KHAC';
+    var tenTp = chuoi_(t.ten) || chuoi_(t.sku) || '(chưa có tên)';
     return {
       sku: chuoi_(t.sku), ten: tenTp, nha: nha,
       gia_goc: Number(t.gia_goc) || 0, so_luong: Math.max(1, Math.round(Number(t.so_luong) || 1))
     };
   });
-  // "Xuất nguyên combo" không bắt buộc thành phần; "Tách thành từng cuốn" thì bắt buộc
-  if (!tps.length && cachXuat === 'tach') throw new Error('Combo "' + ten + '" chưa có thành phần.');
   return { ten_combo: ten, khoa: khoa, thanh_phan: tps, cach_xuat: cachXuat,
            ma_he_thong: chuoi_(d.ma_he_thong), ten_xuat: chuoi_(d.ten_xuat), nha: nha };
 }

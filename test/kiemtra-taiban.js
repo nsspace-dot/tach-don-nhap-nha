@@ -140,7 +140,7 @@ check('Đơn mã X và mã Y đều ra mã Z (11 combo + 2 lẻ = 13)', tong(kq.
 check('Combo: thành phần đã là Z, có khóa theo X, Y và Z', m.get().combos[0].thanh_phan[0].sku === Z &&
   ['sku:' + KATA + '|combo.ha', 'sku:' + Y + '|combo.ha', 'sku:' + Z + '|combo.ha'].every(function (x) { return m.get().combos[0].khoa.indexOf(x) >= 0; }));
 check('Chặn vòng lặp: Z → X bị từ chối', /vòng lặp/.test(m.post('thayMaTaiBan', { ma_cu: Z, ma_moi: KATA }).error || ''));
-check('Thay mã trên mã đã cũ (X) → yêu cầu dùng mã mới nhất', /đã được thay/.test(m.post('thayMaTaiBan', { ma_cu: KATA, ma_moi: '8935092555555' }).error || ''));
+// (Thay mã trên mã đã cũ không còn bị chặn – sửa tay luôn được ưu tiên)
 check('Mã mới không phải mã vạch → từ chối', /mã vạch/.test(m.post('thayMaTaiBan', { ma_cu: Z, ma_moi: 'ABC' }).error || ''));
 var vong = PL.buildIndex({ skus: [{ key: 'sku:1111111', sku: '1111111', ma_moi: '2222222' }, { key: 'sku:2222222', sku: '2222222', ma_moi: '1111111' }] });
 check('Dữ liệu lỡ bị vòng lặp → app vẫn không treo', /^(1111111|2222222)$/.test(PL.maMoiNhat(vong, '1111111')));
