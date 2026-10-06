@@ -227,6 +227,19 @@ vd "Vở Bài Tập Thực Hành Mĩ Thuật Các Lớp – Lớp 3" chỉ khớ
   - **Không phải** → ghi nhớ, không hỏi lại listing đó nữa.
 - Thứ tự ưu tiên: **gán tay > mã phụ > web > tự học**. App **không bao giờ** tự đè dữ liệu bạn đã gán tay.
 
+### 🏷️ Sửa / bổ sung barcode cho từng dòng
+Nút **🏷️** cạnh cây bút ✏️ ở bảng Hồng Ân / Khang Việt / Minh Long (cả cuốn tách từ combo), tab Chưa rõ nhà và Đã bỏ qua.
+- Hộp mở ra hiện **barcode hiện tại** (hoặc *trống*, kèm nhãn nếu sai số kiểm tra). Ô **🔎 Tìm theo tên** gợi ý barcode từ sổ mã chuẩn web + danh mục (gõ không dấu được) – bấm 1 gợi ý là điền vào ô barcode.
+- Mã 13 số **sai số kiểm tra** → cảnh báo vàng; muốn lưu vẫn được nhưng phải tick *"Tôi đã kiểm tra, vẫn lưu mã này"*.
+- Barcode đã có trong danh mục → dùng luôn nhà + tên đã khai báo. Chưa có → chọn **Nhà** (HA/KV/ML/Khác) + **Tên sách**, lưu luôn.
+- **Lưu** áp dụng cho dòng này và mọi dòng giống nó:
+  - **SKU trống** → ghi nhớ *tên sàn + phân loại → barcode*; **SKU chữ** → ghi nhớ *SKU chữ → barcode*.
+  - **Barcode sai** → lưu **mã phụ** barcode sai → barcode đúng (giống thay mã tái bản).
+  - **Cuốn tách từ combo chưa có SKU** → điền barcode vào thành phần của combo.
+  Từ đó dòng được tính như có barcode đúng: nhà, tên đã khai báo, gộp với cùng barcode ở sàn khác, lịch sử / thống kê, dự báo.
+- Dòng đã được gán tay sang barcode khác → app **hỏi trước khi ghi đè**. Mỗi lần lưu ghi Lịch sử, **↩️ Hoàn tác** được (Danh mục → 🕘 Lịch sử).
+- Dòng vừa gán / sửa tự vào **"Listing cần sửa barcode"** (lý do *gán barcode tay*) để nhân viên sửa SKU tận gốc trên sàn.
+
 ### Listing cần sửa barcode 🏷️
 Mục **"🏷️ Listing cần sửa barcode"** (dưới bảng kết quả) liệt kê các listing trên sàn nên sửa SKU tận gốc:
 **Sàn | Tên sản phẩm trên sàn | Phân loại | Barcode trên sàn | Barcode web (chuẩn) | Lý do**. Lý do gồm:
@@ -307,8 +320,10 @@ Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê �
   Không thấy ở SKU → nhà mà có combo khớp thì app gợi ý chuyển sang tab Combo. Mục không có barcode (khóa tên + phân loại) cũng hiện và tìm được như thường.
 - **Combo:** xem thành phần, cột **Cách xuất** (✂️ Tách / 📦 Nguyên combo – đổi qua lại ngay tại đây), **✏️ Sửa**, xóa (hiện rõ tên combo và các thành phần trước khi xóa).
   - Combo có SKU là **mã vạch** (vd dòng Shopee "Hiragana (HA)" phân loại COMBO.HA) được nhận diện bằng mã vạch **kèm phân loại** (`sku:8935092825724|combo.ha`), để không nhầm với cuốn lẻ cùng mã vạch. Combo khai báo trước đây bằng mã vạch trơn sẽ **tự đổi sang khóa mới** lần đầu bạn thả file có combo đó (có ghi Lịch sử).
-- **🕘 Lịch sử:** 100 thay đổi gần nhất (gán nhà, tự học, cập nhật giá, lưu/xóa combo, thay mã tái bản…), có dữ liệu trước và sau, nút **↩️ Hoàn tác** cho thay mã tái bản. Bản đầy đủ ở sheet **LICH_SU**.
+- **🏷️ Barcode gán tay:** các ánh xạ *dòng trên sàn (SKU trống / SKU chữ / barcode sai) → barcode đúng*. Sửa ô barcode để đổi (có kiểm tra số kiểm tra), 🗑 để bỏ (hoàn tác được). Tìm không dấu.
+- **🕘 Lịch sử:** 100 thay đổi gần nhất (gán nhà, tự học, cập nhật giá, lưu/xóa combo, thay mã tái bản…), có dữ liệu trước và sau, nút **↩️ Hoàn tác** cho thay mã tái bản và gán / bỏ barcode. Bản đầy đủ ở sheet **LICH_SU**.
 - **📤 Xuất danh mục ra Excel:** sao lưu thủ công về máy.
+- **Excel:** file xuất / nạp có thêm sheet **BARCODE_GAN_TAY** (key, sku_tren_san, ten_tren_san, phan_loai, barcode_dung).
 - **📥 Nạp từ Excel:** nạp hàng loạt. Bấm **📄 Tải file mẫu** (hoặc dùng [`templates/mau-nap-danh-muc.xlsx`](templates/mau-nap-danh-muc.xlsx)), đọc sheet `HUONG_DAN` trong file, điền rồi nạp. File xuất ở trên cũng nạp lại được.
 
 ## Màn Cài đặt
@@ -359,6 +374,7 @@ node test/kiemtra-appscript.js    # kiểm thử Code.gs bằng môi trường g
 node test/kiemtra-taiban.js        # giá gần nhất + thay mã tái bản (Code.gs giả lập + phân loại, cần file mẫu)
 node test/kiemtra-web.js           # đơn web + Shopee tất cả trạng thái (cần mau/web.xlsx, mau/shopee-all.xlsx)
 node test/kiemtra-machuan.js       # sổ mã chuẩn, khớp sách lẻ trùng, listing cần sửa barcode
+node test/kiemtra-barcode.js       # sửa / bổ sung barcode: SKU trống, SKU chữ, barcode sai, thành phần combo, hoàn tác, Excel
 node test/kiemtra-combo.js         # combo dạng "A+B", nghi combo theo giá, "Không phải combo", "Đây là combo"
 node test/kiemtra-tensach.js       # tên sách khai báo, không gộp theo tên, khớp mã web theo tên + phân loại
 node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp file cũ), thống kê, dự báo dự phòng

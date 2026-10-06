@@ -292,7 +292,7 @@
   function oSku(g) {
     if (g.maCu && g.maCu.length) {
       return '<span class="ma-cu" title="Có đơn còn dùng mã cũ ' + esc(g.maCu.join(', ')) + ' – đã tính vào mã mới">' + esc(g.sku) + '</span>' +
-        '<div><span class="nho nho-macu">' + (g.quyVeWeb ? 'Barcode sàn khác web' : 'Mã cũ trên sàn') + ' – nên sửa listing</span></div>';
+        '<div><span class="nho nho-macu">' + (g.ganTay ? 'Barcode gán tay' : g.quyVeWeb ? 'Barcode sàn khác web' : 'Mã cũ trên sàn') + ' – nên sửa listing</span></div>';
     }
     if (!g.sku) return '<span class="sku-la sku-trong" title="Không có SKU – nhận diện bằng tên + phân loại">(trống)</span>';
     if (g.skuLa) return '<span class="sku-la" title="SKU không phải mã vạch – nhận diện bằng tên + phân loại">' + esc(g.sku) + '</span>';
@@ -318,6 +318,42 @@
              lines: dsRow.map(function (x) { return { row: x }; }), tronNha: false,
              goiYTp: PL.thanhPhanGoiY(r, rows(), DM.caiDat.maKhac, DM.caiDat.plVoNghia) };
   }
+  /* Dòng gốc trên sàn (trước khi quy mã phụ) */
+  function rowGoc(r) { return r.skuCu ? Object.assign({}, r, { sku: r.skuCu === '(trống)' ? '' : r.skuCu }) : r; }
+  function nutBarcode(attr, i) {
+    return ' <button type="button" class="btn-sua-ten" ' + attr + '="' + i + '" title="Sửa / bổ sung barcode (gán barcode cho SKU trống / SKU chữ, sửa barcode sai)" aria-label="Sửa barcode">🏷️</button>';
+  }
+  /* Mở hộp sửa barcode cho các dòng sàn (rows: dòng đã phân loại), nhà gợi ý, tên gợi ý */
+  function moBarcodeDong(rs, nha, tenGoiY, extra) {
+    var items = [], seen = {}, goc = rs.map(rowGoc);
+    goc.forEach(function (r) {
+      var k = PL.khoaBarcode(r);
+      if (seen[k]) return;
+      seen[k] = 1;
+      items.push({ key: k, sku: PL.clean(r.sku), ten: r.ten, phan_loai: r.phanLoai });
+    });
+    var r0 = goc[0] || {};
+    root.SuaBarcode.mo(Object.assign({
+      moTa: '<b>' + esc(r0.ten || tenGoiY) + '</b>' + (r0.phanLoai ? ' · Phân loại: ' + esc(r0.phanLoai) : '') +
+        (items.length > 1 ? '<br>' + items.length + ' khóa dòng: ' + items.map(function (x) { return esc(x.key); }).join(', ') : ''),
+      maHienTai: PL.clean(r0.sku).toUpperCase(), maQuyVe: rs[0] && rs[0].skuCu ? rs[0].sku : '',
+      items: items, nhaGoiY: nha, tenGoiY: tenGoiY
+    }, extra || {}));
+  }
+  function moBarcodeNha(g, nha) {
+    var rs = dongSanCua(g), tp = (g.nguon || []).filter(function (s) { return s.combo; });
+    if (rs.length) { moBarcodeDong(rs, nha, g.tenGon); return; }
+    if (!tp.length) { toast('Dòng này chỉ có đơn web – barcode web là chuẩn, không cần sửa.', 'loi'); return; }
+    // Thành phần combo: có barcode → mã phụ barcode sai → đúng ; chưa có SKU → điền barcode vào thành phần
+    var ids = [];
+    tp.forEach(function (s) { if (ids.indexOf(s.comboId) < 0) ids.push(s.comboId); });
+    var moTa = '<b>' + esc(g.tenGon) + '</b><br>Thành phần của combo: ' + tp.map(function (s) { return esc(s.combo); }).filter(function (x, i, a) { return a.indexOf(x) === i; }).join(', ');
+    if (PL.isBarcode(g.sku)) {
+      root.SuaBarcode.mo({ moTa: moTa, maHienTai: g.sku, items: [{ key: PL.skuKey(g.sku), sku: g.sku, ten: g.tenSan || g.ten, phan_loai: '' }], nhaGoiY: nha, tenGoiY: g.tenGon });
+    } else {
+      root.SuaBarcode.mo({ moTa: moTa, maHienTai: '', items: [], thanhPhan: { combo_ids: ids, ten: tp[0].tpTen }, nhaGoiY: nha, tenGoiY: g.tenGon });
+    }
+  }
   function coTrongDanhMuc(key) { return DM.catalog.skus.some(function (e) { return e.key === key; }); }
 
   /* Ô tên trong bảng nhà: tên đã khai báo (hoặc tên tạm + nhãn), nút ✏️ sửa tên → lưu vào danh mục */
@@ -326,6 +362,7 @@
     if (g.chuaCoTen) h += ' <span class="nho nho-chuaten" title="Đang dùng tên tạm = tên sàn + phân loại. Bấm ✏️ để khai báo tên sách.">chưa có tên khai báo</span>';
     else if (g.nguonTen === 'web') h += ' <span class="nho nguon-web" title="Tên lấy theo sổ mã chuẩn web">🌐 tên web</span>';
     if (g.khoaTen && DM.coTheGhi()) h += ' <button type="button" class="btn-sua-ten" data-sua-ten="' + i + '" title="Sửa tên sách (lưu vào danh mục)" aria-label="Sửa tên sách">✏️</button>';
+    if (DM.coTheGhi() && (g.nguon || []).some(function (s) { return s.row && s.row.san !== 'Web' && !s.nguyen; })) h += nutBarcode('data-bc-nha', i);
     // 🎁 cạnh cây bút: mọi dòng sách lẻ có đơn sàn (không phải đơn web, không phải cuốn tách từ combo)
     if (DM.coTheGhi() && dongSanCua(g).length) {
       h += ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' +
@@ -466,6 +503,7 @@
     return '<table class="tbl"><thead><tr><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Chọn nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td class="sku">' + oSku(g) + '</td><td class="ten">' + tenHien(g) +
+          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-cr', i) : '') +
           (g.ghiChu ? '<div class="ghi-chu">⚠ ' + esc(g.ghiChu) + '</div>' : '') +
           '<div>' + g.san.map(function (s) { return '<span class="nho">' + s + '</span>'; }).join('') + '</div></td>' +
           '<td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td>' +
@@ -495,7 +533,7 @@
       '<table class="tbl"><thead><tr><th>Lý do</th><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">SL</th><th>Gán lại nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td><span class="ly-do">' + esc(g.lyDo) + '</span></td><td class="sku">' + esc(g.sku) + '</td><td class="ten">' + tenHien(g) +
-          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo-bq="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' : '') +
+          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-bq', i) + ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo-bq="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' : '') +
           '</td><td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.sl) + '</td><td>' +
           (DM.coTheGhi()
             ? '<select class="select" data-gan-bq="' + i + '" aria-label="Gán lại nhà"><option value="">— chọn —</option>' +
@@ -769,6 +807,11 @@
       else if (b.dataset.giaCombo) { b.disabled = true; capNhatGiaCombo([S.kq.lechGiaHomNay[+b.dataset.giaCombo]]); }
       else if (b.dataset.giaTatca) { b.disabled = true; capNhatGiaCombo(S.kq.lechGiaHomNay); }
       else if (b.dataset.suaTen) moSuaTen(S.kq.nha[S.tab][+b.dataset.suaTen], S.tab);
+      else if (b.dataset.bcNha) moBarcodeNha(S.kq.nha[S.tab][+b.dataset.bcNha], S.tab);
+      else if (b.dataset.bcCr) {
+        var gr = S.kq.chuaRo[+b.dataset.bcCr];
+        moBarcodeDong(gr.lines.map(function (l) { return l.row; }).filter(function (r) { return r.san !== 'Web'; }), gr.nha, PL.tenTam(gr.ten, gr.phanLoai, DM.caiDat.maKhac, DM.caiDat.plVoNghia));
+      }
       else if (b.dataset.laCombo) {
         var gn = S.kq.nha[S.tab][+b.dataset.laCombo];
         root.KhaiBao.moKhaiBao(nhomCombo(dongSanCua(gn), S.tab, gn.sl));
@@ -817,6 +860,12 @@
         .catch(function (er) { s.disabled = false; s.value = ''; toast('Không lưu được: ' + er.message, 'loi'); });
     });
     $('bang-bo-qua').addEventListener('click', function (e) {
+      var bb = e.target.closest('[data-bc-bq]');
+      if (bb) {
+        var gq = S.kq.boQua[+bb.dataset.bcBq];
+        moBarcodeDong(gq.lines.map(function (l) { return l.row; }).filter(function (r) { return r.san !== 'Web'; }), '', PL.tenTam(gq.ten, gq.phanLoai, DM.caiDat.maKhac, DM.caiDat.plVoNghia));
+        return;
+      }
       var b = e.target.closest('[data-la-combo-bq]');
       if (!b) return;
       var gb = S.kq.boQua[+b.dataset.laComboBq];

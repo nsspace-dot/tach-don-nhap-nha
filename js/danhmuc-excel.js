@@ -9,6 +9,8 @@
   var COT_SKU = ['key', 'sku', 'ten_sach', 'ten', 'phan_loai', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban'];
   var COT_COMBO = ['combo_id', 'ten_combo', 'khoa', 'cap_nhat', 'cach_xuat', 'ma_he_thong', 'ten_xuat', 'nha'];
   var COT_TP = ['combo_id', 'sku', 'ten', 'nha', 'gia_goc', 'so_luong'];
+  /* Barcode gán tay: dòng sàn (SKU trống / SKU chữ / barcode sai) → barcode đúng */
+  var COT_GT = ['key', 'sku_tren_san', 'ten_tren_san', 'phan_loai', 'barcode_dung', 'cap_nhat'];
   var NHA_SKU = ['HA', 'KV', 'ML', PL.KHONG_NHAP];
   var NHA_TP = ['HA', 'KV', 'ML', 'KHAC'];
 
@@ -30,6 +32,9 @@
       c.thanh_phan.forEach(function (t) { tp.push(Object.assign({ combo_id: c.combo_id }, t)); });
     });
     XLSX.utils.book_append_sheet(wb, sheet(XLSX, COT_TP, tp, [14, 16, 60, 8, 10, 10]), 'COMBO_THANH_PHAN');
+    XLSX.utils.book_append_sheet(wb, sheet(XLSX, COT_GT, catalog.skus.filter(function (e) { return e.nguon_ma === 'gan_tay' && e.ma_moi; }).map(function (e) {
+      return { key: e.key, sku_tren_san: /^sku:/.test(e.key) ? e.key.slice(4) : '', ten_tren_san: e.ten, phan_loai: e.phan_loai, barcode_dung: e.ma_moi, cap_nhat: e.cap_nhat };
+    }), [50, 16, 60, 20, 16, 20]), 'BARCODE_GAN_TAY');
     return wb;
   }
 
@@ -57,7 +62,10 @@
       ['   - nha = HA / KV / ML / KHAC (KHAC = sách nhà khác, sẽ không nhập).'],
       ['   - so_luong = số cuốn đó trong 1 combo (thường là 1).'],
       ['4. Dòng mẫu bên dưới chỉ để tham khảo – xóa hoặc sửa trước khi nạp.'],
-      ['5. Nạp trùng SKU / combo_id đã có thì sẽ GHI ĐÈ dòng cũ.']
+      ['5. Nạp trùng SKU / combo_id đã có thì sẽ GHI ĐÈ dòng cũ.'],
+      ['6. Sheet BARCODE_GAN_TAY (không bắt buộc): dòng trên sàn có SKU trống / SKU chữ / barcode sai → barcode đúng.'],
+      ['   - Có SKU (chữ hoặc barcode sai): điền sku_tren_san. SKU trống: điền ten_tren_san + phan_loai ĐÚNG như trên sàn.'],
+      ['   - barcode_dung: mã vạch đúng. Nạp trùng khóa thì ghi đè barcode cũ.']
     ];
     var wsHd = XLSX.utils.aoa_to_sheet(hd);
     wsHd['!cols'] = [{ wch: 110 }];
@@ -108,12 +116,23 @@
     var dsSku = docSheet(wb, 'SKU_NHA', XLSX) || [];
     var dsCombo = docSheet(wb, 'COMBO', XLSX) || [];
     var dsTp = docSheet(wb, 'COMBO_THANH_PHAN', XLSX) || [];
-    if (!timSheet(wb, 'SKU_NHA') && !timSheet(wb, 'COMBO')) {
-      return { skus: [], combos: [], loi: ['Không thấy sheet SKU_NHA hoặc COMBO. Hãy dùng đúng file mẫu.'] };
+    var dsGt = docSheet(wb, 'BARCODE_GAN_TAY', XLSX) || [];
+    if (!timSheet(wb, 'SKU_NHA') && !timSheet(wb, 'COMBO') && !timSheet(wb, 'BARCODE_GAN_TAY')) {
+      return { skus: [], combos: [], ganBarcode: [], loi: ['Không thấy sheet SKU_NHA, COMBO hoặc BARCODE_GAN_TAY. Hãy dùng đúng file mẫu.'] };
     }
+    var ganBarcode = [];
+    dsGt.forEach(function (r, i) {
+      var sku = PL.clean(r.sku_tren_san), ten = PL.clean(r.ten_tren_san), ma = PL.clean(r.barcode_dung).toUpperCase();
+      if (!sku && !ten && !ma) return;
+      if (!PL.isBarcode(ma)) { loi.push('BARCODE_GAN_TAY dòng ' + (i + 2) + ': barcode_dung "' + r.barcode_dung + '" không phải mã vạch.'); return; }
+      var key = PL.clean(r.key) ? chuanKhoa(r.key) : sku ? PL.skuKey(sku) : ten ? PL.tenKey(ten, r.phan_loai) : '';
+      if (!key) { loi.push('BARCODE_GAN_TAY dòng ' + (i + 2) + ': thiếu SKU trên sàn và tên.'); return; }
+      ganBarcode.push({ key: key, sku: sku, ten: ten, phan_loai: PL.clean(r.phan_loai), ma_moi: ma });
+    });
     dsSku.forEach(function (r, i) {
       var sku = PL.clean(r.sku), ten = PL.clean(r.ten), nha = PL.clean(r.nha).toUpperCase().replace(/\s+/g, '_');
       if (!sku && !ten && !nha) return;
+      if (!nha && PL.clean(r.ma_moi)) return; // dòng chỉ để gán barcode → nằm ở sheet BARCODE_GAN_TAY
       if (NHA_SKU.indexOf(nha) < 0) { loi.push('SKU_NHA dòng ' + (i + 2) + ': nhà "' + r.nha + '" không hợp lệ (HA/KV/ML/KHONG_NHAP).'); return; }
       var key = PL.clean(r.key);
       if (key) key = chuanKhoa(key);
@@ -163,7 +182,7 @@
     combos.forEach(function (c) {
       if (!c.thanh_phan.length && c.cach_xuat === 'tach') loi.push('Combo ' + c.combo_id + ' chưa có thành phần nào trong sheet COMBO_THANH_PHAN.');
     });
-    return { skus: skus, combos: combos.filter(function (c) { return c.thanh_phan.length || c.cach_xuat === 'nguyen'; }), loi: loi };
+    return { skus: skus, combos: combos.filter(function (c) { return c.thanh_phan.length || c.cach_xuat === 'nguyen'; }), ganBarcode: ganBarcode, loi: loi };
   }
 
   return { xuat: xuat, mau: mau, nap: nap, chuanKhoa: chuanKhoa };

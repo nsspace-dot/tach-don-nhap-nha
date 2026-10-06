@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261005c">
+  <link rel="stylesheet" href="style.css?v=20261006a">
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -135,6 +135,7 @@
         <div class="seg" role="tablist" aria-label="Loại danh mục">
           <button class="seg-btn is-active" data-dm="sku" role="tab" aria-selected="true">SKU → nhà <span id="dm-dem-sku" class="dem"></span></button>
           <button class="seg-btn" data-dm="combo" role="tab" aria-selected="false">Combo <span id="dm-dem-combo" class="dem"></span></button>
+          <button class="seg-btn" data-dm="gantay" role="tab" aria-selected="false">🏷️ Barcode gán tay <span id="dm-dem-gantay" class="dem"></span></button>
           <button class="seg-btn" data-dm="lichsu" role="tab" aria-selected="false">🕘 Lịch sử</button>
         </div>
         <input type="search" class="input search" id="dm-tim" placeholder="🔎 Tìm theo SKU, tên sách…" aria-label="Tìm trong danh mục">
@@ -305,6 +306,36 @@
     </form>
   </dialog>
 
+  <dialog class="dlg" id="dlg-barcode" aria-labelledby="dlg-barcode-title">
+    <form method="dialog" id="form-barcode">
+      <h2 id="dlg-barcode-title">🏷️ Sửa / bổ sung barcode</h2>
+      <p class="muted" id="bc-goc"></p>
+      <p id="bc-hien"></p>
+      <label class="field"><span>🔎 Tìm barcode theo tên <small>(sổ mã chuẩn web + danh mục, gõ không dấu được)</small></span>
+        <input class="input" id="bc-tim" autocomplete="off">
+      </label>
+      <ul class="bc-goi-y" id="bc-goi-y"></ul>
+      <label class="field"><span>Barcode đúng</span>
+        <input class="input" id="bc-ma" inputmode="numeric" autocomplete="off" placeholder="13 số trên bìa sách">
+      </label>
+      <p class="bc-canh-bao" id="bc-canh-bao" hidden></p>
+      <label class="radio" id="bc-van-luu-o" hidden><input type="checkbox" id="bc-van-luu"> Tôi đã kiểm tra, vẫn lưu mã này</label>
+      <p class="muted" id="bc-info"></p>
+      <div class="grid-2" id="bc-moi" hidden>
+        <label class="field"><span>Nhà</span>
+          <select class="input" id="bc-nha"><option value="HA">HA · Hồng Ân</option><option value="KV">KV · Khang Việt</option><option value="ML">ML · Minh Long</option><option value="KHONG_NHAP">Khác (không nhập)</option></select>
+        </label>
+        <label class="field"><span>Tên sách</span><input class="input" id="bc-ten"></label>
+      </div>
+      <small class="muted">Áp dụng cho dòng này và mọi dòng giống nó (cùng SKU chữ / cùng barcode sai / cùng tên + phân loại). Có thể hoàn tác trong Danh mục → 🕘 Lịch sử.</small>
+      <p class="err" id="bc-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" type="button" id="bc-luu">🏷️ Lưu barcode</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="dlg-hoi" aria-labelledby="dlg-hoi-title">
     <form method="dialog">
       <h2 id="dlg-hoi-title">Chắc chưa nè?</h2>
@@ -320,17 +351,18 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261005c"></script>
-  <script src="js/phanloai.js?v=20261005c"></script>
-  <script src="js/thongke.js?v=20261005c"></script>
-  <script src="js/xuatfile.js?v=20261005c"></script>
-  <script src="js/danhmuc.js?v=20261005c"></script>
-  <script src="js/danhmuc-excel.js?v=20261005c"></script>
-  <script src="js/linhvat.js?v=20261005c"></script>
-  <script src="js/app.js?v=20261005c"></script>
-  <script src="js/khaibao.js?v=20261005c"></script>
-  <script src="js/mandanhmuc.js?v=20261005c"></script>
-  <script src="js/caidat.js?v=20261005c"></script>
-  <script src="js/manthongke.js?v=20261005c"></script>
+  <script src="js/docfile.js?v=20261006a"></script>
+  <script src="js/phanloai.js?v=20261006a"></script>
+  <script src="js/thongke.js?v=20261006a"></script>
+  <script src="js/xuatfile.js?v=20261006a"></script>
+  <script src="js/danhmuc.js?v=20261006a"></script>
+  <script src="js/danhmuc-excel.js?v=20261006a"></script>
+  <script src="js/linhvat.js?v=20261006a"></script>
+  <script src="js/app.js?v=20261006a"></script>
+  <script src="js/khaibao.js?v=20261006a"></script>
+  <script src="js/barcode.js?v=20261006a"></script>
+  <script src="js/mandanhmuc.js?v=20261006a"></script>
+  <script src="js/caidat.js?v=20261006a"></script>
+  <script src="js/manthongke.js?v=20261006a"></script>
 </body>
 </html>

@@ -28,7 +28,7 @@
  *   POST <url>  body {action, data}  (Content-Type: text/plain)
  *        action: ping, upsertSku, upsertSkuBatch (kèm cập nhật giá), deleteSku, upsertCombo, addComboKey, doiKhoaCombo,
  *                deleteCombo, importBatch, thayMaTaiBan, hoanTacTaiBan, boQuaTaiBan, capNhatGiaCombo,
- *                upsertMaChuan, luuMaPhu, boQuaCungCuon, luuTenSach, khongPhaiCombo   (upsertSkuBatch nhận thêm maChuan, maPhu)
+ *                upsertMaChuan, luuMaPhu, boQuaCungCuon, luuTenSach, khongPhaiCombo, ganBarcode, boGanBarcode   (upsertSkuBatch nhận thêm maChuan, maPhu)
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
@@ -122,6 +122,12 @@ function xuLy_(action, data) {
       // Khai báo tên sách (1 dòng hoặc hàng loạt) – nguồn tay
       extra.soTenSach = 0;
       (data.items || [data]).forEach(function (it) { if (luuTenSach_(cat, it, ctx)) extra.soTenSach++; });
+      break;
+    case 'ganBarcode':
+      extra.soKhoa = ganBarcode_(cat, data, ctx);
+      break;
+    case 'boGanBarcode':
+      boGanBarcode_(cat, data, ctx);
       break;
     case 'khongPhaiCombo':
       khongPhaiCombo_(cat, data, ctx);
@@ -281,6 +287,102 @@ function khongPhaiCombo_(cat, d, ctx) {
   ghiLog_(ctx, 'khongPhaiCombo', key, cu, Object.assign({ ghi_chu: gt ? 'Không phải combo – là sách lẻ' + (ganNha ? ' ' + nha : '') + ': ' + chuoi_(d.ten || moi.ten) +
     (d.phan_loai ? ' – ' + chuoi_(d.phan_loai) : '') : 'Bỏ ghi nhớ "không phải combo"' }, moi));
   return true;
+}
+
+/* ===================== Gán / sửa barcode cho dòng sàn ===================== */
+/* data: { items: [{ key, sku, ten, phan_loai, ma_moi? }], ma_moi, nha?, ten_sach?, ghi_de?, thanh_phan?: { combo_ids: [], ten } }
+ * - key = sku:<SKU chữ / barcode sai> hoặc ten:<tên>|<phân loại>  → lưu mã phụ trỏ về barcode đúng (nguon_ma gan_tay, nguồn tay)
+ * - barcode đúng chưa có trong danh mục + có nhà → tạo luôn (nguồn tay, kèm tên sách)
+ * - thanh_phan: thành phần combo chưa có SKU → điền barcode vào thành phần (theo tên) trong các combo đó
+ * - Khóa đã được gán TAY sang barcode khác → báo CAN_XAC_NHAN (trừ khi ghi_de)
+ * Ghi 1 dòng LICH_SU có ảnh chụp trước/sau → hoàn tác được. */
+function ganBarcode_(cat, d, ctx) {
+  var Ychung = chuoi_(d.ma_moi).toUpperCase(), items = d.items || [], tp = d.thanh_phan;
+  if (!items.length && !tp) throw new Error('Không có dòng nào để gán barcode.');
+  var anh = {}, combosDung = {};
+  function chup(key) { if (!(key in anh)) { var j = timViTri_(cat.skus, 'key', key); anh[key] = j >= 0 ? saoChep_(cat.skus[j]) : null; } }
+  // Kiểm tra trước, chưa sửa gì
+  var viec = items.map(function (it) {
+    var key = chuoi_(it.key), Y = chuoi_(it.ma_moi || Ychung).toUpperCase();
+    if (!/^(sku|ten):/.test(key)) throw new Error('Khóa không hợp lệ: ' + key);
+    if (!/^\d{7,}$/.test(Y)) throw new Error('Barcode phải là mã vạch (chỉ gồm chữ số, từ 7 ký tự): ' + Y);
+    var X = key.indexOf('sku:') === 0 ? key.slice(4) : '';
+    if (X === Y) throw new Error('Barcode mới trùng barcode đang có.');
+    var i = timViTri_(cat.skus, 'key', key), cu = i >= 0 ? cat.skus[i] : null;
+    var maCu = cu ? chuoi_(cu.ma_moi).toUpperCase() : '';
+    if (maCu && maCu !== Y && cu.nguon === 'tay' && !d.ghi_de) {
+      throw new Error('CAN_XAC_NHAN: Dòng "' + (cu.ten || key) + '" đã được gán tay sang barcode ' + maCu + '. Ghi đè thành ' + Y + '?');
+    }
+    var cur = Y, da = {};
+    while (cur && !da[cur]) {
+      if (X && cur === X) throw new Error('Không thể trỏ ' + X + ' về ' + Y + ' vì sẽ tạo vòng lặp.');
+      da[cur] = 1;
+      var j = timSku_(cat, cur);
+      cur = j >= 0 ? chuoi_(cat.skus[j].ma_moi).toUpperCase() : '';
+    }
+    return { it: it, key: key, Y: Y, i: i, cu: cu };
+  });
+  var dsY = {};
+  viec.forEach(function (v) { dsY[v.Y] = 1; });
+  if (tp && Ychung) dsY[Ychung] = 1;
+  var nha = chuoi_(d.nha).toUpperCase(), tenSach = chuoi_(d.ten_sach);
+  viec.forEach(function (v) { chup(v.key); });
+  Object.keys(dsY).forEach(function (Y) { chup('sku:' + Y); });
+  var truocCombo = [];
+  if (tp && Ychung) {
+    cat.combos.forEach(function (c, k) {
+      if ((tp.combo_ids || []).indexOf(c.combo_id) < 0) return;
+      if (c.thanh_phan.some(function (t) { return !chuoi_(t.sku) && chuoi_(t.ten) === chuoi_(tp.ten); })) { combosDung[k] = 1; truocCombo.push(saoChep_(c)); }
+    });
+    if (!truocCombo.length) throw new Error('Không tìm thấy thành phần combo cần gán barcode.');
+  }
+  // Sửa
+  viec.forEach(function (v) {
+    var it = v.it, i = timViTri_(cat.skus, 'key', v.key), cu = i >= 0 ? cat.skus[i] : null;
+    var goc = cu || { key: v.key, sku: chuoi_(it.sku), ten: chuoi_(it.ten), nha: '', phan_loai: chuoi_(it.phan_loai) };
+    var moi = Object.assign({}, goc, { ma_moi: v.Y, nguon_ma: 'gan_tay', nguon: 'tay', cap_nhat: ctx.now });
+    if (i >= 0) cat.skus[i] = moi; else cat.skus.push(moi);
+  });
+  Object.keys(dsY).forEach(function (Y) {
+    var j = timSku_(cat, Y), ry = j >= 0 ? cat.skus[j] : null;
+    if (ry) {
+      if (tenSach && !chuoi_(ry.ten_sach)) cat.skus[j] = Object.assign({}, ry, { ten_sach: tenSach, cap_nhat: ctx.now });
+      return;
+    }
+    if (NHA_SKU.indexOf(nha) < 0) return; // không có nhà → chưa tạo (app vẫn nhận nhà theo mã trong tên)
+    var mau = viec.filter(function (v) { return v.Y === Y; })[0];
+    cat.skus.push({ key: 'sku:' + Y, sku: Y, ten: mau ? chuoi_(mau.it.ten) : chuoi_(tp && tp.ten), nha: nha, nguon: 'tay', cap_nhat: ctx.now,
+                    ten_sach: tenSach, phan_loai: '' });
+  });
+  Object.keys(combosDung).forEach(function (k) {
+    var c = cat.combos[k];
+    c.thanh_phan.forEach(function (t) { if (!chuoi_(t.sku) && chuoi_(t.ten) === chuoi_(tp.ten)) t.sku = Ychung; });
+    c.cap_nhat = ctx.now;
+  });
+  var truoc = { skus: Object.keys(anh).map(function (k) { return { key: k, dong: anh[k] }; }), combos: truocCombo };
+  var sau = {
+    skus: Object.keys(anh).map(function (k) { var j = timViTri_(cat.skus, 'key', k); return { key: k, dong: j >= 0 ? saoChep_(cat.skus[j]) : null }; }),
+    combos: Object.keys(combosDung).map(function (k) { return saoChep_(cat.combos[k]); })
+  };
+  ctx.doiSku = true;
+  if (truocCombo.length) ctx.doiCombo = true;
+  var moTa = viec.map(function (v) { return (v.key.indexOf('sku:') === 0 ? v.key.slice(4) : '(trống) ' + (v.cu ? v.cu.ten : v.it.ten)) + ' → ' + v.Y; });
+  if (tp && Ychung) moTa.push('thành phần "' + tp.ten + '" → ' + Ychung);
+  ghiLog_(ctx, 'ganBarcode', moTa.join('; ').slice(0, 300), truoc, sau);
+  return viec.length;
+}
+
+/* Xóa ánh xạ "Barcode gán tay" của 1 khóa (bỏ ma_moi / nguon_ma). Hoàn tác được. */
+function boGanBarcode_(cat, d, ctx) {
+  var key = chuoi_(d.key), i = timViTri_(cat.skus, 'key', key);
+  if (i < 0 || !chuoi_(cat.skus[i].ma_moi)) throw new Error('Khóa này chưa được gán barcode.');
+  var cu = saoChep_(cat.skus[i]);
+  var moi = Object.assign({}, cat.skus[i], { ma_moi: '', nguon_ma: '', cap_nhat: ctx.now });
+  // Dòng chỉ tạo ra để gán barcode (không nhà, không tên khai báo) → xóa hẳn
+  if (!chuoi_(moi.nha) && !chuoi_(moi.ten_sach) && !chuoi_(moi.khong_combo)) { cat.skus.splice(i, 1); moi = null; }
+  else cat.skus[i] = moi;
+  ctx.doiSku = true;
+  ghiLog_(ctx, 'boGanBarcode', key + ' (bỏ → ' + cu.ma_moi + ')', { skus: [{ key: key, dong: cu }], combos: [] }, { skus: [{ key: key, dong: moi }], combos: [] });
 }
 
 function soDuong_(v) { var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
@@ -580,12 +682,12 @@ function hoanTacTaiBan_(cat, d, ctx) {
   var s = sheet_(SH.LS);
   if (!(dong >= 2 && dong <= s.getLastRow())) throw new Error('Không tìm thấy bản ghi lịch sử cần hoàn tác.');
   var r = s.getRange(dong, 1, 1, COT.LICH_SU.length).getValues()[0];
-  if (String(r[1]) !== 'thayMaTaiBan') throw new Error('Bản ghi này không phải "Thay mã tái bản".');
+  if (['thayMaTaiBan', 'ganBarcode', 'boGanBarcode'].indexOf(String(r[1])) < 0) throw new Error('Bản ghi này không hoàn tác được.');
   var maLs = 'LS#' + dong;
   var n = s.getLastRow();
   var cot = s.getRange(2, 2, n - 1, 2).getValues();
   if (cot.some(function (x) { return String(x[0]) === 'hoanTacTaiBan' && String(x[1]).indexOf(maLs + ' ') === 0; })) {
-    throw new Error('Lần thay mã này đã được hoàn tác rồi.');
+    throw new Error('Thao tác này đã được hoàn tác rồi.');
   }
   var truoc = JSON.parse(String(r[3]));
   var hienTai = { skus: [], combos: [] };

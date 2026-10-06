@@ -110,7 +110,7 @@ check('Hoàn tác thành công', r.ok, r.error);
 check('Hoàn tác: danh mục trở về y như trước khi thay', JSON.stringify(m.get()) === catTruoc);
 check('Hoàn tác có ghi LICH_SU', lichSu(m)[0].hanh_dong === 'hoanTacTaiBan' && lichSu(m)[0].khoa.indexOf('LS#' + lsDong + ' ') === 0);
 check('Hoàn tác lần 2 → báo đã hoàn tác', /đã được hoàn tác/.test(m.post('hoanTacTaiBan', { dong: lsDong }).error || ''));
-check('Hoàn tác dòng không phải thay mã → lỗi', /không phải/.test(m.post('hoanTacTaiBan', { dong: 2 }).error || ''));
+check('Hoàn tác dòng không hoàn tác được (vd tự học) → lỗi', /không hoàn tác được/.test(m.post('hoanTacTaiBan', { dong: 2 }).error || ''));
 kq = PL.classify(rows2, cat());
 check('Sau hoàn tác: lại ra mã cũ, không còn mã mới', tong(kq.nha.HA, KATA) === 13 && tong(kq.nha.HA, Y) === 0);
 
