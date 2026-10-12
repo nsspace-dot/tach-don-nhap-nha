@@ -44,6 +44,11 @@
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
+  /* Báo lỗi ghi; xung đột đã chọn "Giữ bản của người khác" thì chỉ báo nhẹ */
+  function baoLoi(dau, e) {
+    if (e && e.daGiu) { toast('👌 ' + e.message, 'ok'); return; }
+    toast(dau + ': ' + (e && e.message), 'loi');
+  }
   function nutGhi(html, attrs) {
     var khoa = !DM.coTheGhi();
     return '<button type="button" ' + (attrs || '') + (khoa ? ' disabled title="Dán URL Apps Script ở màn Cài đặt để dùng nút này"' : '') + '>' + html + '</button>';
@@ -372,7 +377,7 @@
   }
   var dangSuaTen = null;
   function moSuaTen(g, nha) {
-    dangSuaTen = { g: g, nha: nha };
+    dangSuaTen = { g: g, nha: nha, cu: DM.timSku(g.khoaTen) };
     $('ten-goc').innerHTML = (g.sku ? '<b>' + esc(g.sku) + '</b> · ' : '') + 'Tên trên sàn: ' + esc(g.ten);
     $('ten-moi').value = g.tenGon;
     $('ten-loi').textContent = '';
@@ -384,9 +389,10 @@
     if (!ten) { $('ten-loi').textContent = 'Tên sách không được để trống.'; return; }
     var btn = $('ten-luu');
     btn.disabled = true;
-    DM.goi('luuTenSach', { key: x.g.khoaTen, sku: PL.isBarcode(x.g.sku) ? x.g.sku : '', ten: x.g.tenSan || x.g.ten, nha: x.nha, ten_sach: ten, phan_loai: x.g.phanLoai || '' })
+    DM.goi('luuTenSach', { key: x.g.khoaTen, sku: PL.isBarcode(x.g.sku) ? x.g.sku : '', ten: x.g.tenSan || x.g.ten, nha: x.nha, ten_sach: ten, phan_loai: x.g.phanLoai || '' },
+      { pb: DM.pbSku(x.g.khoaTen, x.cu), cu: x.cu, moTa: '"' + ten + '"' })
       .then(function () { $('dlg-ten').close(); toast('✏️ Đã lưu tên sách: ' + ten, 'ok'); })
-      .catch(function (e) { $('ten-loi').textContent = e.message; })
+      .catch(function (e) { if (e.daGiu) { $('dlg-ten').close(); baoLoi('', e); } else $('ten-loi').textContent = e.message; })
       .then(function () { btn.disabled = false; });
   }
 
@@ -620,9 +626,9 @@
     var r = g.lines[0].row;
     var entry = { key: PL.rowKey(r, false), sku: r.sku, ten: r.ten, nha: nha, nguon: 'tay' };
     var ten = nha === PL.KHONG_NHAP ? '"Không nhập"' : PL.TEN_NHA[nha];
-    return DM.goi('upsertSku', entry)
+    return DM.goi('upsertSku', entry, { pb: DM.pbSku(entry.key), cu: DM.timSku(entry.key), moTa: nha === PL.KHONG_NHAP ? 'Không nhập' : PL.TEN_NHA[nha] })
       .then(function () { toast('✅ Đã lưu: "' + r.ten.slice(0, 50) + '…" → ' + ten, 'ok'); })
-      .catch(function (e) { toast('Không lưu được: ' + e.message, 'loi'); });
+      .catch(function (e) { baoLoi('Không lưu được', e); });
   }
 
   /* ---------- Xuất Excel ---------- */
@@ -723,6 +729,13 @@
     if (!c.url) {
       b.innerHTML = '🔌 Chưa kết nối danh mục Google Sheets – vẫn tách đơn được, nhưng chưa nhớ được SKU/combo. <button class="linkish" data-di="caidat">Vào Cài đặt</button>';
       b.hidden = false;
+    } else if (DM.canCapNhatAppsScript()) {
+      b.innerHTML = '⚠️ <b>Cần cập nhật Apps Script</b> – Google Sheets đang chạy Code.gs bản cũ nên app chạy <b>chế độ 1 người</b> như trước ' +
+        '(chưa tự đồng bộ danh mục, chưa chống ghi đè khi nhiều người sửa). Cập nhật theo HUONG-DAN.md, Phần D (Phiên bản mới, không tạo triển khai mới).';
+      b.hidden = false;
+    } else if (DM.nhieuNguoi() && !c.toiLa) {
+      b.innerHTML = '👤 Máy này chưa chọn <b>“Tôi là”</b> – lịch sử và thông báo sẽ không có tên bạn. <button class="linkish" data-di="caidat">Vào Cài đặt</button>';
+      b.hidden = false;
     } else b.hidden = true;
   }
 
@@ -738,11 +751,91 @@
     if (man === 'danhmuc' && root.ManDanhMuc) root.ManDanhMuc.ve();
     if (man === 'caidat' && root.CaiDat) root.CaiDat.ve();
     if (man === 'thongke' && root.ManThongKe) root.ManThongKe.ve();
+    DM.dongBo();
   }
 
-  function veLai() {
+  /* ---------- Danh mục đổi → xử lý lại các dòng trên máy, KHÔNG nhảy màn hình, không mất ô đang sửa ---------- */
+  var choVe = null; // thay đổi từ máy khác đang chờ vẽ (người dùng đang sửa dở): { log: [] }
+  var VUNG_VE = ['bang', 'dm-bang', 'bang-bo-qua', 'tai-ban', 'cards', 'panel-head', 'chips'];
+  function dangBan() {
+    if (document.querySelector('dialog[open]')) return true;
+    var a = document.activeElement;
+    if (!a || !/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return false;
+    return VUNG_VE.some(function (id) { var el = $(id); return el && el.contains(a); });
+  }
+  function giuViTri(fn) {
+    var x = window.scrollX, y = window.scrollY, cuon = [];
+    document.querySelectorAll('.table-wrap').forEach(function (el) { cuon.push([el, el.scrollTop, el.scrollLeft]); });
+    fn();
+    cuon.forEach(function (c) { c[0].scrollTop = c[1]; c[0].scrollLeft = c[2]; });
+    window.scrollTo(x, y);
+  }
+  function veLaiNgay() {
     if (S.files.length) { gop(); xuLy(false); }
     if (root.ManDanhMuc && !$('man-danhmuc').hidden) root.ManDanhMuc.ve();
+  }
+  /* Số dòng còn phải xử lý tay (combo chưa khai báo + chưa rõ nhà) */
+  function soDongCho(kq) {
+    if (!kq) return 0;
+    return (kq.combo || []).concat(kq.chuaRo || []).reduce(function (s, g) { return s + (g.lines ? g.lines.length : 1); }, 0);
+  }
+  function veLai(info) {
+    info = info || {};
+    if (info.nguon === 'dongBo') {
+      choVe = { log: (choVe ? choVe.log : []).concat(info.log || []) };
+      xaChoVe(false);
+      return;
+    }
+    if (choVe) { xaChoVe(true); return; }
+    giuViTri(veLaiNgay);
+  }
+  function xaChoVe(ep) {
+    if (!choVe || (!ep && dangBan())) return;
+    var cho = choVe, truoc = soDongCho(S.kq);
+    choVe = null;
+    giuViTri(veLaiNgay);
+    baoThayDoi(cho.log, S.kq ? truoc - soDongCho(S.kq) : 0);
+  }
+
+  /* "Lan vừa khai báo combo X – 3 dòng của bạn đã tự xử lý" */
+  function tenSkuNgan(khoa) {
+    var e = DM.timSku(khoa);
+    return '"' + (e ? e.ten_sach || PL.tenGon(e.ten, DM.caiDat.maKhac) || khoa : khoa.replace(/^(sku|ten):/, '')).slice(0, 50) + '"';
+  }
+  function tenComboNgan(id) {
+    var c = DM.timCombo(id);
+    return '"' + (c ? PL.tenGon(c.ten_combo, DM.caiDat.maKhac) : id).slice(0, 50) + '"';
+  }
+  var MO_TA_HD = {
+    upsertCombo: function (l) { return 'khai báo combo ' + tenComboNgan(l.khoa); },
+    addComboKey: function (l) { return 'gắn thêm dòng vào combo ' + tenComboNgan(l.khoa); },
+    deleteCombo: function (l) { return 'xóa combo ' + l.khoa; },
+    upsertSku: function (l) {
+      var e = DM.timSku(l.khoa), n = e && (PL.TEN_NHA[e.nha] || (e.nha === PL.KHONG_NHAP ? 'Không nhập' : ''));
+      return 'chọn nhà cho ' + tenSkuNgan(l.khoa) + (n ? ' → ' + n : '');
+    },
+    luuTenSach: function (l) { return 'đặt tên sách ' + tenSkuNgan(l.khoa); },
+    suaSku: function (l) { return 'sửa ' + tenSkuNgan(String(l.khoa).split(' → ').pop()); },
+    deleteSku: function (l) { return 'xóa ' + l.khoa + ' khỏi danh mục'; },
+    khongPhaiCombo: function (l) { return 'đánh dấu ' + tenSkuNgan(l.khoa) + ' không phải combo'; },
+    ganBarcode: function (l) { return 'gán barcode (' + String(l.khoa).slice(0, 60) + ')'; },
+    boGanBarcode: function (l) { return 'bỏ barcode gán tay (' + String(l.khoa).slice(0, 60) + ')'; },
+    thayMaTaiBan: function (l) { return 'thay mã tái bản ' + l.khoa; },
+    hoanTacTaiBan: function () { return 'hoàn tác 1 thay đổi danh mục'; },
+    importBatch: function () { return 'nạp danh mục từ Excel'; },
+    capNhatGiaCombo: function (l) { return 'cập nhật giá combo ' + tenComboNgan(l.khoa); },
+    khoiPhuc: function () { return 'khôi phục danh mục từ bản sao lưu'; }
+  };
+  function baoThayDoi(log, n) {
+    var toi = DM.caiDat.toiLa || '';
+    var ds = (log || []).filter(function (l) { return MO_TA_HD[l.hanh_dong] && (!toi || l.nguoi !== toi); });
+    var duoi = n > 0 ? ' – ' + so(n) + ' dòng của bạn đã tự xử lý' : '';
+    if (!ds.length) { if (n > 0) toast('🔄 Danh mục vừa cập nhật' + duoi + '.', 'ok'); return; }
+    var ai = ds.map(function (l) { return l.nguoi || 'Máy khác'; }).filter(function (x, i, a) { return a.indexOf(x) === i; });
+    var cau = ds.length === 1 ? ai[0] + ' vừa ' + MO_TA_HD[ds[0].hanh_dong](ds[0])
+      : ai.length === 1 ? ai[0] + ' vừa cập nhật ' + ds.length + ' mục danh mục'
+        : ai.join(', ') + ' vừa cập nhật ' + ds.length + ' mục danh mục';
+    toast('🔄 ' + cau + duoi + '.', n > 0 ? 'ok' : '');
   }
 
   /* ---------- Sự kiện ---------- */
@@ -819,11 +912,12 @@
         var gc = S.kq.chuaRo[+b.dataset.laComboCr];
         root.KhaiBao.moKhaiBao(nhomCombo(gc.lines.map(function (l) { return l.row; }), gc.nha, gc.sl));
       } else if (b.dataset.luuDm) {
-        var gl = S.kq.nha[S.tab][+b.dataset.luuDm];
+        var gl = S.kq.nha[S.tab][+b.dataset.luuDm], nhaDm = S.tab;
         b.disabled = true;
-        DM.goi('upsertSku', { key: gl.key, sku: PL.isBarcode(gl.sku) ? gl.sku : '', ten: gl.tenSan || gl.ten, nha: S.tab, nguon: 'tay', phan_loai: gl.phanLoai || '' })
-          .then(function () { toast('💾 Đã lưu vào danh mục (' + PL.TEN_NHA[S.tab] + ') – sửa tên / đổi nhà ở màn Danh mục.', 'ok'); })
-          .catch(function (e) { b.disabled = false; toast('Không lưu được: ' + e.message, 'loi'); });
+        DM.goi('upsertSku', { key: gl.key, sku: PL.isBarcode(gl.sku) ? gl.sku : '', ten: gl.tenSan || gl.ten, nha: nhaDm, nguon: 'tay', phan_loai: gl.phanLoai || '' },
+          { pb: DM.pbSku(gl.key), cu: DM.timSku(gl.key), moTa: PL.TEN_NHA[nhaDm] })
+          .then(function () { toast('💾 Đã lưu vào danh mục (' + PL.TEN_NHA[nhaDm] + ') – sửa tên / đổi nhà ở màn Danh mục.', 'ok'); })
+          .catch(function (e) { b.disabled = false; baoLoi('Không lưu được', e); });
       }
       else if (b.dataset.dpThem || b.dataset.dpBo) {
         var x = S.dpGoiY.filter(function (y) { return y.i === +(b.dataset.dpThem || b.dataset.dpBo); })[0];
@@ -854,10 +948,13 @@
       gk.lines.forEach(function (l) { if (l.row.san !== 'Web') khoa[PL.khoaKhongCombo(l.row)] = l.row; });
       Object.keys(khoa).reduce(function (p, k) {
         var rk = khoa[k];
-        return p.then(function () { return DM.goi('khongPhaiCombo', { key: k, sku: PL.isBarcode(rk.sku) ? rk.sku : '', ten: rk.ten, phan_loai: rk.phanLoai, nha: nhaLe }); });
+        return p.then(function () {
+          return DM.goi('khongPhaiCombo', { key: k, sku: PL.isBarcode(rk.sku) ? rk.sku : '', ten: rk.ten, phan_loai: rk.phanLoai, nha: nhaLe },
+            { pb: DM.pbSku(k), cu: DM.timSku(k), moTa: 'sách lẻ ' + PL.TEN_NHA[nhaLe] });
+        });
       }, Promise.resolve())
         .then(function () { toast('📖 Đã ghi nhớ: không phải combo – là sách lẻ ' + PL.TEN_NHA[nhaLe] + '.', 'ok'); })
-        .catch(function (er) { s.disabled = false; s.value = ''; toast('Không lưu được: ' + er.message, 'loi'); });
+        .catch(function (er) { s.disabled = false; s.value = ''; baoLoi('Không lưu được', er); });
     });
     $('bang-bo-qua').addEventListener('click', function (e) {
       var bb = e.target.closest('[data-bc-bq]');
@@ -919,10 +1016,16 @@
     });
     $('sync').addEventListener('click', function () { DM.taiLai(); });
 
-    DM.nghe(function (loai) {
+    DM.nghe(function (loai, info) {
       if (loai === 'trangthai') veTrangThai();
-      if (loai === 'catalog' || loai === 'caidat') veLai();
+      if (loai === 'catalog' || loai === 'caidat') veLai(loai === 'catalog' ? info : null);
       if (loai === 'caidat') { veTrangThai(); taiLichSu(); }
+      if (loai === 'api') veBanner();
+    });
+    // Người dùng sửa xong (rời ô / đóng hộp thoại) → mới vẽ lại phần thay đổi từ máy khác
+    document.addEventListener('focusout', function () { setTimeout(function () { xaChoVe(false); }, 60); });
+    document.querySelectorAll('dialog').forEach(function (d) {
+      d.addEventListener('close', function () { setTimeout(function () { xaChoVe(false); }, 60); });
     });
   }
 
@@ -933,11 +1036,12 @@
     ganSuKien();
     veTrangThai();
     DM.taiLai();
+    DM.batDongBo();
     taiLichSu();
   }
 
   root.App = {
-    S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge,
+    S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge, baoLoi: baoLoi,
     rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
     LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon
   };

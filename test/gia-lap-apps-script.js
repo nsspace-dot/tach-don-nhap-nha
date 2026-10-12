@@ -78,7 +78,8 @@ Spreadsheet.prototype.getId = function () { return this.id; };
 Spreadsheet.prototype.getUrl = function () { return 'https://docs.google.com/spreadsheets/d/' + this.id; };
 
 /* Tạo 1 môi trường mới: trả về { ctx, ss, files, triggers, get(), post() } */
-function taoMoiTruong() {
+/* maNguon: nội dung Code.gs khác (vd bản cũ để thử tương thích) – bỏ trống = apps-script/Code.gs hiện tại */
+function taoMoiTruong(maNguon) {
   var ss = new Spreadsheet('Danh mục');
   var files = {};
   files[ss.id] = ss;
@@ -112,13 +113,13 @@ function taoMoiTruong() {
     Logger: { log: function () {} }
   };
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx, { filename: 'Code.gs' });
+  vm.runInContext(maNguon || fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx, { filename: 'Code.gs' });
   return {
     ctx: ctx, ss: ss, files: files, props: props,
     triggers: function () { return triggers; },
     get: function (params) { return JSON.parse(ctx.doGet({ parameter: params || {} }).body); },
-    post: function (action, data) {
-      return JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: action, data: data }) } }).body);
+    post: function (action, data, nguoi) {
+      return JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: action, data: data, nguoi: nguoi }) } }).body);
     }
   };
 }

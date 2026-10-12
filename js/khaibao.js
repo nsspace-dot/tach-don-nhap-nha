@@ -149,7 +149,7 @@
   /* Mở form sửa combo đã có (màn Danh mục). cachMoi: ép chọn sẵn cách xuất (khi đổi qua lại) */
   function moSua(c, cachMoi, thongBao) {
     var nhaTp = c.thanh_phan.map(function (t) { return t.nha; }).filter(function (n) { return PL.NHA.indexOf(n) >= 0; })[0];
-    moHop({ combo_id: c.combo_id, khoa: c.khoa.slice(), ten_combo: c.ten_combo, thanh_phan: c.thanh_phan,
+    moHop({ combo_id: c.combo_id, cu: c, khoa: c.khoa.slice(), ten_combo: c.ten_combo, thanh_phan: c.thanh_phan,
             nhaGoiY: nhaTp || 'HA', nha: c.nha, ma_he_thong: c.ma_he_thong, ten_xuat: c.ten_xuat,
             cach_xuat: cachMoi || c.cach_xuat, tronNha: comboTron(c), thongBao: thongBao });
   }
@@ -203,30 +203,43 @@
       return;
     }
     var trung = !f.data.combo_id && !dang.boQuaTrung && comboTrung(f.data);
-    if (trung) {
-      A.hoi('Đã có combo cùng thành phần: "' + trung.ten_combo + '".\n\nGắn dòng này vào combo đó (khuyên dùng – tránh 2 combo trùng nhau)?',
-        '🔗 Gắn vào combo cũ', { huy: 'Không, để tôi xem lại', nhe: true, tieuDe: 'Combo trùng' }).then(function (ok) {
-        if (!ok) {
-          dang.boQuaTrung = true;
-          $('cb-loi').textContent = 'Muốn tạo combo mới riêng thì bấm “Lưu combo” lần nữa.';
-          return;
-        }
-        f.data.khoa.reduce(function (p, k) { return p.then(function () { return DM.goi('addComboKey', { combo_id: trung.combo_id, khoa: k }); }); }, Promise.resolve())
-          .then(function () { $('dlg-combo').close(); A.toast('🔗 Đã gắn vào combo "' + trung.ten_combo.slice(0, 50) + '"', 'ok'); })
-          .catch(function (e) { $('cb-loi').textContent = 'Không lưu được: ' + e.message; });
-      });
-      return;
-    }
+    if (trung) { hoiGanComboTrung(trung, f.data, ''); return; }
     var btn = $('cb-luu');
     btn.disabled = true;
     $('cb-loi').textContent = '';
-    DM.goi('upsertCombo', f.data)
+    // Sửa combo đã có: gửi kèm phiên bản lúc mở hộp → người khác sửa trước thì được hỏi, không ghi đè lặng lẽ
+    var opt = f.data.combo_id ? { pb: DM.pbCombo(f.data.combo_id, dang.cu), cu: dang.cu } : {};
+    if (!f.data.combo_id && dang.boQuaTrung) f.data._boQuaTrung = true;
+    DM.goi('upsertCombo', f.data, opt)
       .then(function () {
         $('dlg-combo').close();
         A.toast((f.data.cach_xuat === 'nguyen' ? '📦 Đã lưu (xuất nguyên combo): "' : '🎁 Đã lưu combo "') + f.data.ten_combo.slice(0, 50) + '"', 'ok');
       })
-      .catch(function (e) { $('cb-loi').textContent = 'Không lưu được: ' + e.message; })
+      .catch(function (e) {
+        // Người khác vừa tạo combo cùng thành phần (máy này chưa kịp đồng bộ) → hỏi gắn vào combo đó
+        if (e.comboTrung) { hoiGanComboTrung(e.comboTrung, f.data, e.comboTrung.nguoi_sua); return; }
+        if (e.daGiu) { $('dlg-combo').close(); A.baoLoi('', e); return; }
+        $('cb-loi').textContent = 'Không lưu được: ' + e.message;
+      })
       .then(function () { btn.disabled = false; });
+  }
+
+  /* Đã có combo cùng thành phần (có thể người khác vừa tạo) → hỏi gắn dòng này vào combo đó */
+  function hoiGanComboTrung(trung, data, ai) {
+    var luc = ai && trung.cap_nhat ? DM.gioPhut(trung.cap_nhat) : '';
+    A.hoi((ai ? ai + ' vừa tạo combo "' + trung.ten_combo + '"' + (luc ? ' lúc ' + luc : '') + ' cùng thành phần.'
+      : 'Đã có combo cùng thành phần: "' + trung.ten_combo + '".') +
+      '\n\nGắn dòng này vào combo đó (khuyên dùng – tránh 2 combo trùng nhau)?',
+      '🔗 Gắn vào combo đó', { huy: 'Không, để tôi xem lại', nhe: true, tieuDe: 'Combo trùng' }).then(function (ok) {
+      if (!ok) {
+        dang.boQuaTrung = true;
+        $('cb-loi').textContent = 'Muốn tạo combo mới riêng thì bấm “Lưu combo” lần nữa.';
+        return;
+      }
+      data.khoa.reduce(function (p, k) { return p.then(function () { return DM.goi('addComboKey', { combo_id: trung.combo_id, khoa: k }); }); }, Promise.resolve())
+        .then(function () { $('dlg-combo').close(); A.toast('🔗 Đã gắn vào combo "' + trung.ten_combo.slice(0, 50) + '"', 'ok'); })
+        .catch(function (e) { $('cb-loi').textContent = 'Không lưu được: ' + e.message; });
+    });
   }
 
   /* ---------- "Đây là combo đã có" ---------- */

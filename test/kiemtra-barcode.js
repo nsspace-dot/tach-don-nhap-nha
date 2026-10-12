@@ -81,10 +81,11 @@ r = m.post('hoanTacTaiBan', { dong: lsLan1[0].dong }); // lần gần nhất: gh
 check('Hoàn tác lần ghi đè → BDSH-07 trở lại X', r.ok && m.get().skus.filter(function (x) { return x.key === 'sku:BDSH-07'; })[0].ma_moi === X, r.error);
 check('Hoàn tác lần 2 → báo đã hoàn tác', /đã được hoàn tác/.test(m.post('hoanTacTaiBan', { dong: lsLan1[0].dong }).error || ''));
 var m2 = GL.taoMoiTruong(); m2.ctx.khoiTao();
-var truoc2 = JSON.stringify(m2.get());
+function dmGon(g) { return JSON.stringify({ skus: g.skus, combos: g.combos, ma_chuan: g.ma_chuan }); } // bỏ mốc đồng bộ rev
+var truoc2 = dmGon(m2.get());
 m2.post('ganBarcode', { items: [{ key: khoa, sku: '', ten: TEN, phan_loai: 'Lớp 7' }], ma_moi: X, nha: 'HA', ten_sach: 'Bồi Dưỡng HSG Sinh Học 7' });
 m2.post('hoanTacTaiBan', { dong: lichSu(m2)[0].dong });
-check('Hoàn tác lần gán đầu tiên → danh mục y như trước (xóa cả dòng barcode vừa tạo)', JSON.stringify(m2.get()) === truoc2);
+check('Hoàn tác lần gán đầu tiên → danh mục y như trước (xóa cả dòng barcode vừa tạo)', dmGon(m2.get()) === truoc2);
 kq = PL.classify(rows, m2.get());
 check('Sau hoàn tác: dòng SKU trống lại tách riêng', kq.nha.HA.length === 2);
 

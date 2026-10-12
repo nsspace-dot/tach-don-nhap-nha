@@ -87,20 +87,20 @@
     if (!lichSu && !loiLs) { $('dm-bang').innerHTML = '<div class="trong-bang">Đang tải lịch sử…</div>'; taiLichSu(); return; }
     if (loiLs) { $('dm-bang').innerHTML = '<div class="trong-bang">😿 ' + A.esc(loiLs) + ' <button class="linkish" id="ls-lai">Thử lại</button></div>'; return; }
     var ds = lichSu.filter(function (r) {
-      return khopTim(q, [TEN_HD[r.hanh_dong] || r.hanh_dong, r.khoa, r.du_lieu_cu, r.du_lieu_moi].join(' '));
+      return khopTim(q, [TEN_HD[r.hanh_dong] || r.hanh_dong, r.khoa, r.nguoi, r.du_lieu_cu, r.du_lieu_moi].join(' '));
     });
     if (!ds.length) { $('dm-bang').innerHTML = rong(lichSu.length ? 'Không tìm thấy.' : 'Chưa có thay đổi nào.'); return; }
     var daHoanTac = {};
     lichSu.forEach(function (r) { if (r.hanh_dong === 'hoanTacTaiBan') daHoanTac[String(r.khoa).split(' ')[0]] = true; });
     $('dm-bang').innerHTML = '<div class="legend" style="padding:12px 16px">100 thay đổi gần nhất (mới nhất ở trên). Bản đầy đủ nằm ở sheet LICH_SU. ' +
       '<button class="linkish" id="ls-lai">Tải lại</button></div>' +
-      '<table class="tbl tbl-ghim1"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Khóa</th><th>Trước</th><th>Sau</th></tr></thead><tbody>' +
+      '<table class="tbl tbl-ghim1"><thead><tr><th>Thời gian</th><th>Người sửa</th><th>Hành động</th><th>Khóa</th><th>Trước</th><th>Sau</th></tr></thead><tbody>' +
       ds.map(function (r) {
         var nutHt = ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku'].indexOf(r.hanh_dong) >= 0 && r.dong
           ? (daHoanTac['LS#' + r.dong] ? '<div class="pl">(đã hoàn tác)</div>'
             : '<div>' + A.nutGhi('↩️ Hoàn tác', 'class="btn btn-sm" data-hoan-tac="' + r.dong + '" data-khoa-ls="' + A.esc(r.khoa) + '"') + '</div>')
           : '';
-        return '<tr><td class="pl">' + ngay(r.thoi_gian) + '</td><td class="ls-hd">' + A.esc(TEN_HD[r.hanh_dong] || r.hanh_dong) + nutHt + '</td>' +
+        return '<tr><td class="pl">' + ngay(r.thoi_gian) + '</td><td>' + (r.nguoi ? '👤 ' + A.esc(r.nguoi) : '<span class="muted">—</span>') + '</td><td class="ls-hd">' + A.esc(TEN_HD[r.hanh_dong] || r.hanh_dong) + nutHt + '</td>' +
           '<td><span class="khoa">' + A.esc(r.khoa) + '</span></td>' +
           '<td><pre class="ls-json">' + A.esc(tomTat(r.du_lieu_cu)) + '</pre></td>' +
           '<td><pre class="ls-json">' + A.esc(tomTat(r.du_lieu_moi)) + '</pre></td></tr>';
@@ -130,9 +130,11 @@
   function luuTen(items, nut) {
     if (!items.length) return;
     if (nut) nut.disabled = true;
-    DM.goi('luuTenSach', { items: items })
+    var cu = items.length === 1 ? DM.timSku(items[0].key) : null;
+    DM.goi('luuTenSach', { items: items }, { pb: DM.pbSku(items.map(function (x) { return x.key; })), cu: cu,
+      moTa: items.length === 1 ? '"' + items[0].ten_sach + '"' : '' })
       .then(function (r) { A.toast('✏️ Đã khai báo tên cho ' + (r.soTenSach || 0) + ' sách.', 'ok'); })
-      .catch(function (err) { A.toast('Không lưu được tên: ' + err.message, 'loi'); ve(); })
+      .catch(function (err) { A.baoLoi('Không lưu được tên', err); ve(); })
       .then(function () { if (nut) nut.disabled = false; });
   }
   function itemTen(e, ten) { return { key: e.key, sku: e.sku, ten: e.ten, nha: e.nha, ten_sach: ten, phan_loai: e.phan_loai }; }
@@ -244,9 +246,11 @@
       if (cb.length) d.ghi_de = true; // đã xác nhận cảnh báo (kể cả trùng khóa)
       var btn = $('ss-luu');
       btn.disabled = true;
-      DM.goi('suaSku', d)
+      var keys = [dangSua.key].concat(d.key !== dangSua.key ? [d.key] : []);
+      DM.goi('suaSku', d, { pb: DM.pbSku(keys, dangSua), cu: dangSua })
         .then(function () { $('dlg-sua-sku').close(); A.toast('✏️ Đã lưu dòng ' + d.key + '.', 'ok'); })
         .catch(function (err) {
+          if (err.daGiu) { $('dlg-sua-sku').close(); A.baoLoi('', err); return; }
           var m = /CAN_XAC_NHAN:\s*(.*)$/.exec(err.message);
           if (m) { A.hoi(m[1], 'Ghi đè', { tieuDe: 'Xác nhận' }).then(function (ok2) { if (ok2) luuSuaDong(true); }); return; }
           $('ss-loi').textContent = 'Không lưu được: ' + err.message;
@@ -410,24 +414,25 @@
     }
   }
   function luuCombo(c) {
-    DM.goi('upsertCombo', c)
+    DM.goi('upsertCombo', c, { pb: DM.pbCombo(c.combo_id, c), cu: c })
       .then(function () { A.toast((c.cach_xuat === 'nguyen' ? '📦 Đã chuyển sang xuất nguyên combo: ' : '✂️ Đã chuyển sang tách từng cuốn: ') + c.ten_combo.slice(0, 50), 'ok'); })
-      .catch(function (e) { A.toast('Không lưu được: ' + e.message, 'loi'); ve(); });
+      .catch(function (e) { A.baoLoi('Không lưu được', e); ve(); });
   }
 
   function suaSku(i, nha) {
     var e = DM.catalog.skus[i];
-    DM.goi('upsertSku', { key: e.key, sku: e.sku, ten: e.ten, nha: nha, nguon: 'tay' })
+    DM.goi('upsertSku', { key: e.key, sku: e.sku, ten: e.ten, nha: nha, nguon: 'tay' },
+      { pb: DM.pbSku(e.key, e), cu: e, moTa: nha === PL.KHONG_NHAP ? 'Không nhập' : PL.TEN_NHA[nha] })
       .then(function () { A.toast('✅ Đã đổi nhà: ' + (e.sku || e.ten), 'ok'); })
-      .catch(function (err) { A.toast('Không lưu được: ' + err.message, 'loi'); ve(); });
+      .catch(function (err) { A.baoLoi('Không lưu được', err); ve(); });
   }
   function xoaSku(i) {
     var e = DM.catalog.skus[i];
     A.hoi('Xóa "' + (e.sku ? e.sku + ' – ' : '') + e.ten + '" khỏi danh mục?', 'Xóa').then(function (ok) {
       if (!ok) return;
-      DM.goi('deleteSku', { key: e.key })
+      DM.goi('deleteSku', { key: e.key }, { pb: DM.pbSku(e.key, e), cu: e, moTa: '' })
         .then(function () { A.toast('🗑 Đã xóa.', 'ok'); })
-        .catch(function (err) { A.toast('Không xóa được: ' + err.message, 'loi'); });
+        .catch(function (err) { A.baoLoi('Không xóa được', err); });
     });
   }
   function xoaCombo(i) {
@@ -437,9 +442,9 @@
       (c.cach_xuat === 'nguyen' ? '\n📦 Đang xuất nguyên combo → ' + c.nha : '') +
       '\n\nSau khi xóa, các đơn của combo này sẽ quay lại tab Combo để khai báo lại.', 'Xóa combo').then(function (ok) {
       if (!ok) return;
-      DM.goi('deleteCombo', { combo_id: c.combo_id })
+      DM.goi('deleteCombo', { combo_id: c.combo_id }, { pb: DM.pbCombo(c.combo_id, c), cu: c })
         .then(function () { A.toast('🗑 Đã xóa combo.', 'ok'); })
-        .catch(function (err) { A.toast('Không xóa được: ' + err.message, 'loi'); });
+        .catch(function (err) { A.baoLoi('Không xóa được', err); });
     });
   }
 
@@ -510,9 +515,9 @@
         A.hoi('Bỏ barcode gán tay cho "' + ex0.ten + (ex0.phan_loai ? ' – ' + ex0.phan_loai : '') + '" (→ ' + ex0.ma_moi + ')?\n\nLần sau dòng này lại dùng SKU trên sàn. Hoàn tác được ở Lịch sử.', 'Bỏ')
           .then(function (ok) {
             if (!ok) return;
-            DM.goi('boGanBarcode', { key: ex0.key })
+            DM.goi('boGanBarcode', { key: ex0.key }, { pb: DM.pbSku(ex0.key, ex0), cu: ex0 })
               .then(function () { A.toast('🗑 Đã bỏ barcode gán tay.', 'ok'); })
-              .catch(function (err) { A.toast('Không xóa được: ' + err.message, 'loi'); });
+              .catch(function (err) { A.baoLoi('Không xóa được', err); });
           });
         return;
       }

@@ -84,6 +84,13 @@ Mỗi tối khoảng **23h**, script tự chép 3 sheet danh mục sang 1 file r
 dán code mới → 💾 Lưu → **Triển khai → Quản lý các bản triển khai** → bấm ✏️ **Chỉnh sửa** → *Phiên bản (Version)*: **Phiên bản mới (New version)** → **Triển khai**.
 (Nếu tạo *New deployment* thì sẽ ra URL khác.)
 
+> 🆕 **Bản nhiều người dùng (đồng bộ danh mục, chống ghi đè):** cần `Code.gs` mới. Cập nhật đúng như trên:
+> 1. Mở file Google Sheets → **Tiện ích mở rộng → Apps Script** → xóa hết code cũ → dán toàn bộ [`apps-script/Code.gs`](apps-script/Code.gs) mới → 💾 **Lưu**.
+> 2. **Triển khai → Quản lý các bản triển khai** → ✏️ **Chỉnh sửa** → *Phiên bản*: **Phiên bản mới** → **Triển khai**. **KHÔNG** bấm *Triển khai mới (New deployment)*.
+> 3. Không cần chạy lại `khoiTao` – sheet / cột mới (`DM_XOA`, cột `phien_ban`, `dong_bo`, `nguoi_sua`…) **tự thêm vào cuối**, dữ liệu cũ giữ nguyên.
+>
+> Chưa cập nhật mà đã mở app bản mới: app vẫn chạy **chế độ 1 người** như trước và hiện dòng vàng *"Cần cập nhật Apps Script"*.
+
 ## Phần E. Đưa app lên GitHub Pages (làm 1 lần)
 
 App là trang web tĩnh, GitHub Pages host miễn phí.
@@ -313,6 +320,18 @@ Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê �
 - **Chỉ là gợi ý – mặc định không cộng vào file.** Bấm **➕ Thêm vào đơn** (từng cuốn) hoặc **➕ Thêm tất cả** (cả nhà) thì số đó mới được cộng vào file tải về; bấm **Bỏ** / **↩️ Bỏ hết dự phòng** để gỡ.
 - Số ngày dự phòng chỉnh ở **Cài đặt** (mặc định 2). Để 0 hoặc bỏ tick → ẩn cột.
 
+## Nhiều người dùng cùng lúc 👥
+
+Cần `Code.gs` bản mới (xem cuối Phần D).
+
+- **Tôi là:** mỗi máy vào **⚙️ Cài đặt → Tôi là** gõ tên mình 1 lần (lưu trên máy, đổi lúc nào cũng được). Tên này ghi vào **🕘 Lịch sử** (cột *Người sửa*) và hiện trong thông báo cho người khác.
+- **Danh mục tự đồng bộ:** mỗi 30 giây, và ngay khi bạn quay lại tab / chuyển màn, app tải **phần thay đổi** (combo, SKU → nhà, tên sách, barcode gán tay, mã phụ…).
+  Có thay đổi thì app **tự xử lý lại** các dòng đang có trên máy và báo nhỏ, vd *"🔄 Lan vừa khai báo combo X – 3 dòng của bạn đã tự xử lý"*.
+  Màn hình không nhảy; đang gõ dở trong ô / đang mở hộp thoại thì app đợi bạn xong mới cập nhật.
+- **Chống ghi đè:** 2 người sửa cùng 1 dòng → người lưu sau được hỏi, vd *"Lan vừa đổi X thành Hồng Ân lúc 8:45. Giữ Hồng Ân hay đổi thành Khang Việt?"*. Chọn **Giữ** thì không ghi gì; chọn **Đổi** mới ghi.
+- **Combo trùng:** khai báo combo có đúng các cuốn của combo người khác vừa tạo → app hỏi gắn dòng của bạn vào combo đó.
+- Tự học / cập nhật giá tự động không bao giờ gây hỏi xung đột.
+
 ## Màn Danh mục
 
 - **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), cột **Tên sách** (sửa được, lọc "Chưa có tên khai báo"), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
@@ -328,6 +347,7 @@ Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê �
 
 ## Màn Cài đặt
 
+- **Tôi là:** tên người dùng máy này (xem *Nhiều người dùng cùng lúc*).
 - **URL Apps Script** (xem Phần D, F).
 - **Mã nhà khác:** các mã sẽ bị bỏ qua (mặc định `MEGA, VT, HH, NS, QB, TN, HT`). Có nhà mới thì thêm vào, cách nhau dấu phẩy.
 - **Kiểm tra kết nối.**
@@ -345,6 +365,7 @@ Muốn có thống kê ngay (khỏi chờ vài tuần): tab **📊 Thống kê �
 | Chấm đỏ **"Lỗi kết nối"** | Kiểm tra mạng. Bấm vào chấm để thử lại. App vẫn chạy bằng danh mục đã lưu trên máy. |
 | *"URL không trả về dữ liệu danh mục"* | Dán sai link (phải là link `/exec`), hoặc lúc Deploy chưa chọn **Bất kỳ ai (Anyone)**. |
 | *"Hành động không hợp lệ"* sau khi cập nhật app | Chưa cập nhật `Code.gs` mới hoặc chưa tạo **Phiên bản mới** khi triển khai (xem Phần D). |
+| Dòng vàng *"Cần cập nhật Apps Script"* | Google Sheets còn chạy `Code.gs` cũ → app đang ở chế độ 1 người. Cập nhật theo cuối Phần D. |
 | File không nhận | Phải là file `.xlsx` gốc xuất từ Shopee/TikTok, đừng mở ra sửa rồi lưu lại dạng khác. |
 | *"Đang có máy khác ghi danh mục"* | 2 máy cùng lưu một lúc – đợi vài giây bấm lại. |
 | Lỡ xóa / sửa sai danh mục | Xem tab **🕘 Lịch sử** để biết dữ liệu cũ và sửa lại; hoặc khôi phục cả danh mục theo Phần C. |
@@ -378,5 +399,6 @@ node test/kiemtra-barcode.js       # sửa / bổ sung barcode: SKU trống, SKU
 node test/kiemtra-combo.js         # combo dạng "A+B", nghi combo theo giá, "Không phải combo", "Đây là combo"
 node test/kiemtra-tensach.js       # tên sách khai báo, không gộp theo tên, khớp mã web theo tên + phân loại
 node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp file cũ), thống kê, dự báo dự phòng
+node test/kiemtra-nhieunguoi.js     # nhiều người dùng: đồng bộ phần thay đổi, chống ghi đè, combo trùng, Code.gs cũ
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

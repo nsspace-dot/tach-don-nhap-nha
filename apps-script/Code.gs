@@ -19,6 +19,20 @@
  *   MA_CHUAN          barcode | ten_gon | gia_bia | ncc | nha | ngay_thay | khong_phai   (sổ mã chuẩn = barcode đơn web)
  *   LS_DAT_HANG       ngay | nha | barcode | ten | gia | sl | sl_shopee | sl_tiktok | sl_web | sl_treo | cap_nhat
  *   DON_DA_GHI        ma_don | ngay   (chống nạp trùng đơn vào lịch sử)
+ *   DM_XOA            loai | khoa | phien_ban | luc | nguoi   (bản ghi danh mục đã xóa – để máy khác đồng bộ)
+ *
+ * Nhiều người dùng (từ bản api 2) – CHỈ THÊM cột vào cuối, không đổi cột cũ:
+ *   SKU_NHA, COMBO, MA_CHUAN thêm  phien_ban | dong_bo | nguoi_sua
+ *     phien_ban: số phiên bản – tăng khi có người SỬA TAY (dùng chống ghi đè: gửi kèm phiên bản đang thấy, lệch → báo xung đột)
+ *     dong_bo:   mốc đồng bộ – tăng ở MỌI thay đổi (kể cả tự học) → máy khác chỉ tải phần thay đổi
+ *     nguoi_sua: tên người sửa tay gần nhất ("Tôi là" trên máy)
+ *   LICH_SU thêm  nguoi | phien_ban
+ *   Dòng cũ chưa có các cột này vẫn đọc bình thường (coi như phiên bản 0).
+ *   GET <url>?action=thayDoi&tu=<mốc> → { ok, api, rev, khongDoi } hoặc { ok, api, rev, skus, combos, ma_chuan, xoa, log } (chỉ phần thay đổi)
+ *                                        hoặc { toanBo: true, … } khi mốc quá cũ → tải lại toàn bộ
+ *   POST body { action, data, nguoi }  ; data._pb = { "sku|<khoa>": phiên bản, "combo|<id>": … } → kiểm tra xung đột
+ *        → xung đột: { ok:false, xungDot:[…], catalog }   ; data._ghiDe = true: vẫn ghi
+ *        upsertCombo combo mới trùng thành phần combo đã có → { ok:false, comboTrung } (data._boQuaTrung = true: vẫn tạo)
  *   GET  <url>?action=lichSuDatHang&tu=yyyy-MM-dd → { ok, cot, dong }
  *   POST ghiLichSuDatHang (ghi đè theo ngày + nhà), napLichSuDatHang (cộng theo ngày đặt, bỏ đơn trùng)
  *
@@ -32,21 +46,30 @@
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
-var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI' };
+var API = 2; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa
+var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA' };
 var COT = {
-  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban', 'nguon_ma', 'ten_sach', 'phan_loai', 'khong_combo'],
+  SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban', 'nguon_ma', 'ten_sach', 'phan_loai', 'khong_combo',
+            'phien_ban', 'dong_bo', 'nguoi_sua'],
   // Sổ mã chuẩn: barcode trên đơn web (chuẩn) – khong_phai: các listing đã xác nhận "không phải cùng cuốn"
-  MA_CHUAN: ['barcode', 'ten_gon', 'gia_bia', 'ncc', 'nha', 'ngay_thay', 'khong_phai'],
+  MA_CHUAN: ['barcode', 'ten_gon', 'gia_bia', 'ncc', 'nha', 'ngay_thay', 'khong_phai', 'phien_ban', 'dong_bo', 'nguoi_sua'],
   // Lịch sử đặt hàng (KHÔNG có thông tin khách): 1 dòng / (ngày, nhà, barcode chuẩn). ngay dạng yyyy-MM-dd, hoặc yyyy-MM khi đã gom tháng cũ
   LS_DAT_HANG: ['ngay', 'nha', 'barcode', 'ten', 'gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo', 'cap_nhat'],
   // Mã đơn đã tính vào lịch sử (chống nạp trùng). Web: "web:<ngày xuất>|<barcode>"
   DON_DA_GHI: ['ma_don', 'ngay'],
-  COMBO: ['combo_id', 'ten_combo', 'khoa', 'cap_nhat', 'cach_xuat', 'ma_he_thong', 'ten_xuat', 'nha'],
+  COMBO: ['combo_id', 'ten_combo', 'khoa', 'cap_nhat', 'cach_xuat', 'ma_he_thong', 'ten_xuat', 'nha', 'phien_ban', 'dong_bo', 'nguoi_sua'],
   COMBO_THANH_PHAN: ['combo_id', 'sku', 'ten', 'nha', 'gia_goc', 'so_luong'],
-  LICH_SU: ['thoi_gian', 'hanh_dong', 'khoa', 'du_lieu_cu', 'du_lieu_moi']
+  LICH_SU: ['thoi_gian', 'hanh_dong', 'khoa', 'du_lieu_cu', 'du_lieu_moi', 'nguoi', 'phien_ban'],
+  // Bản ghi danh mục đã xóa (loai: sku | combo | mc) – máy khác đồng bộ để xóa theo
+  DM_XOA: ['loai', 'khoa', 'phien_ban', 'luc', 'nguoi']
 };
+// Thao tác tự động (tự học, đổi khóa combo cũ): vẫn tăng mốc đồng bộ nhưng KHÔNG tăng số phiên bản / không đổi người sửa
+var HD_TU_DONG = ['upsertSkuBatch', 'doiKhoaCombo'];
+var META = { phien_ban: 1, dong_bo: 1, nguoi_sua: 1 };
+var GIU_XOA = 2000; // số bản ghi xóa giữ lại để đồng bộ
 // Cột số; mọi cột khác lưu dạng chữ (tránh Google Sheets tự đổi mã vạch thành số / ngày tháng)
-var COT_SO = { SKU_NHA: ['gia_gan_nhat'], COMBO_THANH_PHAN: ['gia_goc', 'so_luong'], MA_CHUAN: ['gia_bia'],
+var COT_SO = { SKU_NHA: ['gia_gan_nhat', 'phien_ban', 'dong_bo'], COMBO: ['phien_ban', 'dong_bo'], COMBO_THANH_PHAN: ['gia_goc', 'so_luong'],
+               MA_CHUAN: ['gia_bia', 'phien_ban', 'dong_bo'], DM_XOA: ['phien_ban'],
                LS_DAT_HANG: ['gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo'] };
 var NGUONG_GOM_THANG = 40000;   // LS_DAT_HANG quá số dòng này → gom các ngày cũ hơn 180 ngày thành 1 dòng / tháng
 var NGUONG_NHAC_LON = 30000;    // nhắc khi dữ liệu lớn
@@ -66,8 +89,10 @@ function doGet(e) {
     var action = e && e.parameter && e.parameter.action;
     if (action === 'lichSu') return traVe_({ ok: true, lich_su: docLichSu_(SO_LICH_SU) });
     if (action === 'lichSuDatHang') return traVe_(docLichSuDatHang_(e.parameter.tu));
+    if (action === 'thayDoi') return traVe_(docThayDoi_(e.parameter.tu));
+    var rev = revHienTai_(); // đọc mốc TRƯỚC dữ liệu: có ai ghi chen giữa thì lần đồng bộ sau tải lại phần đó
     var cat = docCatalog_();
-    return traVe_({ ok: true, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan });
+    return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan });
   } catch (err) {
     return traVe_({ ok: false, error: String(err && err.message || err) });
   }
@@ -78,7 +103,10 @@ function doPost(e) {
   if (!lock.tryLock(30000)) return traVe_({ ok: false, error: 'Đang có máy khác ghi danh mục, thử lại sau vài giây nha.' });
   try {
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    return traVe_(xuLy_(String(body.action || ''), body.data || {}));
+    var out = xuLy_(String(body.action || ''), body.data || {}, chuoi_(body.nguoi).slice(0, 60));
+    out.api = API;
+    if (out.rev === undefined) out.rev = revHienTai_();
+    return traVe_(out);
   } catch (err) {
     return traVe_({ ok: false, error: String(err && err.message || err) });
   } finally {
@@ -92,13 +120,26 @@ function traVe_(obj) {
 
 /* ===================== Xử lý ghi ===================== */
 
-function xuLy_(action, data) {
+function xuLy_(action, data, nguoi) {
   if (action === 'ping') return { ok: true };
   if (action === 'ghiLichSuDatHang') return ghiLichSuDatHang_(data);
   if (action === 'napLichSuDatHang') return napLichSuDatHang_(data);
   var cat = docCatalog_();
-  var ctx = { action: action, now: bayGio_(), log: [], doiSku: false, doiCombo: false };
+  var revCu = revHienTai_();
+  var ctx = { action: action, now: bayGio_(), log: [], doiSku: false, doiCombo: false, nguoi: nguoi || '', rev: revCu + 1 };
   var extra = {};
+
+  // Chống ghi đè: bản ghi đã bị người khác sửa sau phiên bản máy này đang thấy → KHÔNG ghi, trả về xung đột
+  if (data._pb && !data._ghiDe) {
+    var xd = kiemTraPhienBan_(cat, data._pb, ctx.nguoi);
+    if (xd.length) return { ok: false, error: 'XUNG_DOT', xungDot: xd, catalog: cat, rev: revCu };
+  }
+  // Combo mới trùng thành phần với combo đã có (có thể người khác vừa tạo) → hỏi gắn vào combo đó
+  if (action === 'upsertCombo' && !chuoi_(data.combo_id) && !data._boQuaTrung) {
+    var trung = timComboTrung_(cat, data);
+    if (trung) return { ok: false, error: 'COMBO_TRUNG', comboTrung: trung, catalog: cat, rev: revCu };
+  }
+  var truocKhi = anhChup_(cat);
 
   switch (action) {
     case 'upsertSku':
@@ -185,12 +226,19 @@ function xuLy_(action, data) {
       throw new Error('Hành động không hợp lệ: ' + action);
   }
 
+  // Đóng dấu phiên bản / mốc đồng bộ cho các bản ghi vừa đổi, ghi lại bản ghi đã xóa
+  var doi = danhDauThayDoi_(cat, truocKhi, ctx);
+  if (doi.sku) ctx.doiSku = true;
+  if (doi.combo) ctx.doiCombo = true;
+  if (doi.mc) ctx.doiMc = true;
+
   if (ctx.doiSku) ghiBang_(SH.SKU, cat.skus);
   if (ctx.doiMc) ghiBang_(SH.MC, cat.ma_chuan);
   if (ctx.doiCombo) {
     ghiBang_(SH.COMBO, cat.combos.map(function (c) {
       return { combo_id: c.combo_id, ten_combo: c.ten_combo, khoa: c.khoa.join(TACH_KHOA), cap_nhat: c.cap_nhat,
-               cach_xuat: c.cach_xuat, ma_he_thong: c.ma_he_thong, ten_xuat: c.ten_xuat, nha: c.nha };
+               cach_xuat: c.cach_xuat, ma_he_thong: c.ma_he_thong, ten_xuat: c.ten_xuat, nha: c.nha,
+               phien_ban: c.phien_ban, dong_bo: c.dong_bo, nguoi_sua: c.nguoi_sua };
     }));
     var tps = [];
     cat.combos.forEach(function (c) {
@@ -200,9 +248,13 @@ function xuLy_(action, data) {
     });
     ghiBang_(SH.TP, tps);
   }
+  ghiXoa_(doi.xoa);
   ghiLichSu_(ctx.log);
+  // Tăng mốc SAU KHI đã ghi xong dữ liệu (máy đọc mốc mới chắc chắn thấy dữ liệu mới)
+  var rev = revCu;
+  if (doi.co || ctx.log.length) { rev = ctx.rev; datRev_(rev); }
 
-  var out = { ok: true, catalog: cat, soThayDoiLichSu: ctx.log.length };
+  var out = { ok: true, catalog: cat, rev: rev, soThayDoiLichSu: ctx.log.length };
   Object.keys(extra).forEach(function (k) { out[k] = extra[k]; });
   return out;
 }
@@ -872,6 +924,146 @@ function deleteCombo_(cat, d, ctx) {
   ghiLog_(ctx, 'deleteCombo', id, cu, null);
 }
 
+/* ===================== Nhiều người dùng: phiên bản, đồng bộ, xung đột ===================== */
+
+function revHienTai_() { return Number(PropertiesService.getScriptProperties().getProperty('DM_REV')) || 0; }
+function datRev_(rev) { PropertiesService.getScriptProperties().setProperty('DM_REV', String(rev)); }
+function soPb_(v) { return Number(v) || 0; }
+
+/* Chuẩn hóa để so sánh: bỏ trường meta, bỏ giá trị rỗng, số/chữ như nhau, khóa sắp xếp */
+function chuanSoSanh_(v, goc) {
+  if (Array.isArray(v)) return v.map(function (x) { return chuanSoSanh_(x, false); });
+  if (v && typeof v === 'object') {
+    var o = {};
+    Object.keys(v).sort().forEach(function (k) {
+      if (goc && META[k]) return;
+      var x = chuanSoSanh_(v[k], false);
+      if (x === '' || (Array.isArray(x) && !x.length)) return;
+      o[k] = x;
+    });
+    return o;
+  }
+  return chuoi_(v);
+}
+function dauVet_(o) { return JSON.stringify(chuanSoSanh_(o, true)); }
+
+function anhChup_(cat) {
+  var o = { sku: {}, combo: {}, mc: {} };
+  cat.skus.forEach(function (e) { o.sku[e.key] = dauVet_(e); });
+  cat.combos.forEach(function (c) { o.combo[c.combo_id] = dauVet_(c); });
+  cat.ma_chuan.forEach(function (x) { o.mc[x.barcode] = dauVet_(x); });
+  return o;
+}
+
+/* So với ảnh chụp trước khi xử lý: bản ghi mới / đổi → đóng dấu dong_bo (và phien_ban + nguoi_sua nếu sửa tay);
+ * bản ghi biến mất → danh sách xóa. Trả về { sku, combo, mc, co, xoa } */
+function danhDauThayDoi_(cat, truoc, ctx) {
+  var tay = HD_TU_DONG.indexOf(ctx.action) < 0;
+  var kq = { sku: false, combo: false, mc: false, co: false, xoa: [] };
+  function duyet(ds, khoaCua, loai) {
+    var con = {};
+    ds.forEach(function (r) {
+      var k = khoaCua(r);
+      con[k] = 1;
+      if (truoc[loai][k] === dauVet_(r)) return;
+      r.dong_bo = ctx.rev;
+      if (tay) { r.phien_ban = ctx.rev; r.nguoi_sua = ctx.nguoi; }
+      kq[loai] = true; kq.co = true;
+    });
+    Object.keys(truoc[loai]).forEach(function (k) {
+      if (con[k]) return;
+      kq.xoa.push({ loai: loai, khoa: k, phien_ban: ctx.rev, luc: ctx.now, nguoi: ctx.nguoi });
+      kq[loai] = true; kq.co = true;
+    });
+  }
+  duyet(cat.skus, function (e) { return e.key; }, 'sku');
+  duyet(cat.combos, function (c) { return c.combo_id; }, 'combo');
+  duyet(cat.ma_chuan, function (x) { return x.barcode; }, 'mc');
+  return kq;
+}
+
+/* Ghi bản ghi đã xóa (chỉ thêm dòng). Quá nhiều thì giữ GIU_XOA dòng mới nhất; máy có mốc cũ hơn phần đã bỏ sẽ tải lại toàn bộ. */
+function ghiXoa_(ds) {
+  if (!ds.length) return;
+  var s = sheet_(SH.XOA), n = s.getLastRow();
+  var r = s.getRange(n + 1, 1, ds.length, COT.DM_XOA.length);
+  r.setNumberFormat('@');
+  r.setValues(ds.map(function (x) { return COT.DM_XOA.map(function (c) { return x[c] === undefined ? '' : x[c]; }); }));
+  if (n + ds.length > GIU_XOA + 1000) {
+    var tatCa = docBang_(SH.XOA), bo = tatCa.slice(0, tatCa.length - GIU_XOA);
+    var cat = bo.reduce(function (m, x) { return Math.max(m, soPb_(x.phien_ban)); }, 0);
+    PropertiesService.getScriptProperties().setProperty('DM_XOA_CAT', String(cat));
+    ghiBang_(SH.XOA, tatCa.slice(tatCa.length - GIU_XOA));
+  }
+}
+
+/* pb = { "sku|<khoa>": phiên bản máy đang thấy, "combo|<id>": …, "mc|<barcode>": … }
+ * Xung đột khi phiên bản hiện tại khác VÀ lần sửa tay gần nhất là của người khác (hoặc bản ghi đã bị xóa). */
+function kiemTraPhienBan_(cat, pb, nguoi) {
+  var out = [], xoa = null;
+  Object.keys(pb || {}).forEach(function (k) {
+    var j = k.indexOf('|'), loai = k.slice(0, j), khoa = k.slice(j + 1), thay = soPb_(pb[k]);
+    var ds = loai === 'sku' ? cat.skus : loai === 'combo' ? cat.combos : loai === 'mc' ? cat.ma_chuan : null;
+    if (!ds) return;
+    var i = timViTri_(ds, loai === 'sku' ? 'key' : loai === 'combo' ? 'combo_id' : 'barcode', khoa);
+    if (i < 0) {
+      if (!thay) return; // máy này cũng chưa thấy bản ghi → tạo mới bình thường
+      if (!xoa) xoa = docBang_(SH.XOA);
+      var x = xoa.filter(function (r) { return r.loai === loai && r.khoa === khoa && soPb_(r.phien_ban) > thay; }).pop();
+      if (x && x.nguoi && x.nguoi !== nguoi) out.push({ loai: loai, khoa: khoa, da_xoa: true, nguoi_sua: x.nguoi, cap_nhat: x.luc, ban_ghi: null });
+      return;
+    }
+    var r = ds[i], hienTai = soPb_(r.phien_ban);
+    if (hienTai === thay || !chuoi_(r.nguoi_sua) || r.nguoi_sua === nguoi) return;
+    out.push({ loai: loai, khoa: khoa, phien_ban: hienTai, nguoi_sua: r.nguoi_sua, cap_nhat: r.cap_nhat || '', ban_ghi: saoChep_(r) });
+  });
+  return out;
+}
+
+/* Combo mới (tách) có cùng thành phần (SKU × số lượng) với combo đã có → trả về combo đó */
+function timComboTrung_(cat, d) {
+  var c = chuanCombo_(d);
+  if (c.cach_xuat !== 'tach' || !c.thanh_phan.length || c.thanh_phan.some(function (t) { return !t.sku; })) return null;
+  var dau = function (tps) { return tps.map(function (t) { return chuoi_(t.sku).toUpperCase() + '×' + (Number(t.so_luong) || 1); }).sort().join(','); };
+  var x = dau(c.thanh_phan);
+  var trung = cat.combos.filter(function (k) { return k.cach_xuat !== 'nguyen' && k.thanh_phan.length && dau(k.thanh_phan) === x; })[0];
+  return trung ? { combo_id: trung.combo_id, ten_combo: trung.ten_combo, nguoi_sua: trung.nguoi_sua || '', cap_nhat: trung.cap_nhat || '' } : null;
+}
+
+/* Đồng bộ: chỉ trả về phần thay đổi sau mốc tu */
+function docThayDoi_(tu) {
+  tu = Math.floor(Number(tu) || 0);
+  var rev = revHienTai_();
+  if (tu === rev) return { ok: true, api: API, rev: rev, khongDoi: true };
+  var lock = LockService.getScriptLock(), coKhoa = lock.tryLock(15000);
+  try {
+    rev = revHienTai_();
+    var cat = docCatalog_();
+    var catBo = Number(PropertiesService.getScriptProperties().getProperty('DM_XOA_CAT')) || 0;
+    if (tu <= 0 || tu < catBo || tu > rev) {
+      return { ok: true, api: API, rev: rev, toanBo: true, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan };
+    }
+    var moi = function (r) { return soPb_(r.dong_bo) > tu; };
+    var xoa = docBang_(SH.XOA).filter(function (x) { return soPb_(x.phien_ban) > tu; })
+      .map(function (x) { return { loai: x.loai, khoa: x.khoa }; });
+    return { ok: true, api: API, rev: rev, skus: cat.skus.filter(moi), combos: cat.combos.filter(moi), ma_chuan: cat.ma_chuan.filter(moi),
+             xoa: xoa, log: docLogSau_(tu) };
+  } finally {
+    if (coKhoa) lock.releaseLock();
+  }
+}
+
+/* Các dòng LICH_SU có phiên bản > tu (đọc từ cuối sheet, tối đa 300 dòng) – để báo "A vừa khai báo combo X" */
+function docLogSau_(tu) {
+  var s = sheet_(SH.LS), n = s.getLastRow();
+  if (n < 2) return [];
+  var bd = Math.max(2, n - 299), out = [];
+  s.getRange(bd, 1, n - bd + 1, COT.LICH_SU.length).getValues().forEach(function (r) {
+    if (soPb_(r[6]) > tu) out.push({ thoi_gian: r[0] instanceof Date ? dinhDang_(r[0]) : String(r[0]), hanh_dong: String(r[1]), khoa: String(r[2]), nguoi: String(r[5] || '') });
+  });
+  return out;
+}
+
 /* ===================== Đọc / ghi sheet ===================== */
 
 function bangTinh_() {
@@ -909,13 +1101,15 @@ function docBang_(ten) {
 
 function ghiBang_(ten, ds) {
   var s = sheet_(ten), cols = COT[ten], n = s.getLastRow();
-  if (n > 1) s.getRange(2, 1, n - 1, cols.length).clearContent();
-  if (!ds.length) return;
-  var so = COT_SO[ten] || [];
-  cols.forEach(function (c, j) { if (so.indexOf(c) < 0) s.getRange(2, j + 1, ds.length, 1).setNumberFormat('@'); });
-  s.getRange(2, 1, ds.length, cols.length).setValues(ds.map(function (o) {
-    return cols.map(function (c) { return o[c] === undefined || o[c] === null ? '' : o[c]; });
-  }));
+  // Ghi đè tại chỗ rồi mới xóa phần đuôi thừa – máy khác đọc giữa chừng không bao giờ thấy bảng trống
+  if (ds.length) {
+    var so = COT_SO[ten] || [];
+    cols.forEach(function (c, j) { if (so.indexOf(c) < 0) s.getRange(2, j + 1, ds.length, 1).setNumberFormat('@'); });
+    s.getRange(2, 1, ds.length, cols.length).setValues(ds.map(function (o) {
+      return cols.map(function (c) { return o[c] === undefined || o[c] === null ? '' : o[c]; });
+    }));
+  }
+  if (n - 1 > ds.length) s.getRange(ds.length + 2, 1, n - 1 - ds.length, cols.length).clearContent();
 }
 
 function docCatalog_() {
@@ -927,6 +1121,7 @@ function docCatalog_() {
       khoa: c.khoa.split(/\s*;;\s*/).map(chuoi_).filter(function (k) { return k; }),
       cach_xuat: c.cach_xuat === 'nguyen' ? 'nguyen' : 'tach', // combo cũ chưa có giá trị → tach
       ma_he_thong: c.ma_he_thong || '', ten_xuat: c.ten_xuat || '', nha: c.nha || '',
+      phien_ban: c.phien_ban || '', dong_bo: c.dong_bo || '', nguoi_sua: c.nguoi_sua || '',
       thanh_phan: []
     };
   });
@@ -942,7 +1137,7 @@ function docCatalog_() {
 /* ===================== Lịch sử (chỉ thêm dòng) ===================== */
 
 function ghiLog_(ctx, hanhDong, khoa, cu, moi) {
-  ctx.log.push([ctx.now, hanhDong, khoa, cu ? JSON.stringify(cu) : '', moi ? JSON.stringify(moi) : '']);
+  ctx.log.push([ctx.now, hanhDong, khoa, cu ? JSON.stringify(cu) : '', moi ? JSON.stringify(moi) : '', ctx.nguoi || '', ctx.rev || '']);
 }
 
 function ghiLichSu_(dong) {
@@ -979,12 +1174,12 @@ function bayGio_() { return dinhDang_(new Date()); }
 
 /** Chạy 1 lần: tạo đủ 4 sheet có dòng tiêu đề. */
 function khoiTao() {
-  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON].forEach(sheet_);
+  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA].forEach(sheet_);
   var ss = bangTinh_();
   ss.getSheets().forEach(function (s) {
     if (/^(Sheet1|Trang tính1)$/.test(s.getName()) && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
-  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI.');
+  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA.');
 }
 
 /** Sao lưu 3 sheet danh mục sang file "Sao lưu danh mục – Tách đơn nhập nhà", giữ 30 bản gần nhất. */
@@ -1054,7 +1249,8 @@ function khoiPhucSaoLuu() {
     });
     var gio = dinhDang_(new Date(), 'HHmmss');
     var ss = bangTinh_();
-    var ctx = { now: bayGio_(), log: [] };
+    var revKp = revHienTai_() + 1;
+    var ctx = { now: bayGio_(), log: [], nguoi: '(khôi phục sao lưu)', rev: revKp };
     tenBang.forEach(function (ten) {
       var hienTai = sheet_(ten);
       hienTai.copyTo(bk).setName('truoc-khoi-phuc ' + gio + ' ' + ten);
@@ -1069,6 +1265,9 @@ function khoiPhucSaoLuu() {
       ghiLog_(ctx, 'khoiPhuc', ten, { so_dong: cu }, { so_dong: duLieu.length, tu_ngay: NGAY_KHOI_PHUC });
     });
     ghiLichSu_(ctx.log);
+    // Mọi máy tải lại toàn bộ danh mục ở lần đồng bộ tới
+    datRev_(revKp);
+    PropertiesService.getScriptProperties().setProperty('DM_XOA_CAT', String(revKp));
     Logger.log('Đã khôi phục danh mục từ bản sao lưu ngày ' + NGAY_KHOI_PHUC + '.');
   } finally {
     lock.releaseLock();

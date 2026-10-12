@@ -8,6 +8,7 @@
   function ve() {
     var c = DM.caiDat;
     $('cd-url').value = c.url || '';
+    $('cd-toila').value = c.toiLa || '';
     $('cd-makhac').value = (c.maKhac || []).join(', ');
     $('cd-tenshop').value = c.tenShop || '';
     $('cd-sdt').value = c.sdt || '';
@@ -22,7 +23,7 @@
   function docForm() {
     var maKhac = $('cd-makhac').value.split(/[,;\s]+/).map(function (s) { return s.trim().toUpperCase(); })
       .filter(function (s) { return s && PL.NHA.indexOf(s) < 0; });
-    return { url: $('cd-url').value.trim(), maKhac: maKhac,
+    return { url: $('cd-url').value.trim(), toiLa: $('cd-toila').value.replace(/\s+/g, ' ').trim().slice(0, 40), maKhac: maKhac,
       trangThaiShopee: (function () {
         var ds = $('cd-trangthai').value.split(/\n/).map(function (x) { return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
         return ds.length ? ds : root.DocFile.TRANG_THAI_MAC_DINH.slice();

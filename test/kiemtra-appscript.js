@@ -14,7 +14,7 @@ var m = GL.taoMoiTruong();
 
 console.log('\n1. Khởi tạo & đọc');
 m.ctx.khoiTao();
-check('Tạo đủ 7 sheet, bỏ Sheet1', m.ss.getSheets().map(function (s) { return s.getName(); }).join(',') === 'SKU_NHA,COMBO,COMBO_THANH_PHAN,LICH_SU,MA_CHUAN,LS_DAT_HANG,DON_DA_GHI');
+check('Tạo đủ 8 sheet, bỏ Sheet1', m.ss.getSheets().map(function (s) { return s.getName(); }).join(',') === 'SKU_NHA,COMBO,COMBO_THANH_PHAN,LICH_SU,MA_CHUAN,LS_DAT_HANG,DON_DA_GHI,DM_XOA');
 var g = m.get();
 check('GET danh mục rỗng', g.ok && g.skus.length === 0 && g.combos.length === 0, g);
 check('POST ping (không cần PIN)', m.post('ping', {}).ok === true);
@@ -98,7 +98,7 @@ shC.data = [['combo_id', 'ten_combo', 'khoa', 'cap_nhat'], ['C001', 'Combo cũ',
 m2.ss.getSheetByName('COMBO_THANH_PHAN').data.push(['C001', '1', 'Sách A', 'HA', 25000, 1]);
 var g2 = m2.get();
 check('Combo cũ chưa có cach_xuat → coi là "tach"', g2.ok && g2.combos[0].cach_xuat === 'tach' && g2.combos[0].thanh_phan.length === 1, g2);
-check('Tiêu đề sheet COMBO tự bổ sung cột mới', shC.data[0].join(',') === 'combo_id,ten_combo,khoa,cap_nhat,cach_xuat,ma_he_thong,ten_xuat,nha', shC.data[0]);
+check('Tiêu đề sheet COMBO tự bổ sung cột mới', shC.data[0].join(',') === 'combo_id,ten_combo,khoa,cap_nhat,cach_xuat,ma_he_thong,ten_xuat,nha,phien_ban,dong_bo,nguoi_sua', shC.data[0]);
 
 console.log('\n4. Nạp Excel hàng loạt');
 r = m.post('importBatch', {
