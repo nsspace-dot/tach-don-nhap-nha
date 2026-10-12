@@ -78,7 +78,12 @@ check('"Cập nhật giá" combo → hết lệch, có ghi LICH_SU', r.ok && r.s
   lichSu(m)[0].hanh_dong === 'capNhatGiaCombo' && /25\.000 → 28\.000/.test(JSON.parse(lichSu(m)[0].du_lieu_moi).ghi_chu));
 
 console.log('\n2. Thay mã tái bản Katakana ' + KATA + ' → ' + Y);
-var catTruoc = JSON.stringify(m.get());
+// So nội dung danh mục, bỏ mốc đồng bộ / phiên bản (hoàn tác cũng là 1 lần sửa mới nên phiên bản tăng)
+function dmNoiDung(g) {
+  var bo = function (o) { var x = Object.assign({}, o); delete x.phien_ban; delete x.dong_bo; delete x.nguoi_sua; return x; };
+  return JSON.stringify({ skus: g.skus.map(bo), combos: g.combos.map(bo), ma_chuan: g.ma_chuan.map(bo) });
+}
+var catTruoc = dmNoiDung(m.get());
 r = m.post('thayMaTaiBan', { ma_cu: KATA, ma_moi: Y, gia: 30000 });
 check('thayMaTaiBan thành công', r.ok, r.error);
 var dy = dongSku(Y), dx = dongSku(KATA);
@@ -107,7 +112,7 @@ check('File gửi nhà: Katakana (mã mới) có mặt, SL 13, không tô màu n
 var lsDong = lichSu(m)[0].dong;
 r = m.post('hoanTacTaiBan', { dong: lsDong });
 check('Hoàn tác thành công', r.ok, r.error);
-check('Hoàn tác: danh mục trở về y như trước khi thay', JSON.stringify(m.get()) === catTruoc);
+check('Hoàn tác: danh mục trở về y như trước khi thay', dmNoiDung(m.get()) === catTruoc);
 check('Hoàn tác có ghi LICH_SU', lichSu(m)[0].hanh_dong === 'hoanTacTaiBan' && lichSu(m)[0].khoa.indexOf('LS#' + lsDong + ' ') === 0);
 check('Hoàn tác lần 2 → báo đã hoàn tác', /đã được hoàn tác/.test(m.post('hoanTacTaiBan', { dong: lsDong }).error || ''));
 check('Hoàn tác dòng không hoàn tác được (vd tự học) → lỗi', /không hoàn tác được/.test(m.post('hoanTacTaiBan', { dong: 2 }).error || ''));
@@ -151,7 +156,7 @@ m2.ctx.khoiTao();
 var sh = m2.ss.getSheetByName('SKU_NHA');
 sh.data = [['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat'], ['sku:' + KATA, KATA, TEN_KATA, 'HA', 'tay', '2026-10-01 10:00:00']];
 r = m2.post('upsertSkuBatch', { items: [], gia: [{ key: 'sku:' + KATA, gia: 26000 }] });
-check('Tự thêm tiêu đề cột mới, không mất dữ liệu', sh.data[0].join(',') === 'key,sku,ten,nha,nguon,cap_nhat,gia_gan_nhat,ngay_gia,ma_moi,khong_tai_ban,nguon_ma,ten_sach,phan_loai,khong_combo' &&
+check('Tự thêm tiêu đề cột mới, không mất dữ liệu', sh.data[0].join(',') === 'key,sku,ten,nha,nguon,cap_nhat,gia_gan_nhat,ngay_gia,ma_moi,khong_tai_ban,nguon_ma,ten_sach,phan_loai,khong_combo,phien_ban,dong_bo,nguoi_sua' &&
   m2.get().skus[0].nha === 'HA' && Number(m2.get().skus[0].gia_gan_nhat) === 26000, sh.data[0]);
 r = m2.post('upsertSku', { key: 'sku:' + KATA, sku: KATA, ten: TEN_KATA, nha: 'KV', nguon: 'tay' });
 check('Đổi nhà không làm mất giá gần nhất', Number(m2.get().skus[0].gia_gan_nhat) === 26000 && m2.get().skus[0].nha === 'KV');
