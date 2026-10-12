@@ -41,6 +41,9 @@
       b.title = DM.coTheGhi() ? '' : 'Dán URL Apps Script ở màn Cài đặt để dùng nút này';
     });
     $('dm-loc-ten-o').hidden = tab !== 'sku';
+    A.veQuyen();
+    $('dm-xoa-loat').hidden = $('dm-xoa-loat').hidden || tab === 'lichsu' || !DM.coAdmin();
+    dangLoc = { skus: [], combos: [] };
     if (tab === 'sku') veSku(c.skus, q);
     else if (tab === 'combo') veCombo(c.combos, q);
     else if (tab === 'gantay') veGanTay(c.skus, q);
@@ -49,13 +52,19 @@
 
   /* ---------- Lịch sử (100 thay đổi gần nhất, chỉ xem) ---------- */
   var lichSu = null, dangTaiLs = false, loiLs = '';
+  var dangLoc = { skus: [], combos: [] }; // các dòng đang hiện theo tìm kiếm / bộ lọc (để Admin xóa hàng loạt)
+  // Hoàn tác được: thao tác có ảnh chụp trước/sau + thao tác 1 dòng SKU / 1 combo (khớp Code.gs)
+  var HOAN_TAC = ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku', 'upsertSku', 'deleteSku', 'luuTenSach', 'khongPhaiCombo',
+                  'upsertCombo', 'deleteCombo', 'addComboKey', 'doiKhoaCombo', 'boKhoa', 'capNhatGiaCombo'];
+  function tacGia(r) { return String(r.nguoi || '').replace(/ \(Admin\)$/, ''); }
   var TEN_HD = {
     upsertSku: '✋ Gán / sửa nhà', upsertSkuBatch: '🤖 Tự học', deleteSku: '🗑 Xóa SKU',
     upsertCombo: '🎁 Lưu combo', addComboKey: '🔗 Gắn khóa combo', boKhoa: '✂️ Chuyển khóa sang combo khác',
     deleteCombo: '🗑 Xóa combo', importBatch: '📥 Nạp Excel', khoiPhuc: '♻️ Khôi phục sao lưu',
     doiKhoaCombo: '🔑 Đổi khóa combo (mã vạch)', capNhatGia: '💲 Cập nhật giá', capNhatGiaCombo: '💸 Cập nhật giá combo',
     thayMaTaiBan: '🔁 Thay mã tái bản', hoanTacTaiBan: '↩️ Hoàn tác thay mã', boQuaTaiBan: '🙅 Không phải tái bản',
-    soMaChuan: '🌐 Sổ mã chuẩn', luuTenSach: '✏️ Khai báo tên sách', suaSku: '✏️ Sửa dòng danh mục', ganBarcode: '🏷️ Gán / sửa barcode', boGanBarcode: '🗑 Bỏ barcode gán tay', khongPhaiCombo: '📖 Không phải combo – sách lẻ', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
+    soMaChuan: '🌐 Sổ mã chuẩn', xoaHangLoat: '🗑 Xóa hàng loạt', luuNguoiDung: '👥 Sửa người dùng', luuCaiDatChung: '⚙️ Cài đặt chung',
+    chotDot: '🔒 Chốt đợt', moLaiDot: '🔓 Mở lại đợt', xoaDot: '🗑 Xóa đợt', xoaPhan: '🗑 Xóa phần gửi', suaPhan: '✂️ Sửa phần gửi', moLaiPhan: '↩️ Mở lại phần gửi', khoaAdmin: '⛔ Khóa Admin (sai mã)', luuTenSach: '✏️ Khai báo tên sách', suaSku: '✏️ Sửa dòng danh mục', ganBarcode: '🏷️ Gán / sửa barcode', boGanBarcode: '🗑 Bỏ barcode gán tay', khongPhaiCombo: '📖 Không phải combo – sách lẻ', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
   };
   function taiLichSu() {
     if (dangTaiLs) return;
@@ -96,11 +105,14 @@
       '<button class="linkish" id="ls-lai">Tải lại</button></div>' +
       '<table class="tbl tbl-ghim1"><thead><tr><th>Thời gian</th><th>Người sửa</th><th>Hành động</th><th>Khóa</th><th>Trước</th><th>Sau</th></tr></thead><tbody>' +
       ds.map(function (r) {
-        var nutHt = ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku'].indexOf(r.hanh_dong) >= 0 && r.dong
+        // Thao tác của người khác: chỉ Admin hoàn tác (Apps Script cũ: chỉ 4 loại như trước)
+        var loaiHt = DM.coAdmin() ? HOAN_TAC : ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku'];
+        var cuaNguoiKhac = DM.coAdmin() && tacGia(r) && tacGia(r) !== DM.caiDat.toiLa;
+        var nutHt = loaiHt.indexOf(r.hanh_dong) >= 0 && r.dong && (!cuaNguoiKhac || A.laAdmin())
           ? (daHoanTac['LS#' + r.dong] ? '<div class="pl">(đã hoàn tác)</div>'
-            : '<div>' + A.nutGhi('↩️ Hoàn tác', 'class="btn btn-sm" data-hoan-tac="' + r.dong + '" data-khoa-ls="' + A.esc(r.khoa) + '"') + '</div>')
+            : '<div>' + A.nutGhi('↩️ Hoàn tác' + (cuaNguoiKhac ? ' (Admin)' : ''), 'class="btn btn-sm" data-hoan-tac="' + r.dong + '" data-khoa-ls="' + A.esc(r.khoa) + '"' + (cuaNguoiKhac ? ' data-ht-admin="1"' : '')) + '</div>')
           : '';
-        return '<tr><td class="pl">' + ngay(r.thoi_gian) + '</td><td>' + (r.nguoi ? '👤 ' + A.esc(r.nguoi) : '<span class="muted">—</span>') + '</td><td class="ls-hd">' + A.esc(TEN_HD[r.hanh_dong] || r.hanh_dong) + nutHt + '</td>' +
+        return '<tr><td class="pl">' + ngay(r.thoi_gian) + '</td><td>' + (r.nguoi ? (/ \(Admin\)$/.test(r.nguoi) ? '🔑 ' : '👤 ') + A.esc(r.nguoi) : '<span class="muted">—</span>') + '</td><td class="ls-hd">' + A.esc(TEN_HD[r.hanh_dong] || r.hanh_dong) + nutHt + '</td>' +
           '<td><span class="khoa">' + A.esc(r.khoa) + '</span></td>' +
           '<td><pre class="ls-json">' + A.esc(tomTat(r.du_lieu_cu)) + '</pre></td>' +
           '<td><pre class="ls-json">' + A.esc(tomTat(r.du_lieu_moi)) + '</pre></td></tr>';
@@ -147,6 +159,7 @@
       return khopTim(q, [e.sku, e.ten_sach, e.ten, e.phan_loai, e.key, e.nha].join(' '));
     });
     ds.sort(function (a, b) { return (a.ten_sach || a.ten).localeCompare(b.ten_sach || b.ten, 'vi'); });
+    dangLoc.skus = ds;
     if (!ds.length) {
       var soCb = q ? DM.catalog.combos.filter(function (c) { return khopCombo(q, c); }).length : 0;
       $('dm-bang').innerHTML = rong(locTen ? 'Sách nào cũng đã có tên khai báo rồi 🎉' : list.length ? 'Không tìm thấy trong SKU → nhà.' +
@@ -264,6 +277,7 @@
     var ds = list.filter(function (e) {
       return e.nguon_ma === 'gan_tay' && e.ma_moi && khopTim(q, [e.key, e.sku, e.ten, e.phan_loai, e.ma_moi].join(' '));
     });
+    dangLoc.skus = ds;
     if (!ds.length) {
       $('dm-bang').innerHTML = rong(q ? 'Không tìm thấy.' : 'Chưa có barcode gán tay. Bấm 🏷️ ở dòng sách trên màn Tách đơn để gán / sửa barcode.');
       return;
@@ -294,6 +308,7 @@
       return khopCombo(q, c);
     });
     ds.sort(function (a, b) { return a.ten_combo.localeCompare(b.ten_combo, 'vi'); });
+    dangLoc.combos = ds;
     if (!ds.length) { $('dm-bang').innerHTML = rong(list.length ? 'Không tìm thấy.' : 'Chưa có combo nào. Khai báo ở tab Combo của màn Tách đơn nha.'); return; }
     var ghi = DM.coTheGhi();
     lechDm = PL.lechGiaCombo(DM.catalog, A.S.kq ? A.S.kq.giaFile : {});
@@ -354,7 +369,7 @@
           A.toast('🌐 Sổ mã chuẩn: thêm ' + r.soMaChuan.moi + ', cập nhật ' + r.soMaChuan.doi + ' barcode.', 'ok');
         });
       });
-    }).catch(function (e) { A.toast('Không nạp được: ' + e.message, 'loi'); });
+    }).catch(function (e) { A.baoLoi('Không nạp được', e); });
   }
 
   /* ---------- Thao tác ---------- */
@@ -383,14 +398,14 @@
       .catch(function (err) { $('tb-loi').textContent = err.message; })
       .then(function () { btn.disabled = false; });
   }
-  function hoanTac(dong, khoa, b) {
+  function hoanTac(dong, khoa, b, admin) {
     A.hoi('Hoàn tác "' + khoa + '"?\n\nDanh mục SKU và các combo liên quan sẽ trở về đúng như trước thao tác đó. ' +
       'Những sửa đổi sau đó trên chính các dòng này (nếu có) cũng sẽ bị trả lại.', 'Hoàn tác').then(function (ok) {
       if (!ok) return;
       b.disabled = true;
-      DM.goi('hoanTacTaiBan', { dong: dong })
+      DM.goi('hoanTacTaiBan', { dong: dong }, { admin: !!admin })
         .then(function () { A.toast('↩️ Đã hoàn tác: ' + khoa, 'ok'); lichSu = null; ve(); })
-        .catch(function (err) { b.disabled = false; A.toast('Không hoàn tác được: ' + err.message, 'loi'); });
+        .catch(function (err) { b.disabled = false; A.baoLoi('Không hoàn tác được', err); });
     });
   }
 
@@ -468,7 +483,7 @@
           .then(function () { return kq.ganBarcode.length ? DM.goi('ganBarcode', { items: kq.ganBarcode, ghi_de: true }) : null; })
           .then(function () { A.toast('📥 Đã nạp ' + kq.skus.length + ' SKU, ' + kq.combos.length + ' combo' + (kq.ganBarcode.length ? ', ' + kq.ganBarcode.length + ' barcode gán tay' : '') + '.', 'ok'); });
       });
-    }).catch(function (e) { A.toast('Lỗi đọc file: ' + e.message, 'loi'); });
+    }).catch(function (e) { A.baoLoi('Không nạp được', e); });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -533,11 +548,26 @@
       else if (b.dataset.xoaCombo) xoaCombo(+b.dataset.xoaCombo);
       else if (b.dataset.suaCombo) root.KhaiBao.moSua(DM.catalog.combos[+b.dataset.suaCombo]);
       else if (b.dataset.taiBan) moTaiBan(DM.catalog.skus[+b.dataset.taiBan]);
-      else if (b.dataset.hoanTac) hoanTac(+b.dataset.hoanTac, b.dataset.khoaLs, b);
+      else if (b.dataset.hoanTac) hoanTac(+b.dataset.hoanTac, b.dataset.khoaLs, b, b.dataset.htAdmin);
       else if (b.dataset.giaCombo && b.dataset.giaNguon === 'dm') { b.disabled = true; A.capNhatGiaCombo([lechDm[+b.dataset.giaCombo]]); }
       else if (b.dataset.giaTatca === 'dm') { b.disabled = true; A.capNhatGiaCombo(lechDm); }
     });
     $('dm-xuat').addEventListener('click', xuatExcel);
+    // Admin: xóa hàng loạt các dòng đang hiện (theo tìm kiếm / bộ lọc) – mỗi dòng ghi Lịch sử, hoàn tác được
+    $('dm-xoa-loat').addEventListener('click', function () {
+      var skus = tab === 'combo' ? [] : dangLoc.skus.map(function (e) { return e.key; });
+      var combos = tab === 'combo' ? dangLoc.combos.map(function (c) { return c.combo_id; }) : [];
+      var n = skus.length + combos.length;
+      if (!n) { A.toast('Không có dòng nào đang hiện để xóa.', 'loi'); return; }
+      var tatCa = !chuanTim($('dm-tim').value) && !(tab === 'sku' && $('dm-loc-ten').checked);
+      A.hoi('Xóa ' + n + (combos.length ? ' combo' : ' dòng') + ' đang hiện' + (tatCa ? ' – TOÀN BỘ ' + (combos.length ? 'combo' : 'danh mục ở tab này') + ' (chưa lọc gì)!' : ' (theo tìm kiếm / bộ lọc)') +
+        '?\n\nMỗi dòng ghi Lịch sử với tên Admin, hoàn tác từng dòng được ở 🕘 Lịch sử.', '🗑 Xóa ' + n + ' dòng', { tieuDe: 'Admin – Xóa hàng loạt' })
+        .then(function (ok) {
+          if (!ok) return;
+          return DM.goi('xoaHangLoat', { skus: skus, combos: combos }).then(function (j) { A.toast('🗑 Đã xóa ' + j.soXoa + ' dòng.', 'ok'); });
+        })
+        .catch(function (e) { A.baoLoi('Không xóa được', e); });
+    });
     $('tb-luu').addEventListener('click', luuTaiBan);
     $('tb-ma').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); luuTaiBan(); } });
     $('dm-mau').addEventListener('click', function () { root.XLSX.writeFile(DX.mau(root.XLSX), 'Mau-nap-danh-muc.xlsx'); });

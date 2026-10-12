@@ -48,7 +48,7 @@
     var el = $('dot-nhan'), co = DM.coDot();
     el.hidden = !co;
     var nav = $('nav-dot');
-    nav.hidden = !(co && DM.vaiTro() === 'dat_hang');
+    nav.hidden = !(co && A.laDatHang());
     if (!co) return;
     var homNay = DG.homNayVN();
     if (dotHienTai.id !== homNay) dotHienTai = { id: homNay, trangThai: '' };
@@ -184,23 +184,28 @@
     var chot = T.dot && T.dot.trang_thai === 'da_chot';
     $('dot-tt').className = 'dot-tt ' + (chot ? 'da-chot' : 'dang-nhan');
     $('dot-tt').textContent = !T.dot ? '…' : chot ? '🔒 Đã chốt ' + (DM.gioPhut(T.dot.chot_luc) || '') + (T.dot.chot_boi ? ' · ' + T.dot.chot_boi : '') : '🟢 Đang nhận';
+    // Mở lại đợt đã chốt / xóa đợt: chỉ Admin (Apps Script cũ chưa có Admin → người đặt hàng mở lại như trước)
+    var quanLy = DM.coAdmin() ? A.laAdmin() : true;
     $('dot-chot').hidden = chot;
-    $('dot-mo-lai').hidden = !chot;
+    $('dot-mo-lai').hidden = !chot || !quanLy;
+    $('dot-xoa').hidden = !(DM.coAdmin() && A.laAdmin()) || !T.dot || T.dot.chua_tao;
     if (T.loi) { el.innerHTML = '<div class="trong-bang">😿 ' + esc(T.loi) + '</div>'; return; }
     if (!T.dot) { el.innerHTML = '<div class="trong-bang">Đang tải…</div>'; return; }
+    var laQl = DM.coAdmin() && A.laAdmin();
     var hang = T.phan.slice().sort(function (a, b) { return String(a.gui_luc) < String(b.gui_luc) ? -1 : 1; }).map(function (p) {
       var sot = (p.con_combo ? p.con_combo + ' combo' : '') + (p.con_combo && p.con_chua_ro ? ' / ' : '') + (p.con_chua_ro ? p.con_chua_ro + ' chưa rõ' : '');
       return '<tr><td><b>' + esc(p.nguoi) + '</b></td><td>' + esc(p.nguon || '—') + '</td><td class="' + (p.trang_thai === 'mo_lai' ? 'dot-canh' : 'dot-xong') + '">' + tenTrangThai(p) +
         (Number(p.phien) > 1 ? ' <span class="pl">(gửi lần ' + p.phien + ')</span>' : '') + '</td><td class="so">' + A.so(p.so_dong) + '<div class="pl">' + A.so(p.so_don) + ' đơn</div></td>' +
-        '<td>' + (sot ? '<span class="dot-canh">⚠ ' + sot + '</span>' : '<span class="muted">—</span>') + '</td></tr>';
+        '<td>' + (sot ? '<span class="dot-canh">⚠ ' + sot + '</span>' : '<span class="muted">—</span>') + '</td>' +
+        (laQl ? '<td><button type="button" class="btn btn-sm" data-ql-phan="' + esc(p.nguoi) + '" title="Admin: xem / bỏ file gửi nhầm / mở lại / xóa phần này">🛠️ Quản lý</button></td>' : '') + '</tr>';
     });
     var daCo = {};
     T.phan.forEach(function (p) { daCo[p.nguoi] = 1; });
     T.nguoiDung.filter(function (n) { return !daCo[n.ten]; }).forEach(function (n) {
-      hang.push('<tr class="dot-chua"><td><b>' + esc(n.ten) + '</b> <span class="pl">' + (n.vai_tro === 'dat_hang' ? 'người đặt hàng' : 'nhân viên sàn') + '</span></td><td>—</td><td>⏳ Chưa gửi</td><td class="so">—</td><td>—</td></tr>');
+      hang.push('<tr class="dot-chua"><td><b>' + esc(n.ten) + '</b> <span class="pl">' + ({ dat_hang: 'người đặt hàng', admin: 'admin' }[n.vai_tro] || 'nhân viên sàn') + '</span></td><td>—</td><td>⏳ Chưa gửi</td><td class="so">—</td><td>—</td>' + (laQl ? '<td></td>' : '') + '</tr>');
     });
     var tongDong = T.phan.reduce(function (s, p) { return s + (Number(p.so_dong) || 0); }, 0);
-    el.innerHTML = '<table class="tbl"><thead><tr><th>Người</th><th>Nguồn</th><th>Trạng thái</th><th class="so">Số dòng</th><th>Còn sót (combo / chưa rõ)</th></tr></thead><tbody>' +
+    el.innerHTML = '<table class="tbl"><thead><tr><th>Người</th><th>Nguồn</th><th>Trạng thái</th><th class="so">Số dòng</th><th>Còn sót (combo / chưa rõ)</th>' + (laQl ? '<th><span class="sr">Quản lý</span></th>' : '') + '</tr></thead><tbody>' +
       (hang.join('') || '<tr><td colspan="5" class="trong-bang">Chưa có ai trong danh sách người dùng (thêm ở Cài đặt).</td></tr>') + '</tbody></table>' +
       '<p class="legend" style="padding:10px 16px">Đã gửi ' + T.phan.length + ' phần · ' + A.so(tongDong) + ' dòng. Tự làm mới mỗi 30 giây. ' +
       (T.gop && T.gop.dot_id === T.id && T.gop.phien !== phienTongHop() ? '<b class="dot-canh">Có phần mới gửi sau lần xem gộp – bấm “Xem trước gộp” để tính lại.</b>' : '') + '</p>';
@@ -240,7 +245,7 @@
       '<div class="actions">' +
       A.nutGhi('🔄 Tính lại', 'class="btn btn-sm" data-gb="lai"') +
       '<button type="button" class="btn btn-sm btn-primary" data-gb="tai">⬇️ Tải 3 file nhà</button>' +
-      (chot ? A.nutGhi('🔓 Mở lại đợt', 'class="btn btn-sm" data-gb="molai"') : A.nutGhi('🔒 Chốt đợt', 'class="btn btn-sm btn-danger" data-gb="chot"')) +
+      (chot ? (DM.coAdmin() && !A.laAdmin() ? '' : A.nutGhi('🔓 Mở lại đợt', 'class="btn btn-sm" data-gb="molai"')) : A.nutGhi('🔒 Chốt đợt', 'class="btn btn-sm btn-danger" data-gb="chot"')) +
       '<button type="button" class="btn btn-sm" data-gb="ve">↩️ Về phần của tôi</button></div>';
   }
   function veTuGop() { A.thoatGop(); T.gop = null; veGopBar(); }
@@ -282,9 +287,48 @@
         if (!ok) return;
         return DM.goi('moLaiDot', { dot_id: id }).then(function (j) { T.dot = j.dot; A.toast('🔓 Đã mở lại đợt ' + DG.ngayNgan(id) + '.', 'ok'); taiTongHop(); });
       })
-      .catch(function (e) { A.toast('Không mở lại được: ' + e.message, 'loi'); })
+      .catch(function (e) { A.baoLoi('Không mở lại được', e); })
       .then(veGopBar);
   }
+
+  /* ---------- Admin: xóa đợt, quản lý phần gửi của bất kỳ ai ---------- */
+  function xoaDot() {
+    var id = T.id;
+    A.hoi('Xóa đợt ' + DG.ngayNgan(id) + '/' + id.slice(0, 4) + '?\n\nXóa mọi phần đã gửi của đợt này trên Google Sheets (không hoàn tác được). Lịch sử thống kê đã ghi khi chốt vẫn giữ.', '🗑 Xóa đợt', { tieuDe: 'Admin – Xóa đợt' })
+      .then(function (ok) {
+        if (!ok) return;
+        return DM.goi('xoaDot', { dot_id: id }).then(function (j) {
+          A.toast('🗑 Đã xóa đợt ' + DG.ngayNgan(id) + ' (' + j.so_phan + ' phần).', 'ok');
+          if (A.S.gop && A.S.gop.dot_id === id) veTuGop();
+          T.dot = null; T.phan = []; taiTongHop();
+        });
+      })
+      .catch(function (e) { A.baoLoi('Không xóa được', e); });
+  }
+  var qlPhan = null; // { nguoi, dot_id }
+  function moQuanLyPhan(nguoi) {
+    qlPhan = { nguoi: nguoi, dot_id: T.id };
+    $('dlg-phan-title').textContent = '🛠️ Phần gửi của ' + nguoi + ' – đợt ' + DG.ngayNgan(T.id);
+    $('phan-mota').textContent = 'Đang tải…';
+    $('phan-bang').innerHTML = ''; $('phan-loi').textContent = '';
+    $('dlg-phan').showModal();
+    DM.docGet('action=dot&duLieu=1&id=' + encodeURIComponent(T.id)).then(function (j) {
+      var p = (j.phan || []).filter(function (x) { return x.nguoi === nguoi; })[0];
+      if (!p) { $('phan-mota').textContent = 'Phần này không còn (có thể vừa bị xóa).'; return; }
+      var iFile = p.cot.indexOf('file'), iSan = p.cot.indexOf('san'), theoFile = {};
+      p.dong.forEach(function (r) {
+        var f = String(r[iFile] || '(không tên)'), x = theoFile[f] || (theoFile[f] = { file: f, san: r[iSan], dong: 0, sl: 0 });
+        x.dong++; x.sl += Number(r[p.cot.indexOf('sl')]) || 0;
+      });
+      $('phan-mota').textContent = tenTrangThai(p) + ' · ' + A.so(p.so_dong) + ' dòng · ' + A.so(p.so_don) + ' đơn' + (p.ghi_chu ? ' · ' + p.ghi_chu : '') + '. Tick file gửi nhầm rồi bấm “Bỏ các file đã chọn”.';
+      $('phan-bang').innerHTML = '<table class="tbl"><thead><tr><th>Bỏ</th><th>File</th><th>Nguồn</th><th class="so">Số dòng</th><th class="so">Số cuốn</th></tr></thead><tbody>' +
+        Object.keys(theoFile).map(function (f) {
+          var x = theoFile[f];
+          return '<tr><td><input type="checkbox" data-bo-file="' + esc(f) + '" aria-label="Bỏ file ' + esc(f) + '"></td><td>' + esc(f) + '</td><td>' + esc(x.san) + '</td><td class="so">' + A.so(x.dong) + '</td><td class="so">' + A.so(x.sl) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }).catch(function (e) { $('phan-loi').textContent = e.message; });
+  }
+  function xongQl(msg) { $('dlg-phan').close(); A.toast(msg, 'ok'); taiTongHop(); if (A.S.gop && A.S.gop.dot_id === qlPhan.dot_id) A.toast('Bấm “🔄 Tính lại” ở thanh gộp để cập nhật kết quả gộp.'); }
 
   /* ---------- Gắn sự kiện ---------- */
   document.addEventListener('DOMContentLoaded', function () {
@@ -319,9 +363,34 @@
     $('dot-tai').addEventListener('click', taiBaNha);
     $('dot-chot').addEventListener('click', chotDot);
     $('dot-mo-lai').addEventListener('click', moLaiDot);
-    $('dot-nhan').addEventListener('click', function () { A.diToi(DM.vaiTro() === 'dat_hang' ? 'dot' : 'caidat'); });
+    $('dot-xoa').addEventListener('click', xoaDot);
+    $('dot-bang').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-ql-phan]');
+      if (b) moQuanLyPhan(b.dataset.qlPhan);
+    });
+    $('phan-bo').addEventListener('click', function () {
+      var bo = Array.prototype.map.call($('phan-bang').querySelectorAll('[data-bo-file]:checked'), function (c) { return c.dataset.boFile; });
+      if (!bo.length) { $('phan-loi').textContent = 'Chưa tick file nào.'; return; }
+      DM.goi('suaPhan', { dot_id: qlPhan.dot_id, nguoi: qlPhan.nguoi, bo_file: bo })
+        .then(function (j) { xongQl('✂️ Đã bỏ ' + A.so(j.so_bo) + ' dòng (' + bo.join(', ') + ') khỏi phần của ' + qlPhan.nguoi + '.'); })
+        .catch(function (e) { if (!e.daHuy) $('phan-loi').textContent = e.message; });
+    });
+    $('phan-molai').addEventListener('click', function () {
+      DM.goi('moLaiPhan', { dot_id: qlPhan.dot_id, nguoi: qlPhan.nguoi }, { admin: true })
+        .then(function () { xongQl('↩️ Đã mở lại phần của ' + qlPhan.nguoi + ' – người đó sửa rồi báo xong lại.'); })
+        .catch(function (e) { if (!e.daHuy) $('phan-loi').textContent = e.message; });
+    });
+    $('phan-xoa').addEventListener('click', function () {
+      A.hoi('Xóa cả phần gửi của ' + qlPhan.nguoi + ' trong đợt ' + DG.ngayNgan(qlPhan.dot_id) + '?', '🗑 Xóa phần', { tieuDe: 'Admin – Xóa phần gửi' }).then(function (ok) {
+        if (!ok) return;
+        DM.goi('xoaPhan', { dot_id: qlPhan.dot_id, nguoi: qlPhan.nguoi })
+          .then(function () { xongQl('🗑 Đã xóa phần của ' + qlPhan.nguoi + '.'); })
+          .catch(function (e) { if (!e.daHuy) $('phan-loi').textContent = e.message; });
+      });
+    });
+    $('dot-nhan').addEventListener('click', function () { A.diToi(A.laDatHang() ? 'dot' : 'caidat'); });
     DM.nghe(function (loai) {
-      if (loai === 'api' || loai === 'caidat' || loai === 'nguoidung') { veNhan(); veBaoXong(); A.veBanner(); }
+      if (loai === 'api' || loai === 'caidat' || loai === 'nguoidung' || loai === 'admin') { veNhan(); veBaoXong(); A.veBanner(); if (!$('man-dot').hidden) veBangTongHop(); }
     });
     veNhan();
   });

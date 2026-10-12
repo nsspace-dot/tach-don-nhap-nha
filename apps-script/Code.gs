@@ -6,6 +6,7 @@
  *   2. Chạy hàm khoiTao() 1 lần (tạo đủ các sheet).
  *   3. Chạy hàm caiDatSaoLuuTuDong() 1 lần (sao lưu tự động mỗi ngày khoảng 23h).
  *   4. Deploy → New deployment → Web app → Execute as: Me, Who has access: Anyone.
+ *   5. Đặt mã Admin: sửa dòng MA_ADMIN_MOI (phần "Admin" bên dưới) rồi chạy datMaAdmin() – xong xóa mã khỏi dòng đó.
  *
  * Các sheet:
  *   SKU_NHA           key | sku | ten | nha | nguon | cap_nhat | gia_gan_nhat | ngay_gia | ma_moi | khong_tai_ban | nguon_ma | ten_sach | phan_loai | khong_combo
@@ -42,6 +43,14 @@
  *                cột: nguồn, mã đơn, barcode/SKU, tên sàn, phân loại, giá, SL, ngày đặt, tên file, nhà cung cấp (web), ngày xuất (web), dấu file web.
  *                KHÔNG có thông tin khách, không lưu file gốc. Đợt cũ hơn 30 ngày tự dọn.
  *   GET  ?action=dot&id=<ngày>[&duLieu=1] → { ok, dot, phan, nguoi_dung, hom_nay }     GET ?action=dsDot → { ok, dot: [...] }
+ *
+ * Admin (từ bản api 4):
+ *   Mã Admin lưu ở Script Properties (khóa ADMIN_MA) – KHÔNG nằm trong code. Đặt / đổi: sửa dòng MA_ADMIN_MOI rồi chạy datMaAdmin().
+ *   Thao tác Admin gửi kèm data._maAdmin; sai 5 lần liên tiếp → khóa 10 phút. Lịch sử ghi "Tên (Admin)".
+ *   Chỉ Admin: luuNguoiDung, moLaiDot, xoaDot, xoaPhan, suaPhan, moLaiPhan của người khác, luuCaiDatChung, importBatch,
+ *              upsertMaChuan, xoaHangLoat, hoàn tác thao tác của người khác.
+ *   CAI_DAT_CHUNG  khoa | gia_tri (JSON) | cap_nhat | nguoi   (mã nhà khác, trạng thái Shopee, phân loại vô nghĩa – dùng chung mọi máy)
+ *   NGUOI_DUNG.vai_tro thêm giá trị "admin".
  *   POST luuNguoiDung { ds }, baoXong { dot_id, cot, dong, nguon, so_don, con_combo, con_chua_ro }, moLaiPhan { dot_id },
  *        chotDot { dot_id, lich_su }, moLaiDot { dot_id }
  *   GET  <url>?action=lichSuDatHang&tu=yyyy-MM-dd → { ok, cot, dong }
@@ -57,9 +66,13 @@
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
-var API = 3; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt)
+var API = 4; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin)
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA',
-           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN' };
+           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG' };
+var VAI_TRO = ['san', 'dat_hang', 'admin'];
+var HD_ADMIN = ['kiemTraMaAdmin', 'luuNguoiDung', 'moLaiDot', 'xoaDot', 'xoaPhan', 'suaPhan', 'luuCaiDatChung', 'importBatch', 'upsertMaChuan', 'xoaHangLoat'];
+var ADMIN_SAI_TOI_DA = 5, ADMIN_KHOA_PHUT = 10;
+var KHOA_CAI_DAT_CHUNG = ['maKhac', 'trangThaiShopee', 'plVoNghia'];
 var DOT_DL = 'DOT_DL_';   // + yyyy-MM-dd : dữ liệu dòng đơn của 1 đợt
 var GIU_DOT = 30;         // giữ dữ liệu đợt 30 ngày
 var CHIA_O = 40000;       // ký tự tối đa mỗi ô (giới hạn Google Sheets 50.000)
@@ -81,7 +94,8 @@ var COT = {
   NGUOI_DUNG: ['ten', 'vai_tro', 'cap_nhat'],
   DOT: ['dot_id', 'trang_thai', 'tao_luc', 'chot_luc', 'chot_boi', 'mo_lai_luc', 'mo_lai_boi', 'ghi_lich_su_luc'],
   DOT_PHAN: ['phan_id', 'dot_id', 'nguoi', 'nguon', 'trang_thai', 'gui_luc', 'so_dong', 'so_don', 'con_combo', 'con_chua_ro', 'phien', 'ghi_chu'],
-  DOT_DL: ['phan_id', 'thu_tu', 'du_lieu']
+  DOT_DL: ['phan_id', 'thu_tu', 'du_lieu'],
+  CAI_DAT_CHUNG: ['khoa', 'gia_tri', 'cap_nhat', 'nguoi']
 };
 // Thao tác tự động (tự học, đổi khóa combo cũ): vẫn tăng mốc đồng bộ nhưng KHÔNG tăng số phiên bản / không đổi người sửa
 var HD_TU_DONG = ['upsertSkuBatch', 'doiKhoaCombo'];
@@ -113,9 +127,11 @@ function doGet(e) {
     if (action === 'thayDoi') return traVe_(docThayDoi_(e.parameter.tu));
     if (action === 'dot') return traVe_(docDot_(e.parameter.id, e.parameter.duLieu === '1'));
     if (action === 'dsDot') return traVe_(dsDot_());
+    if (action === 'admin') return traVe_({ ok: true, api: API, da_dat_ma: !!maAdmin_(), khoa_con_phut: khoaAdminConPhut_() });
     var rev = revHienTai_(); // đọc mốc TRƯỚC dữ liệu: có ai ghi chen giữa thì lần đồng bộ sau tải lại phần đó
     var cat = docCatalog_();
-    return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_() });
+    return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_(),
+                    cai_dat_chung: docCaiDatChung_(), admin_da_dat_ma: !!maAdmin_() });
   } catch (err) {
     return traVe_({ ok: false, error: String(err && err.message || err) });
   }
@@ -145,16 +161,29 @@ function traVe_(obj) {
 
 function xuLy_(action, data, nguoi) {
   if (action === 'ping') return { ok: true };
+  // Thao tác Admin: kiểm tra mã ở đây (Script Properties), sai thì dừng luôn
+  var admin = false;
+  if (data._maAdmin !== undefined || HD_ADMIN.indexOf(action) >= 0 ||
+      (action === 'moLaiPhan' && chuoi_(data.nguoi) && chuoi_(data.nguoi) !== nguoi)) {
+    kiemTraAdmin_(data._maAdmin);
+    admin = true;
+  }
+  var nguoiLog = admin ? (nguoi || '?') + ' (Admin)' : nguoi;
+  if (action === 'kiemTraMaAdmin') return { ok: true, admin: true };
+  if (action === 'luuCaiDatChung') return luuCaiDatChung_(data, nguoiLog);
+  if (action === 'xoaDot') return xoaDot_(data, nguoiLog);
+  if (action === 'xoaPhan') return xoaPhan_(data, nguoiLog);
+  if (action === 'suaPhan') return suaPhan_(data, nguoiLog);
   if (action === 'ghiLichSuDatHang') return ghiLichSuDatHang_(data);
   if (action === 'napLichSuDatHang') return napLichSuDatHang_(data);
-  if (action === 'luuNguoiDung') return luuNguoiDung_(data, nguoi);
+  if (action === 'luuNguoiDung') return luuNguoiDung_(data, nguoiLog);
   if (action === 'baoXong') return baoXong_(data, nguoi);
-  if (action === 'moLaiPhan') return moLaiPhan_(data, nguoi);
-  if (action === 'chotDot') return chotDot_(data, nguoi);
-  if (action === 'moLaiDot') return moLaiDot_(data, nguoi);
+  if (action === 'moLaiPhan') return moLaiPhan_(data, nguoi, admin);
+  if (action === 'chotDot') return chotDot_(data, nguoiLog);
+  if (action === 'moLaiDot') return moLaiDot_(data, nguoiLog);
   var cat = docCatalog_();
   var revCu = revHienTai_();
-  var ctx = { action: action, now: bayGio_(), log: [], doiSku: false, doiCombo: false, nguoi: nguoi || '', rev: revCu + 1 };
+  var ctx = { action: action, now: bayGio_(), log: [], doiSku: false, doiCombo: false, nguoi: nguoi || '', nguoiLog: nguoiLog || '', admin: admin, rev: revCu + 1 };
   var extra = {};
 
   // Chống ghi đè: bản ghi đã bị người khác sửa sau phiên bản máy này đang thấy → KHÔNG ghi, trả về xung đột
@@ -240,6 +269,12 @@ function xuLy_(action, data, nguoi) {
       break;
     case 'deleteCombo':
       deleteCombo_(cat, data, ctx);
+      break;
+    case 'xoaHangLoat':
+      // Admin: xóa hàng loạt dòng SKU / combo (mỗi dòng 1 bản ghi lịch sử – hoàn tác được)
+      extra.soXoa = 0;
+      (data.skus || []).forEach(function (k) { try { deleteSku_(cat, { key: k }, ctx); extra.soXoa++; } catch (e) { /* đã bị xóa */ } });
+      (data.combos || []).forEach(function (id) { try { deleteCombo_(cat, { combo_id: id }, ctx); extra.soXoa++; } catch (e) { /* đã bị xóa */ } });
       break;
     case 'importBatch':
       extra.loi = [];
@@ -792,14 +827,20 @@ function hoanTacTaiBan_(cat, d, ctx) {
   var s = sheet_(SH.LS);
   if (!(dong >= 2 && dong <= s.getLastRow())) throw new Error('Không tìm thấy bản ghi lịch sử cần hoàn tác.');
   var r = s.getRange(dong, 1, 1, COT.LICH_SU.length).getValues()[0];
-  if (['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku'].indexOf(String(r[1])) < 0) throw new Error('Bản ghi này không hoàn tác được.');
+  var hd = String(r[1]);
+  if (HT_ANH.indexOf(hd) < 0 && HT_SKU.indexOf(hd) < 0 && HT_COMBO.indexOf(hd) < 0) throw new Error('Bản ghi này không hoàn tác được.');
+  // Thao tác của người khác → chỉ Admin được hoàn tác (bản ghi cũ chưa có tên: ai cũng hoàn tác được như trước)
+  var tacGia = String(r[5] || '').replace(/ \(Admin\)$/, '');
+  if (tacGia && tacGia !== ctx.nguoi && !ctx.admin) {
+    throw new Error('CAN_MA_ADMIN: Đây là thao tác của ' + tacGia + ' – chỉ Admin được hoàn tác thao tác của người khác.');
+  }
   var maLs = 'LS#' + dong;
   var n = s.getLastRow();
   var cot = s.getRange(2, 2, n - 1, 2).getValues();
   if (cot.some(function (x) { return String(x[0]) === 'hoanTacTaiBan' && String(x[1]).indexOf(maLs + ' ') === 0; })) {
     throw new Error('Thao tác này đã được hoàn tác rồi.');
   }
-  var truoc = JSON.parse(String(r[3]));
+  var truoc = anhTruoc_(hd, String(r[2]), String(r[3]), String(r[4]));
   var hienTai = { skus: [], combos: [] };
   truoc.skus.forEach(function (x) {
     var i = timViTri_(cat.skus, 'key', x.key);
@@ -812,9 +853,25 @@ function hoanTacTaiBan_(cat, d, ctx) {
     hienTai.combos.push(i >= 0 ? saoChep_(cat.combos[i]) : null);
     if (i >= 0) cat.combos[i] = c; else cat.combos.push(c);
   });
+  (truoc.xoaCombo || []).forEach(function (id) { // combo được tạo bởi thao tác đó → xóa đi
+    var i = timViTri_(cat.combos, 'combo_id', id);
+    if (i >= 0) { hienTai.combos.push(saoChep_(cat.combos[i])); cat.combos.splice(i, 1); }
+  });
   ctx.doiSku = true;
-  if (truoc.combos.length) ctx.doiCombo = true;
+  if (truoc.combos.length || (truoc.xoaCombo || []).length) ctx.doiCombo = true;
   ghiLog_(ctx, 'hoanTacTaiBan', maLs + ' (' + String(r[2]) + ')', hienTai, truoc);
+}
+
+/* Hoàn tác: các thao tác có ảnh chụp trước/sau ; thao tác 1 dòng SKU / 1 combo (dữ liệu cũ nằm ở cột du_lieu_cu) */
+var HT_ANH = ['thayMaTaiBan', 'ganBarcode', 'boGanBarcode', 'suaSku'];
+var HT_SKU = ['upsertSku', 'deleteSku', 'luuTenSach', 'khongPhaiCombo'];
+var HT_COMBO = ['upsertCombo', 'deleteCombo', 'addComboKey', 'doiKhoaCombo', 'boKhoa', 'capNhatGiaCombo'];
+function anhTruoc_(hd, khoa, cuJson, moiJson) {
+  if (HT_ANH.indexOf(hd) >= 0) return JSON.parse(cuJson);
+  var cu = cuJson ? JSON.parse(cuJson) : null, moi = moiJson ? JSON.parse(moiJson) : null;
+  if (HT_SKU.indexOf(hd) >= 0) return { skus: [{ key: khoa, dong: cu }], combos: [] };
+  var id = (cu && cu.combo_id) || (moi && moi.combo_id) || khoa;
+  return { skus: [], combos: cu ? [cu] : [], xoaCombo: cu ? [] : [id] };
 }
 
 /* "Không phải tái bản": ghi nhớ cặp X–Y để không hỏi lại */
@@ -1069,13 +1126,14 @@ function docThayDoi_(tu) {
     var cat = docCatalog_();
     var catBo = Number(PropertiesService.getScriptProperties().getProperty('DM_XOA_CAT')) || 0;
     if (tu <= 0 || tu < catBo || tu > rev) {
-      return { ok: true, api: API, rev: rev, toanBo: true, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_() };
+      return { ok: true, api: API, rev: rev, toanBo: true, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_(),
+               cai_dat_chung: docCaiDatChung_() };
     }
     var moi = function (r) { return soPb_(r.dong_bo) > tu; };
     var xoa = docBang_(SH.XOA).filter(function (x) { return soPb_(x.phien_ban) > tu; })
       .map(function (x) { return { loai: x.loai, khoa: x.khoa }; });
     return { ok: true, api: API, rev: rev, skus: cat.skus.filter(moi), combos: cat.combos.filter(moi), ma_chuan: cat.ma_chuan.filter(moi),
-             xoa: xoa, log: docLogSau_(tu), nguoi_dung: docNguoiDung_() };
+             xoa: xoa, log: docLogSau_(tu), nguoi_dung: docNguoiDung_(), cai_dat_chung: docCaiDatChung_() };
   } finally {
     if (coKhoa) lock.releaseLock();
   }
@@ -1096,7 +1154,7 @@ function docLogSau_(tu) {
 
 function docNguoiDung_() {
   return docBang_(SH.ND).filter(function (x) { return x.ten; })
-    .map(function (x) { return { ten: x.ten, vai_tro: x.vai_tro === 'dat_hang' ? 'dat_hang' : 'san' }; });
+    .map(function (x) { return { ten: x.ten, vai_tro: VAI_TRO.indexOf(x.vai_tro) >= 0 ? x.vai_tro : 'san' }; });
 }
 /* Thay cả danh sách (tên không trùng, vai trò san | dat_hang) */
 function luuNguoiDung_(d, nguoi) {
@@ -1105,7 +1163,7 @@ function luuNguoiDung_(d, nguoi) {
     var ten = chuoi_(x.ten).slice(0, 40);
     if (!ten || da[ten.toLowerCase()]) return;
     da[ten.toLowerCase()] = 1;
-    ds.push({ ten: ten, vai_tro: x.vai_tro === 'dat_hang' ? 'dat_hang' : 'san', cap_nhat: now });
+    ds.push({ ten: ten, vai_tro: VAI_TRO.indexOf(x.vai_tro) >= 0 ? x.vai_tro : 'san', cap_nhat: now });
   });
   var cu = docNguoiDung_();
   ghiBang_(SH.ND, ds);
@@ -1153,7 +1211,7 @@ function docDl_(dotId) {
 function ghiDl_(dotId, phanId, duLieu) {
   var s = sheetDl_(dotId, true), n = s.getLastRow();
   var giu = n > 1 ? s.getRange(2, 1, n - 1, 3).getValues().filter(function (r) { return r[0] && String(r[0]) !== phanId; }) : [];
-  var json = JSON.stringify(duLieu), moi = [];
+  var json = duLieu ? JSON.stringify(duLieu) : '', moi = []; // duLieu = null: xóa hẳn dữ liệu của phần
   for (var i = 0, k = 0; i < json.length; i += CHIA_O, k++) moi.push([phanId, k, json.slice(i, i + CHIA_O)]);
   var tatCa = giu.concat(moi);
   if (tatCa.length) {
@@ -1250,12 +1308,14 @@ function baoXong_(d, nguoi) {
 }
 
 /* "Mở lại" phần đã báo xong để sửa tiếp (đợt chưa chốt) */
-function moLaiPhan_(d, nguoi) {
+function moLaiPhan_(d, nguoi, admin) {
   var dotId = laNgay_(d.dot_id) ? chuoi_(d.dot_id) : homNayVN_();
   var dot = timDot_(docBang_(SH.DOT), dotId);
-  if (dot && dot.trang_thai === 'da_chot') return { ok: true, da_chot: true, dot_id: dotId };
-  var phans = docBang_(SH.PHAN), id = dotId + '|' + nguoi, doi = false;
-  phans.forEach(function (p) { if (p.phan_id === id) { p.trang_thai = 'mo_lai'; p.ghi_chu = 'Mở lại ' + bayGio_(); doi = true; } });
+  if (dot && dot.trang_thai === 'da_chot' && !admin) return { ok: true, da_chot: true, dot_id: dotId };
+  var ai = admin && chuoi_(d.nguoi) ? chuoi_(d.nguoi) : nguoi;
+  var phans = docBang_(SH.PHAN), id = dotId + '|' + ai, doi = false;
+  phans.forEach(function (p) { if (p.phan_id === id) { p.trang_thai = 'mo_lai'; p.ghi_chu = 'Mở lại ' + bayGio_() + (ai !== nguoi ? ' bởi ' + nguoi + ' (Admin)' : ''); doi = true; } });
+  if (doi && ai !== nguoi) ghiLichSu_([[bayGio_(), 'moLaiPhan', id, '', JSON.stringify({ ghi_chu: 'Admin mở lại phần của ' + ai }), (nguoi || '?') + ' (Admin)', '']]);
   if (doi) ghiBang_(SH.PHAN, phans);
   return { ok: true, dot_id: dotId, da_chot: false };
 }
@@ -1300,6 +1360,109 @@ function donDotCu_() {
   ghiBang_(SH.DOT, dots.filter(function (x) { return x.dot_id >= moc; }));
   ghiBang_(SH.PHAN, docBang_(SH.PHAN).filter(function (x) { return x.dot_id >= moc; }));
   return cu.length;
+}
+
+/* ===================== Admin ===================== */
+
+/* ⬇⬇ ĐẶT / ĐỔI MÃ ADMIN: gõ mã giữa 2 dấu nháy (ít nhất 6 ký tự) → 💾 Lưu → chọn hàm datMaAdmin → ▶ Chạy.
+ *    Chạy xong XÓA mã khỏi dòng này (để lại '') rồi 💾 Lưu. Mã chỉ nằm trong Script Properties (khóa ADMIN_MA). */
+var MA_ADMIN_MOI = '';
+function datMaAdmin() {
+  var ma = String(MA_ADMIN_MOI || '').trim();
+  if (ma.length < 6) throw new Error('Gõ mã Admin (ít nhất 6 ký tự) vào dòng MA_ADMIN_MOI = \'...\' rồi chạy lại.');
+  var p = PropertiesService.getScriptProperties();
+  p.setProperty('ADMIN_MA', ma);
+  p.deleteProperty('ADMIN_SAI');
+  p.deleteProperty('ADMIN_KHOA_DEN');
+  Logger.log('✅ Đã đặt mã Admin. Bây giờ XÓA mã khỏi dòng MA_ADMIN_MOI (để lại \'\') rồi bấm 💾 Lưu.');
+}
+function maAdmin_() { return String(PropertiesService.getScriptProperties().getProperty('ADMIN_MA') || ''); }
+function khoaAdminConPhut_() {
+  var den = Number(PropertiesService.getScriptProperties().getProperty('ADMIN_KHOA_DEN')) || 0;
+  return den > Date.now() ? Math.ceil((den - Date.now()) / 60000) : 0;
+}
+/* Kiểm tra mã Admin. Sai ADMIN_SAI_TOI_DA lần liên tiếp → khóa ADMIN_KHOA_PHUT phút (mọi máy). */
+function kiemTraAdmin_(ma) {
+  var p = PropertiesService.getScriptProperties(), dung = maAdmin_();
+  if (!dung) throw new Error('CHUA_DAT_MA_ADMIN: Chưa đặt mã Admin. Mở Apps Script, sửa dòng MA_ADMIN_MOI rồi chạy hàm datMaAdmin (xem HUONG-DAN.md).');
+  var con = khoaAdminConPhut_();
+  if (con) throw new Error('KHOA_ADMIN: Nhập sai mã Admin quá ' + ADMIN_SAI_TOI_DA + ' lần – tạm khóa, thử lại sau ' + con + ' phút.');
+  if (!ma) throw new Error('CAN_MA_ADMIN: Thao tác này cần mã Admin.');
+  if (String(ma) === dung) { p.deleteProperty('ADMIN_SAI'); return true; }
+  var sai = (Number(p.getProperty('ADMIN_SAI')) || 0) + 1;
+  if (sai >= ADMIN_SAI_TOI_DA) {
+    p.setProperty('ADMIN_KHOA_DEN', String(Date.now() + ADMIN_KHOA_PHUT * 60000));
+    p.deleteProperty('ADMIN_SAI');
+    ghiLichSu_([[bayGio_(), 'khoaAdmin', '', '', JSON.stringify({ ghi_chu: 'Sai mã Admin ' + ADMIN_SAI_TOI_DA + ' lần – khóa ' + ADMIN_KHOA_PHUT + ' phút' }), '', '']]);
+    throw new Error('KHOA_ADMIN: Nhập sai mã Admin ' + ADMIN_SAI_TOI_DA + ' lần – tạm khóa ' + ADMIN_KHOA_PHUT + ' phút.');
+  }
+  p.setProperty('ADMIN_SAI', String(sai));
+  throw new Error('SAI_MA_ADMIN: Mã Admin không đúng (còn ' + (ADMIN_SAI_TOI_DA - sai) + ' lần thử trước khi bị khóa ' + ADMIN_KHOA_PHUT + ' phút).');
+}
+
+/* Cài đặt chung (Admin quản lý): mã nhà khác, trạng thái Shopee cần lấy, phân loại vô nghĩa */
+function docCaiDatChung_() {
+  var o = {};
+  docBang_(SH.CDC).forEach(function (x) {
+    if (KHOA_CAI_DAT_CHUNG.indexOf(x.khoa) < 0) return;
+    try { o[x.khoa] = JSON.parse(x.gia_tri); } catch (e) { /* bỏ qua giá trị hỏng */ }
+  });
+  return o;
+}
+function luuCaiDatChung_(d, nguoiLog) {
+  var cu = docCaiDatChung_(), now = bayGio_(), ds = [];
+  KHOA_CAI_DAT_CHUNG.forEach(function (k) {
+    var v = d[k] !== undefined ? d[k] : cu[k];
+    if (v === undefined) return;
+    v = [].concat(v).map(chuoi_).filter(function (x) { return x; }).slice(0, 200);
+    ds.push({ khoa: k, gia_tri: JSON.stringify(v), cap_nhat: now, nguoi: nguoiLog });
+  });
+  ghiBang_(SH.CDC, ds);
+  var moi = docCaiDatChung_();
+  ghiLichSu_([[now, 'luuCaiDatChung', 'Cài đặt chung', JSON.stringify(cu), JSON.stringify(moi), nguoiLog || '', '']]);
+  return { ok: true, cai_dat_chung: moi };
+}
+
+/* Admin: xóa cả đợt (đợt, các phần gửi, dữ liệu). Lịch sử thống kê đã ghi khi chốt KHÔNG bị xóa. */
+function xoaDot_(d, nguoiLog) {
+  var dotId = chuoi_(d.dot_id);
+  if (!laNgay_(dotId)) throw new Error('Thiếu ngày đợt.');
+  var phans = docBang_(SH.PHAN), soPhan = phans.filter(function (p) { return p.dot_id === dotId; }).length;
+  ghiBang_(SH.DOT, docBang_(SH.DOT).filter(function (x) { return x.dot_id !== dotId; }));
+  ghiBang_(SH.PHAN, phans.filter(function (p) { return p.dot_id !== dotId; }));
+  var s = sheetDl_(dotId, false);
+  if (s) bangTinh_().deleteSheet(s);
+  ghiLichSu_([[bayGio_(), 'xoaDot', dotId, JSON.stringify({ so_phan: soPhan }), '', nguoiLog || '', '']]);
+  return { ok: true, so_phan: soPhan };
+}
+/* Admin: xóa phần gửi của 1 người */
+function xoaPhan_(d, nguoiLog) {
+  var dotId = chuoi_(d.dot_id), ai = chuoi_(d.nguoi), id = dotId + '|' + ai;
+  var phans = docBang_(SH.PHAN), cu = phans.filter(function (p) { return p.phan_id === id; })[0];
+  if (!cu) throw new Error('Không có phần của ' + ai + ' trong đợt ' + dotId + '.');
+  ghiDl_(dotId, id, null);
+  ghiBang_(SH.PHAN, phans.filter(function (p) { return p.phan_id !== id; }));
+  ghiLichSu_([[bayGio_(), 'xoaPhan', id, JSON.stringify(dongPhan_(cu)), '', nguoiLog || '', '']]);
+  return { ok: true };
+}
+/* Admin: sửa phần gửi của 1 người – bỏ các file gửi nhầm (bo_file: tên file) */
+function suaPhan_(d, nguoiLog) {
+  var dotId = chuoi_(d.dot_id), ai = chuoi_(d.nguoi), id = dotId + '|' + ai, bo = [].concat(d.bo_file || []).map(String);
+  var phans = docBang_(SH.PHAN), i = -1;
+  phans.forEach(function (p, j) { if (p.phan_id === id) i = j; });
+  if (i < 0) throw new Error('Không có phần của ' + ai + ' trong đợt ' + dotId + '.');
+  var x = docDl_(dotId)[id] || { cot: [], dong: [] }, iFile = x.cot.indexOf('file');
+  var giu = x.dong.filter(function (r) { return bo.indexOf(String(r[iFile])) < 0; });
+  ghiDl_(dotId, id, { cot: x.cot, dong: giu });
+  var don = {};
+  giu.forEach(function (r) { var kd = khoaDon_(x.cot, r); if (kd) don[kd] = 1; });
+  var cu = dongPhan_(phans[i]);
+  phans[i].so_dong = giu.length; phans[i].so_don = Object.keys(don).length;
+  phans[i].phien = (Number(phans[i].phien) || 0) + 1;
+  phans[i].ghi_chu = ('Admin bỏ file: ' + bo.join(', ')).slice(0, 200);
+  ghiBang_(SH.PHAN, phans);
+  ghiLichSu_([[bayGio_(), 'suaPhan', id, JSON.stringify(cu), JSON.stringify({ ghi_chu: 'Bỏ ' + (x.dong.length - giu.length) + ' dòng của file: ' + bo.join(', ') }), nguoiLog || '', '']]);
+  return { ok: true, phan: dongPhan_(phans[i]), so_bo: x.dong.length - giu.length };
 }
 
 /* ===================== Đọc / ghi sheet ===================== */
@@ -1375,7 +1538,7 @@ function docCatalog_() {
 /* ===================== Lịch sử (chỉ thêm dòng) ===================== */
 
 function ghiLog_(ctx, hanhDong, khoa, cu, moi) {
-  ctx.log.push([ctx.now, hanhDong, khoa, cu ? JSON.stringify(cu) : '', moi ? JSON.stringify(moi) : '', ctx.nguoi || '', ctx.rev || '']);
+  ctx.log.push([ctx.now, hanhDong, khoa, cu ? JSON.stringify(cu) : '', moi ? JSON.stringify(moi) : '', ctx.nguoiLog || ctx.nguoi || '', ctx.rev || '']);
 }
 
 function ghiLichSu_(dong) {
@@ -1412,12 +1575,12 @@ function bayGio_() { return dinhDang_(new Date()); }
 
 /** Chạy 1 lần: tạo đủ 4 sheet có dòng tiêu đề. */
 function khoiTao() {
-  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN].forEach(sheet_);
+  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN, SH.CDC].forEach(sheet_);
   var ss = bangTinh_();
   ss.getSheets().forEach(function (s) {
     if (/^(Sheet1|Trang tính1)$/.test(s.getName()) && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
-  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN.');
+  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN, CAI_DAT_CHUNG.');
 }
 
 /** Sao lưu 3 sheet danh mục sang file "Sao lưu danh mục – Tách đơn nhập nhà", giữ 30 bản gần nhất. */

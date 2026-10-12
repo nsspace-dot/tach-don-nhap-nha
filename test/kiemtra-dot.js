@@ -61,7 +61,7 @@ var m = GL.taoMoiTruong(); m.ctx.khoiTao();
 var r = m.post('luuNguoiDung', { ds: [{ ten: 'Lan', vai_tro: 'san' }, { ten: 'Hoa', vai_tro: 'san' }, { ten: 'Mai', vai_tro: 'san' }, { ten: 'Tú', vai_tro: 'dat_hang' }, { ten: 'lan', vai_tro: 'san' }] }, 'Tú');
 check('Lưu danh sách (bỏ tên trùng), vai trò đúng', r.ok && r.nguoi_dung.length === 4 && r.nguoi_dung[3].vai_tro === 'dat_hang', r);
 var g0 = m.get();
-check('GET danh mục kèm danh sách người dùng + api 3', g0.api === 3 && g0.nguoi_dung.length === 4);
+check('GET danh mục kèm danh sách người dùng + api ≥ 3', g0.api >= 3 && g0.nguoi_dung.length === 4);
 check('Báo xong khi chưa chọn "Tôi là" → báo lỗi rõ', /Tôi là/.test(m.post('baoXong', { cot: DG.COT, dong: [] }, '').error || ''));
 HOM_NAY = ngayServer(m);
 

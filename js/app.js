@@ -44,9 +44,31 @@
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
+  /* ---------- Vai trò: Nhân viên sàn < Người đặt hàng < Admin ---------- */
+  function laAdmin() { return DM.coAdmin() && DM.vaiTro() === 'admin'; }
+  function laDatHang() { var v = DM.vaiTro(); return v === 'dat_hang' || v === 'admin'; }
+  /* Nút / ô chỉ Admin: ẩn với người khác (Apps Script cũ chưa có Admin → hiện như trước) */
+  function veQuyen() {
+    var an = DM.coAdmin() && !laAdmin();
+    document.querySelectorAll('.chi-admin').forEach(function (el) { el.hidden = an; });
+  }
+  /* Hỏi mã Admin → Promise<mã | null> */
+  function hoiMaAdmin(loi) {
+    return new Promise(function (resolve) {
+      var d = $('dlg-admin');
+      $('admin-ma').value = '';
+      $('admin-loi').textContent = loi || '';
+      d.returnValue = '';
+      d.addEventListener('close', function f() { d.removeEventListener('close', f); resolve(d.returnValue === 'ok' ? $('admin-ma').value.trim() || null : null); });
+      d.showModal();
+      $('admin-ma').focus();
+    });
+  }
+
   /* Báo lỗi ghi; xung đột đã chọn "Giữ bản của người khác" thì chỉ báo nhẹ */
   function baoLoi(dau, e) {
     if (e && e.daGiu) { toast('👌 ' + e.message, 'ok'); return; }
+    if (e && e.daHuy) return;
     toast(dau + ': ' + (e && e.message), 'loi');
   }
   function nutGhi(html, attrs) {
@@ -757,6 +779,10 @@
         (DM.nhieuNguoi() ? '(chưa có Người dùng, Đợt đặt hàng, Báo xong). ' : '(chưa tự đồng bộ danh mục, chưa chống ghi đè, chưa có Đợt đặt hàng). ') +
         'Cập nhật theo HUONG-DAN.md, Phần D (Phiên bản mới, không tạo triển khai mới).';
       b.hidden = false;
+    } else if (laAdmin() && DM.adminDaDatMa === false) {
+      b.innerHTML = '🔑 <b>Chưa đặt mã Admin</b> – các chức năng thường vẫn chạy, riêng thao tác Admin (sửa người dùng, mở lại / xóa đợt, cài đặt chung…) chưa dùng được. ' +
+        'Đặt mã: mở Apps Script, sửa dòng <code>MA_ADMIN_MOI</code> rồi chạy hàm <code>datMaAdmin</code> (HUONG-DAN.md, mục “Mã Admin”).';
+      b.hidden = false;
     } else if (DM.nhieuNguoi() && !c.toiLa) {
       b.innerHTML = '👤 Máy này chưa chọn <b>“Tôi là”</b> – lịch sử và thông báo sẽ không có tên bạn. <button class="linkish" data-di="caidat">Vào Cài đặt</button>';
       b.hidden = false;
@@ -1001,6 +1027,7 @@
     });
 
     $('ten-luu').addEventListener('click', luuSuaTen);
+    $('admin-ma').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('dlg-admin').close('ok'); } });
     $('ten-moi').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); luuSuaTen(); } });
     $('btn-tai').addEventListener('click', function () { taiNha(PL.NHA.slice(), $('btn-tai')); });
     $('bang-listing').addEventListener('click', function (e) { if (e.target.id === 'listing-xuat') xuatListing(); });
@@ -1045,7 +1072,7 @@
       if (loai === 'trangthai') veTrangThai();
       if (loai === 'catalog' || loai === 'caidat') veLai(loai === 'catalog' ? info : null);
       if (loai === 'caidat') { veTrangThai(); taiLichSu(); }
-      if (loai === 'api') veBanner();
+      if (loai === 'api' || loai === 'admin' || loai === 'nguoidung' || loai === 'caidat') { veBanner(); veQuyen(); }
     });
     // Người dùng sửa xong (rời ô / đóng hộp thoại) → mới vẽ lại phần thay đổi từ máy khác
     document.addEventListener('focusout', function () { setTimeout(function () { xaChoVe(false); }, 60); });
@@ -1061,6 +1088,7 @@
     ganSuKien();
     if (root.ManDot) root.ManDot.khoiPhucNhap(); // phần đang làm dở (nháp trên máy)
     veTrangThai();
+    veQuyen();
     DM.taiLai();
     DM.batDongBo();
     taiLichSu();
@@ -1070,6 +1098,7 @@
     S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge, baoLoi: baoLoi,
     rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
     LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon,
+    laAdmin: laAdmin, laDatHang: laDatHang, veQuyen: veQuyen, hoiMaAdmin: hoiMaAdmin,
     gop: gop, xuLy: xuLy, taiNha: taiNha, vaoGop: vaoGop, thoatGop: thoatGop, soDongCho: soDongCho, veBanner: veBanner
   };
   document.addEventListener('DOMContentLoaded', khoiDong);

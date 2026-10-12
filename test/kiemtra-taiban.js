@@ -115,7 +115,8 @@ check('Hoàn tác thành công', r.ok, r.error);
 check('Hoàn tác: danh mục trở về y như trước khi thay', dmNoiDung(m.get()) === catTruoc);
 check('Hoàn tác có ghi LICH_SU', lichSu(m)[0].hanh_dong === 'hoanTacTaiBan' && lichSu(m)[0].khoa.indexOf('LS#' + lsDong + ' ') === 0);
 check('Hoàn tác lần 2 → báo đã hoàn tác', /đã được hoàn tác/.test(m.post('hoanTacTaiBan', { dong: lsDong }).error || ''));
-check('Hoàn tác dòng không hoàn tác được (vd tự học) → lỗi', /không hoàn tác được/.test(m.post('hoanTacTaiBan', { dong: 2 }).error || ''));
+var dongTuHoc = lichSu(m).filter(function (x) { return x.hanh_dong === 'capNhatGia'; })[0].dong;
+check('Hoàn tác dòng không hoàn tác được (vd tự học cập nhật giá) → lỗi', /không hoàn tác được/.test(m.post('hoanTacTaiBan', { dong: dongTuHoc }).error || ''));
 kq = PL.classify(rows2, cat());
 check('Sau hoàn tác: lại ra mã cũ, không còn mã mới', tong(kq.nha.HA, KATA) === 13 && tong(kq.nha.HA, Y) === 0);
 

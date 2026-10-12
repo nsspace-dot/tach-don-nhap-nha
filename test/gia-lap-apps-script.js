@@ -99,7 +99,7 @@ function taoMoiTruong(maNguon) {
     },
     Utilities: { formatDate: formatDate },
     PropertiesService: { getScriptProperties: function () {
-      return { getProperty: function (k) { return props[k] || null; }, setProperty: function (k, v) { props[k] = v; } };
+      return { getProperty: function (k) { return props[k] || null; }, setProperty: function (k, v) { props[k] = String(v); }, deleteProperty: function (k) { delete props[k]; } };
     } },
     ScriptApp: {
       getProjectTriggers: function () { return triggers.slice(); },
@@ -115,12 +115,19 @@ function taoMoiTruong(maNguon) {
   };
   vm.createContext(ctx);
   vm.runInContext(maNguon || fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx, { filename: 'Code.gs' });
+  // Code.gs có Admin: đặt sẵn mã thử nghiệm; post() tự kèm mã cho thao tác Admin (postTho: gửi nguyên, không kèm)
+  var MA_THU = 'ma-thu-nghiem';
+  if (ctx.HD_ADMIN) props.ADMIN_MA = MA_THU;
+  function postTho(action, data, nguoi) {
+    return JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: action, data: data, nguoi: nguoi }) } }).body);
+  }
   return {
-    ctx: ctx, ss: ss, files: files, props: props,
+    ctx: ctx, ss: ss, files: files, props: props, MA_THU: MA_THU, postTho: postTho,
     triggers: function () { return triggers; },
     get: function (params) { return JSON.parse(ctx.doGet({ parameter: params || {} }).body); },
     post: function (action, data, nguoi) {
-      return JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: action, data: data, nguoi: nguoi }) } }).body);
+      if (ctx.HD_ADMIN && ctx.HD_ADMIN.indexOf(action) >= 0 && data && data._maAdmin === undefined && props.ADMIN_MA) data = Object.assign({}, data, { _maAdmin: props.ADMIN_MA });
+      return postTho(action, data, nguoi);
     }
   };
 }

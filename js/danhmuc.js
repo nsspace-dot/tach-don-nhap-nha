@@ -14,6 +14,10 @@
 
   var LS_CAIDAT = 'tdn.caidat.v1';
   var LS_DANHMUC = 'tdn.danhmuc.v1';
+  var LS_ADMIN = 'tdn.admin.v1'; // mã Admin của máy này (nhập 1 lần, "Đăng xuất Admin" để xóa)
+  // Thao tác chỉ Admin (Apps Script api ≥ 4 kiểm tra mã)
+  var HD_ADMIN = { kiemTraMaAdmin: 1, luuNguoiDung: 1, moLaiDot: 1, xoaDot: 1, xoaPhan: 1, suaPhan: 1, luuCaiDatChung: 1, importBatch: 1, upsertMaChuan: 1, xoaHangLoat: 1 };
+  var RE_LOI_ADMIN = /^(SAI_MA_ADMIN|KHOA_ADMIN|CHUA_DAT_MA_ADMIN|CAN_MA_ADMIN):\s*/;
 
   function docLS(k, macDinh) {
     try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : macDinh; } catch (e) { return macDinh; }
@@ -32,12 +36,24 @@
   var trangThai = { state: caiDat.url ? 'idle' : 'none', luc: cache ? cache.luc : null, loi: '' };
   var nghe = [];
   // api: phiên bản Apps Script (0 = bản cũ, chưa có nhiều người dùng; null = chưa biết) ; rev: mốc đồng bộ đang có
-  var may = { api: null, rev: 0, urlRev: '', dangDongBo: null, lanToanBo: 0 };
+  var may = { api: null, rev: 0, urlRev: '', dangDongBo: null, lanToanBo: 0, adminDaDatMa: null, caiDatChung: null };
+  var maAdmin = (docLS(LS_ADMIN, {}) || {}).ma || '';
+  function luuMaAdmin(ma) { maAdmin = ma || ''; ghiLS(LS_ADMIN, { ma: maAdmin }); phat('admin'); }
+  /* Cài đặt chung do Admin đặt (mã nhà khác, trạng thái Shopee, phân loại vô nghĩa) → ghi đè cài đặt trên máy */
+  function nhanCaiDatChung(cd) {
+    if (!cd || typeof cd !== 'object') return;
+    may.caiDatChung = cd;
+    var doi = false;
+    ['maKhac', 'trangThaiShopee', 'plVoNghia'].forEach(function (k) {
+      if (Array.isArray(cd[k]) && JSON.stringify(cd[k]) !== JSON.stringify(caiDat[k])) { caiDat[k] = cd[k].slice(); doi = true; }
+    });
+    if (doi) { ghiLS(LS_CAIDAT, caiDat); phat('caidat'); }
+  }
   // Danh sách người dùng chung (Apps Script api ≥ 3) – lưu tạm trên máy để mở app lúc mất mạng vẫn biết vai trò
   var nguoiDung = (cache && cache.nguoiDung) || [];
   function nhanNguoiDung(ds) {
     if (!Array.isArray(ds)) return;
-    var moi = ds.map(function (x) { return { ten: String(x.ten || ''), vai_tro: x.vai_tro === 'dat_hang' ? 'dat_hang' : 'san' }; }).filter(function (x) { return x.ten; });
+    var moi = ds.map(function (x) { return { ten: String(x.ten || ''), vai_tro: ['dat_hang', 'admin'].indexOf(x.vai_tro) >= 0 ? x.vai_tro : 'san' }; }).filter(function (x) { return x.ten; });
     if (JSON.stringify(moi) === JSON.stringify(nguoiDung)) return;
     nguoiDung = moi;
     luuCache();
@@ -94,6 +110,8 @@
     var apiMoi = Number(j.api) || 0;
     if (may.api !== apiMoi) { may.api = apiMoi; phat('api'); }
     if (j.nguoi_dung) nhanNguoiDung(j.nguoi_dung);
+    if (j.admin_da_dat_ma !== undefined && may.adminDaDatMa !== !!j.admin_da_dat_ma) { may.adminDaDatMa = !!j.admin_da_dat_ma; phat('admin'); }
+    if (j.cai_dat_chung) nhanCaiDatChung(j.cai_dat_chung);
     if (!apiMoi) return true;
     var rev = Number(j.rev) || 0;
     if (may.urlRev === caiDat.url && rev < may.rev) return false;
@@ -103,7 +121,9 @@
   function nhieuNguoi() { return !!(caiDat.url && may.api >= 2); }
   /* Có Người dùng + Đợt đặt hàng (Apps Script api ≥ 3) */
   function coDot() { return !!(caiDat.url && may.api >= 3); }
-  /* Vai trò của "Tôi là" trên máy này: dat_hang | san | '' (chưa chọn / không có trong danh sách) */
+  /* Có vai trò Admin (Apps Script api ≥ 4) */
+  function coAdmin() { return !!(caiDat.url && may.api >= 4); }
+  /* Vai trò của "Tôi là" trên máy này: admin | dat_hang | san | '' (chưa chọn / không có trong danh sách) */
   function vaiTro() {
     var x = nguoiDung.filter(function (n) { return n.ten === caiDat.toiLa; })[0];
     return x ? x.vai_tro : '';
@@ -203,6 +223,11 @@
     if (!caiDat.url) return Promise.reject(new Error('Chưa dán URL Apps Script ở màn Cài đặt.'));
     opt = opt || {};
     data = data || {};
+    // Thao tác Admin: kèm mã Admin của máy này (chưa có thì hỏi)
+    if (coAdmin() && (HD_ADMIN[action] || opt.admin) && data._maAdmin === undefined) {
+      if (!maAdmin) return hoiMaAdmin('').then(function (ma) { return goi(action, Object.assign({}, data, { _maAdmin: ma }), opt); });
+      data = Object.assign({}, data, { _maAdmin: maAdmin });
+    }
     if (opt.pb && nhieuNguoi() && !data._ghiDe) data = Object.assign({}, data, { _pb: opt.pb });
     datTrangThai('syncing');
     return fetch(caiDat.url, {
@@ -220,7 +245,15 @@
           ex.xungDot = j.xungDot; ex.comboTrung = j.comboTrung; ex.daXuLy = true;
           throw ex;
         }
+        if (j && !j.ok && RE_LOI_ADMIN.test(j.error || '')) {
+          datTrangThai('ok');
+          var ea = new Error(String(j.error).replace(RE_LOI_ADMIN, ''));
+          ea.maLoi = RE_LOI_ADMIN.exec(j.error)[1]; ea.daXuLy = true;
+          if (ea.maLoi === 'CHUA_DAT_MA_ADMIN' && may.adminDaDatMa !== false) { may.adminDaDatMa = false; phat('admin'); }
+          throw ea;
+        }
         if (!j || !j.ok) throw new Error((j && j.error) || 'Lỗi không rõ');
+        if (data._maAdmin && data._maAdmin !== maAdmin) luuMaAdmin(data._maAdmin); // mã vừa nhập đúng → nhớ trên máy này
         var moi = nhanMoc(j);
         if (j.catalog && moi) nhanCatalog(j.catalog, { nguon: 'ghi' });
         datTrangThai('ok');
@@ -233,6 +266,11 @@
         throw new Error(msg);
       })
       .catch(function (e) {
+        // Sai mã / thiếu mã Admin → hỏi lại mã rồi thử lại (hủy thì dừng)
+        if ((e.maLoi === 'SAI_MA_ADMIN' || e.maLoi === 'CAN_MA_ADMIN') && coAdmin() && !opt.khongHoiLai) {
+          if (e.maLoi === 'SAI_MA_ADMIN') luuMaAdmin('');
+          return hoiMaAdmin(e.message).then(function (ma) { return goi(action, Object.assign({}, data, { _maAdmin: ma }), opt); });
+        }
         if (!e.xungDot || !opt.pb) throw e;
         return hoiXungDot(e.xungDot, opt).then(function (ghiDe) {
           if (ghiDe) return goi(action, Object.assign({}, data, { _ghiDe: true, _pb: undefined }), opt);
@@ -277,6 +315,18 @@
     if (!hoi) return Promise.resolve(root.confirm ? root.confirm(cau) : false);
     return hoi(cau, doi, { huy: m.giu, nhe: true, tieuDe: '⚠️ Có người vừa sửa' });
   }
+
+  /* Hỏi mã Admin (hộp thoại của App). Hủy → lỗi daHuy */
+  function hoiMaAdmin(loi) {
+    var f = root.App && root.App.hoiMaAdmin;
+    var p = f ? f(loi) : Promise.resolve(root.prompt ? root.prompt('Mã Admin:') : null);
+    return p.then(function (ma) {
+      if (!ma) { var e = new Error('Đã hủy – thao tác này cần mã Admin.'); e.daHuy = true; throw e; }
+      return ma;
+    });
+  }
+  /* Đăng nhập Admin trên máy này: kiểm tra mã ở Apps Script rồi mới nhớ */
+  function dangNhapAdmin(ma) { return goi('kiemTraMaAdmin', { _maAdmin: ma }, { khongHoiLai: true }).then(function () { luuMaAdmin(ma); return true; }); }
 
   /* Phiên bản đang thấy của bản ghi (để gửi kèm khi lưu) */
   function timSku(key) { return catalog.skus.filter(function (e) { return e.key === key; })[0] || null; }
@@ -331,7 +381,14 @@
     get api() { return may.api; },
     get rev() { return may.rev; },
     nhieuNguoi: nhieuNguoi,
-    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 3; },
+    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 4; },
+    coAdmin: coAdmin,
+    get coMaAdmin() { return !!maAdmin; },
+    get adminDaDatMa() { return may.adminDaDatMa; },
+    get caiDatChung() { return may.caiDatChung; },
+    dangNhapAdmin: dangNhapAdmin,
+    dangXuatAdmin: function () { luuMaAdmin(''); },
+    nhanCaiDatChung: nhanCaiDatChung,
     get nguoiDung() { return nguoiDung; },
     nhanNguoiDung: nhanNguoiDung,
     coDot: coDot,

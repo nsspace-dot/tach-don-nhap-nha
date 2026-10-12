@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261012b">
+  <link rel="stylesheet" href="style.css?v=20261012c">
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -104,6 +104,7 @@
           <button class="btn" id="dot-tai" type="button">⬇️ Tải 3 file nhà</button>
           <button class="btn btn-danger" id="dot-chot" type="button">🔒 Chốt đợt</button>
           <button class="btn" id="dot-mo-lai" type="button" hidden>🔓 Mở lại đợt</button>
+          <button class="btn btn-ghost" id="dot-xoa" type="button" hidden title="Chỉ Admin">🗑 Xóa đợt</button>
         </div>
       </div>
       <div class="panel">
@@ -168,10 +169,11 @@
         <label class="radio loc-ten" id="dm-loc-ten-o"><input type="checkbox" id="dm-loc-ten"> Chưa có tên khai báo <span id="dm-dem-chuaten" class="dem"></span></label>
         <div class="dm-actions">
           <button class="btn" id="dm-xuat" type="button">📤 Xuất danh mục ra Excel</button>
-          <button class="btn can-write" id="dm-nap" type="button">📥 Nạp từ Excel</button>
+          <button class="btn can-write chi-admin" id="dm-nap" type="button">📥 Nạp từ Excel</button>
+          <button class="btn can-write chi-admin btn-ghost" id="dm-xoa-loat" type="button" title="Chỉ Admin – xóa các dòng đang hiện (theo ô tìm kiếm / bộ lọc)">🗑 Xóa hàng loạt</button>
           <button class="btn btn-ghost" id="dm-mau" type="button">📄 Tải file mẫu</button>
           <input type="file" id="dm-nap-input" accept=".xlsx" hidden>
-          <button class="btn can-write" id="dm-nap-web" type="button" title="Chọn nhiều file “Danh sách lấy hàng” cũ của web để nạp barcode chuẩn">🌐 Nạp sổ mã chuẩn từ file web cũ <span id="dm-dem-mc" class="dem"></span></button>
+          <button class="btn can-write chi-admin" id="dm-nap-web" type="button" title="Chọn nhiều file “Danh sách lấy hàng” cũ của web để nạp barcode chuẩn">🌐 Nạp sổ mã chuẩn từ file web cũ <span id="dm-dem-mc" class="dem"></span></button>
           <input type="file" id="dm-nap-web-input" accept=".xlsx" multiple hidden>
         </div>
       </div>
@@ -190,9 +192,19 @@
           <input class="input" style="max-width:260px" id="cd-toila" type="text" maxlength="40" placeholder="Ví dụ: Lan">
           <small>Chọn 1 lần trên mỗi máy (lưu trên máy này, đổi lúc nào cũng được). Tên hiện trong lịch sử danh mục, thông báo cho người khác và phần “Báo xong”.</small>
         </label>
+        <div class="nd-khung" id="cd-admin" hidden>
+          <h2 class="h-phu">🔑 Admin</h2>
+          <p id="cd-admin-tt" class="muted" style="margin:0 0 8px"></p>
+          <div class="actions">
+            <input class="input" style="max-width:220px" id="cd-admin-ma" type="password" autocomplete="off" placeholder="Mã Admin" aria-label="Mã Admin">
+            <button class="btn" type="button" id="cd-admin-vao">🔑 Đăng nhập Admin</button>
+            <button class="btn btn-ghost" type="button" id="cd-admin-ra">🚪 Đăng xuất Admin</button>
+          </div>
+        </div>
         <div class="nd-khung" id="cd-nd" hidden>
           <h2 class="h-phu">👥 Người dùng</h2>
-          <p class="muted" style="margin:0 0 8px">Danh sách dùng chung cho mọi máy. Vai trò chỉ để ẩn nút: chỉ <b>Người đặt hàng</b> thấy “📦 Tổng hợp đợt” (gộp, tải 3 file nhà, chốt đợt). Không có mật khẩu.</p>
+          <p class="muted" style="margin:0 0 8px">Danh sách dùng chung cho mọi máy. Vai trò: <b>Nhân viên sàn</b> &lt; <b>Người đặt hàng</b> (thêm “📦 Tổng hợp đợt”: gộp, tải 3 file nhà, chốt đợt) &lt; <b>Admin</b> (toàn quyền).
+            <span id="cd-nd-chi-admin">Chỉ Admin sửa được danh sách này (cần mã Admin).</span></p>
           <table class="tbl nd-bang"><thead><tr><th>Tên</th><th>Vai trò</th><th><span class="sr">Xóa</span></th></tr></thead><tbody id="cd-nd-ds"></tbody></table>
           <div class="actions" style="margin-top:8px">
             <button class="btn btn-ghost" type="button" id="cd-nd-them">＋ Thêm người</button>
@@ -206,6 +218,7 @@
           <small>Dán đường link có đuôi <code>/exec</code> lấy ở bước “Deploy” (xem HUONG-DAN.md).
             Link chỉ được lưu trên máy này. 🔐 Ai có link này đều sửa được danh mục – đừng dán nó lên GitHub, Zalo nhóm đông người…</small>
         </label>
+        <p class="muted" id="cd-chung-ghichu" hidden style="margin:12px 0 0">🔒 Mã nhà khác, trạng thái Shopee, phân loại vô nghĩa là <b>cài đặt chung</b> do Admin quản lý (dùng cho mọi máy).</p>
         <label class="field">
           <span>Mã nhà khác (bỏ qua)</span>
           <input class="input" id="cd-makhac" type="text">
@@ -407,6 +420,34 @@
     </form>
   </dialog>
 
+  <dialog class="dlg" id="dlg-admin" aria-labelledby="dlg-admin-title">
+    <form method="dialog" id="form-admin">
+      <h2 id="dlg-admin-title">🔑 Mã Admin</h2>
+      <p class="muted">Thao tác này chỉ dành cho Admin. Nhập mã Admin – máy này sẽ nhớ (bấm “Đăng xuất Admin” ở Cài đặt để xóa).</p>
+      <label class="field"><span>Mã Admin</span><input class="input" id="admin-ma" type="password" autocomplete="off"></label>
+      <p class="err" id="admin-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" value="ok" id="admin-ok">🔑 Xác nhận</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg dlg-wide" id="dlg-phan" aria-labelledby="dlg-phan-title">
+    <form method="dialog">
+      <h2 id="dlg-phan-title">🛠️ Phần gửi</h2>
+      <p class="muted" id="phan-mota"></p>
+      <div class="table-wrap" id="phan-bang"></div>
+      <p class="err" id="phan-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Đóng</button>
+        <button class="btn" type="button" id="phan-molai">↩️ Mở lại phần này</button>
+        <button class="btn btn-danger" type="button" id="phan-xoa">🗑 Xóa cả phần</button>
+        <button class="btn btn-primary" type="button" id="phan-bo">✂️ Bỏ các file đã chọn</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="dlg-hoi" aria-labelledby="dlg-hoi-title">
     <form method="dialog">
       <h2 id="dlg-hoi-title">Chắc chưa nè?</h2>
@@ -422,20 +463,20 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261012b"></script>
-  <script src="js/phanloai.js?v=20261012b"></script>
-  <script src="js/thongke.js?v=20261012b"></script>
-  <script src="js/xuatfile.js?v=20261012b"></script>
-  <script src="js/danhmuc.js?v=20261012b"></script>
-  <script src="js/danhmuc-excel.js?v=20261012b"></script>
-  <script src="js/linhvat.js?v=20261012b"></script>
-  <script src="js/app.js?v=20261012b"></script>
-  <script src="js/khaibao.js?v=20261012b"></script>
-  <script src="js/barcode.js?v=20261012b"></script>
-  <script src="js/mandanhmuc.js?v=20261012b"></script>
-  <script src="js/caidat.js?v=20261012b"></script>
-  <script src="js/manthongke.js?v=20261012b"></script>
-  <script src="js/dot-gop.js?v=20261012b"></script>
-  <script src="js/dot.js?v=20261012b"></script>
+  <script src="js/docfile.js?v=20261012c"></script>
+  <script src="js/phanloai.js?v=20261012c"></script>
+  <script src="js/thongke.js?v=20261012c"></script>
+  <script src="js/xuatfile.js?v=20261012c"></script>
+  <script src="js/danhmuc.js?v=20261012c"></script>
+  <script src="js/danhmuc-excel.js?v=20261012c"></script>
+  <script src="js/linhvat.js?v=20261012c"></script>
+  <script src="js/app.js?v=20261012c"></script>
+  <script src="js/khaibao.js?v=20261012c"></script>
+  <script src="js/barcode.js?v=20261012c"></script>
+  <script src="js/mandanhmuc.js?v=20261012c"></script>
+  <script src="js/caidat.js?v=20261012c"></script>
+  <script src="js/manthongke.js?v=20261012c"></script>
+  <script src="js/dot-gop.js?v=20261012c"></script>
+  <script src="js/dot.js?v=20261012c"></script>
 </body>
 </html>

@@ -84,15 +84,39 @@ Mỗi tối khoảng **23h**, script tự chép 3 sheet danh mục sang 1 file r
 dán code mới → 💾 Lưu → **Triển khai → Quản lý các bản triển khai** → bấm ✏️ **Chỉnh sửa** → *Phiên bản (Version)*: **Phiên bản mới (New version)** → **Triển khai**.
 (Nếu tạo *New deployment* thì sẽ ra URL khác.)
 
-> 🆕 **Bản nhiều người dùng (đồng bộ danh mục, chống ghi đè, Người dùng + Đợt đặt hàng):** cần `Code.gs` mới. Cập nhật đúng như trên:
-> 1. Mở file Google Sheets → **Tiện ích mở rộng → Apps Script** → xóa hết code cũ → dán toàn bộ [`apps-script/Code.gs`](apps-script/Code.gs) mới → 💾 **Lưu**.
-> 2. **Triển khai → Quản lý các bản triển khai** → ✏️ **Chỉnh sửa** → *Phiên bản*: **Phiên bản mới** → **Triển khai**. **KHÔNG** bấm *Triển khai mới (New deployment)*.
-> 3. Không cần chạy lại `khoiTao` – sheet / cột mới **tự thêm**, dữ liệu cũ giữ nguyên:
->    cột `phien_ban`, `dong_bo`, `nguoi_sua` (cuối SKU_NHA, COMBO, MA_CHUAN), `nguoi`, `phien_ban` (cuối LICH_SU);
->    sheet mới `DM_XOA`, `NGUOI_DUNG`, `DOT`, `DOT_PHAN` và mỗi đợt 1 sheet ẩn `DOT_DL_<ngày>` (tự xóa sau 30 ngày).
-> 4. Mở app → **⚙️ Cài đặt → 👥 Người dùng**: nhập tên + vai trò từng người → **Lưu**. Mỗi máy chọn **Tôi là**.
->
-> Chưa cập nhật mà đã mở app bản mới: app vẫn chạy **chế độ 1 người** như trước và hiện dòng vàng *"Cần cập nhật Apps Script"*.
+> 🆕 **Bản nhiều người dùng + Đợt đặt hàng + Admin:** cần `Code.gs` mới – làm theo mục **"Cập nhật Apps Script bản nhiều người dùng (làm 1 lần)"** ngay dưới đây.
+
+### Cập nhật Apps Script bản nhiều người dùng (làm 1 lần)
+
+Gộp cả 3 phần: danh mục đồng bộ + chống ghi đè, Người dùng + Đợt đặt hàng, Admin.
+
+1. Mở file Google Sheets danh mục → **Tiện ích mở rộng → Apps Script**.
+2. Trong `Code.gs`: **xóa hết** code cũ → dán **toàn bộ** [`apps-script/Code.gs`](apps-script/Code.gs) mới (nhánh `claude/compassionate-ride-gv8h03`) → 💾 **Lưu**.
+3. **Đặt mã Admin** (xem mục *Mã Admin* bên dưới) – chạy hàm `datMaAdmin`.
+4. **Triển khai → Quản lý các bản triển khai** → ✏️ **Chỉnh sửa** → *Phiên bản*: **Phiên bản mới** → **Triển khai**.
+   **KHÔNG** bấm *Triển khai mới (New deployment)* – giữ nguyên URL, các máy không phải dán lại.
+5. **Không cần** chạy lại `khoiTao`. Mọi thứ mới **tự thêm**, dữ liệu cũ giữ nguyên, không đổi tên / xóa / đổi thứ tự cột cũ:
+   - cột cuối `phien_ban`, `dong_bo`, `nguoi_sua` (SKU_NHA, COMBO, MA_CHUAN) ; `nguoi`, `phien_ban` (LICH_SU)
+   - sheet mới: `DM_XOA`, `NGUOI_DUNG`, `DOT`, `DOT_PHAN`, `CAI_DAT_CHUNG`, và mỗi đợt 1 sheet ẩn `DOT_DL_<ngày>` (tự xóa sau 30 ngày).
+6. Mở app trên máy Admin → bấm 🔄 (hoặc tải lại trang) → **⚙️ Cài đặt**:
+   - **Tôi là**: chọn / gõ tên mình.
+   - **🔑 Admin**: nhập mã Admin → **Đăng nhập Admin** (máy nhớ mã).
+   - **👥 Người dùng**: nhập tên + vai trò từng người (ít nhất 1 Admin) → **Lưu**.
+   - (Tùy chọn) sửa *Mã nhà khác / Trạng thái Shopee / Phân loại vô nghĩa* → **Lưu cài đặt** → thành cài đặt chung cho mọi máy.
+7. Các máy khác: tải lại trang → **Cài đặt → Tôi là** chọn tên mình.
+
+Chưa cập nhật `Code.gs` mà mở app mới: app vẫn chạy **chế độ 1 người** như trước và hiện dòng vàng *"Cần cập nhật Apps Script"*.
+
+### Mã Admin 🔑
+
+- Mã Admin **chỉ** nằm trong **Script Properties** của Apps Script (khóa `ADMIN_MA`) – không nằm trong code, không lên GitHub.
+- **Đặt / đổi mã:** trong Apps Script tìm dòng
+  `var MA_ADMIN_MOI = '';` → gõ mã vào giữa 2 dấu nháy, vd `var MA_ADMIN_MOI = 'meo-cua-shop-2026';` (ít nhất 6 ký tự)
+  → 💾 Lưu → ô chọn hàm (cạnh nút ▶ Chạy) chọn **`datMaAdmin`** → **▶ Chạy** → nhật ký báo *"Đã đặt mã Admin"*
+  → **xóa mã khỏi dòng đó** (trở lại `''`) → 💾 Lưu. (Đổi mã không cần triển khai lại; máy Admin nhập mã mới khi app hỏi.)
+  Cách khác: **⚙️ Cài đặt dự án → Thuộc tính tập lệnh (Script properties)** → thêm / sửa thuộc tính `ADMIN_MA`.
+- Chưa đặt mã: app báo hướng dẫn đặt mã; mọi chức năng thường vẫn chạy, chỉ thao tác Admin chưa dùng được.
+- Nhập sai mã **5 lần** liên tiếp → khóa thao tác Admin **10 phút** (mọi máy). Lịch sử ghi lại lần bị khóa.
 
 ## Phần E. Đưa app lên GitHub Pages (làm 1 lần)
 
@@ -339,8 +363,17 @@ Cần `Code.gs` bản mới (xem cuối Phần D).
 
 Cần `Code.gs` mới (cuối Phần D). Mỗi ngày (giờ Việt Nam) là **1 đợt**, app tự tạo. Thanh trên cùng hiện *"🗓️ Đợt 12/10 · Bạn: Lan"*.
 
-**Người dùng:** ⚙️ Cài đặt → 👥 Người dùng: tên + vai trò (*Nhân viên sàn* / *Người đặt hàng*), dùng chung mọi máy, không mật khẩu.
-Vai trò chỉ để ẩn nút: chỉ Người đặt hàng thấy **📦 Tổng hợp đợt** (gộp, tải 3 file nhà, chốt đợt).
+**Người dùng:** ⚙️ Cài đặt → 👥 Người dùng: tên + vai trò, dùng chung mọi máy. Vai trò: **Nhân viên sàn < Người đặt hàng < Admin**.
+- Nhân viên sàn: thả file, khai báo, báo xong.
+- Người đặt hàng: thêm **📦 Tổng hợp đợt** (gộp, tải 3 file nhà, chốt đợt).
+- **Admin** (toàn quyền, cần mã Admin – xem *Mã Admin* ở Phần D):
+  - Quản lý người dùng: thêm / xóa / đổi tên / đổi vai trò – **chỉ Admin** sửa được danh sách.
+  - Quản lý đợt: **mở lại đợt đã chốt**, **xóa đợt**; nút **🛠️ Quản lý** ở từng phần gửi: xem các file, **bỏ file gửi nhầm**, mở lại, xóa phần của bất kỳ ai.
+  - Cài đặt chung (mọi máy): mã nhà khác, trạng thái đơn Shopee cần lấy, phân loại vô nghĩa – người khác chỉ xem.
+  - Danh mục: **📥 Nạp từ Excel**, **🌐 Nạp sổ mã chuẩn**, **🗑 Xóa hàng loạt** (các dòng đang hiện theo tìm kiếm / bộ lọc), **↩️ Hoàn tác** thao tác của bất kỳ ai trong 🕘 Lịch sử.
+  - Lịch sử ghi rõ *"Tú (Admin)"* với thao tác Admin.
+- Thao tác thường (thả file, khai báo, báo xong, gộp, chốt…) **không cần mã**. Mỗi người tự hoàn tác thao tác của chính mình không cần mã.
+- Nút / màn chỉ dành cho Admin bị ẩn với người khác. Máy Admin: **Cài đặt → 🔑 Admin** để đăng nhập / **🚪 Đăng xuất Admin**.
 
 **Nhân viên sàn:**
 1. Thả file, khai báo combo / chọn nhà như cũ. Phần đang làm **tự lưu nháp trên máy** – đóng trình duyệt mở lại vẫn còn.
@@ -359,7 +392,7 @@ Vai trò chỉ để ẩn nút: chỉ Người đặt hàng thấy **📦 Tổng
   Kết quả hiện ngay ở màn Tách đơn (thanh tím *"Đang xem GỘP đợt"*): 3 bảng nhà + Combo + Chưa rõ nhà, vẫn khai báo / sửa được.
   Có người chưa báo xong → app nhắc, vẫn làm tiếp được. **↩️ Về phần của tôi** để quay lại file của mình (không mất).
 - **⬇️ Tải 3 file nhà:** đúng định dạng 4 cột như trước, tên file theo ngày của đợt.
-- **🔒 Chốt đợt:** khóa đợt và **ghi lịch sử thống kê đúng 1 lần tại đây** (tải file không ghi lịch sử nữa). **🔓 Mở lại đợt** được; chốt lại thì lịch sử được ghi đè, không cộng 2 lần.
+- **🔒 Chốt đợt:** khóa đợt và **ghi lịch sử thống kê đúng 1 lần tại đây** (tải file không ghi lịch sử nữa). **🔓 Mở lại đợt** (chỉ Admin); chốt lại thì lịch sử được ghi đè, không cộng 2 lần.
 - Chọn ngày ở ô cạnh tiêu đề để xem / tải lại **đợt cũ**. Dữ liệu đợt giữ 30 ngày rồi tự dọn.
 
 Chưa cập nhật `Code.gs`: app chạy như trước (1 người), không có Báo xong / Tổng hợp đợt; tải file vẫn ghi lịch sử như cũ.
@@ -397,6 +430,7 @@ Chưa cập nhật `Code.gs`: app chạy như trước (1 người), không có 
 | Chấm đỏ **"Lỗi kết nối"** | Kiểm tra mạng. Bấm vào chấm để thử lại. App vẫn chạy bằng danh mục đã lưu trên máy. |
 | *"URL không trả về dữ liệu danh mục"* | Dán sai link (phải là link `/exec`), hoặc lúc Deploy chưa chọn **Bất kỳ ai (Anyone)**. |
 | *"Hành động không hợp lệ"* sau khi cập nhật app | Chưa cập nhật `Code.gs` mới hoặc chưa tạo **Phiên bản mới** khi triển khai (xem Phần D). |
+| *"Mã Admin không đúng"* / *"tạm khóa"* | Nhập lại đúng mã; sai 5 lần thì đợi 10 phút. Quên mã: đặt lại bằng `datMaAdmin` (Phần D, *Mã Admin*). |
 | Dòng vàng *"Cần cập nhật Apps Script"* | Google Sheets còn chạy `Code.gs` cũ → app đang ở chế độ 1 người. Cập nhật theo cuối Phần D. |
 | File không nhận | Phải là file `.xlsx` gốc xuất từ Shopee/TikTok, đừng mở ra sửa rồi lưu lại dạng khác. |
 | *"Đang có máy khác ghi danh mục"* | 2 máy cùng lưu một lúc – đợi vài giây bấm lại. |
@@ -433,5 +467,6 @@ node test/kiemtra-tensach.js       # tên sách khai báo, không gộp theo tê
 node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp file cũ), thống kê, dự báo dự phòng
 node test/kiemtra-nhieunguoi.js     # nhiều người dùng: đồng bộ phần thay đổi, chống ghi đè, combo trùng, Code.gs cũ
 node test/kiemtra-dot.js            # đợt đặt hàng: báo xong, đơn trùng giữa người, gộp tính lại, mở lại, chốt, đợt mai, dọn 30 ngày
+node test/kiemtra-admin.js          # Admin: mã ở Script Properties, khóa sau 5 lần sai, thao tác chỉ Admin, hoàn tác của người khác
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.
