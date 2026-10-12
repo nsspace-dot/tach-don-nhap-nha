@@ -33,6 +33,17 @@
  *   POST body { action, data, nguoi }  ; data._pb = { "sku|<khoa>": phiên bản, "combo|<id>": … } → kiểm tra xung đột
  *        → xung đột: { ok:false, xungDot:[…], catalog }   ; data._ghiDe = true: vẫn ghi
  *        upsertCombo combo mới trùng thành phần combo đã có → { ok:false, comboTrung } (data._boQuaTrung = true: vẫn tạo)
+ *
+ * Người dùng + Đợt đặt hàng (từ bản api 3) – các sheet mới:
+ *   NGUOI_DUNG   ten | vai_tro (san = nhân viên sàn, dat_hang = người đặt hàng) | cap_nhat
+ *   DOT          dot_id (yyyy-MM-dd, giờ VN) | trang_thai (dang_nhan | da_chot) | tao_luc | chot_luc | chot_boi | mo_lai_luc | mo_lai_boi | ghi_lich_su_luc
+ *   DOT_PHAN     phan_id (dot_id|người) | dot_id | nguoi | nguon | trang_thai (da_gui | mo_lai) | gui_luc | so_dong | so_don | con_combo | con_chua_ro | phien | ghi_chu
+ *   DOT_DL_<ngày> (ẩn, mỗi đợt 1 sheet) phan_id | thu_tu | du_lieu  – danh sách dòng đơn ĐÃ CHUẨN HÓA (JSON, chia nhỏ ≤ 40.000 ký tự/ô):
+ *                cột: nguồn, mã đơn, barcode/SKU, tên sàn, phân loại, giá, SL, ngày đặt, tên file, nhà cung cấp (web), ngày xuất (web), dấu file web.
+ *                KHÔNG có thông tin khách, không lưu file gốc. Đợt cũ hơn 30 ngày tự dọn.
+ *   GET  ?action=dot&id=<ngày>[&duLieu=1] → { ok, dot, phan, nguoi_dung, hom_nay }     GET ?action=dsDot → { ok, dot: [...] }
+ *   POST luuNguoiDung { ds }, baoXong { dot_id, cot, dong, nguon, so_don, con_combo, con_chua_ro }, moLaiPhan { dot_id },
+ *        chotDot { dot_id, lich_su }, moLaiDot { dot_id }
  *   GET  <url>?action=lichSuDatHang&tu=yyyy-MM-dd → { ok, cot, dong }
  *   POST ghiLichSuDatHang (ghi đè theo ngày + nhà), napLichSuDatHang (cộng theo ngày đặt, bỏ đơn trùng)
  *
@@ -46,8 +57,13 @@
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
-var API = 2; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa
-var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA' };
+var API = 3; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt)
+var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA',
+           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN' };
+var DOT_DL = 'DOT_DL_';   // + yyyy-MM-dd : dữ liệu dòng đơn của 1 đợt
+var GIU_DOT = 30;         // giữ dữ liệu đợt 30 ngày
+var CHIA_O = 40000;       // ký tự tối đa mỗi ô (giới hạn Google Sheets 50.000)
+var MUI_GIO_VN = 'Asia/Ho_Chi_Minh';
 var COT = {
   SKU_NHA: ['key', 'sku', 'ten', 'nha', 'nguon', 'cap_nhat', 'gia_gan_nhat', 'ngay_gia', 'ma_moi', 'khong_tai_ban', 'nguon_ma', 'ten_sach', 'phan_loai', 'khong_combo',
             'phien_ban', 'dong_bo', 'nguoi_sua'],
@@ -61,7 +77,11 @@ var COT = {
   COMBO_THANH_PHAN: ['combo_id', 'sku', 'ten', 'nha', 'gia_goc', 'so_luong'],
   LICH_SU: ['thoi_gian', 'hanh_dong', 'khoa', 'du_lieu_cu', 'du_lieu_moi', 'nguoi', 'phien_ban'],
   // Bản ghi danh mục đã xóa (loai: sku | combo | mc) – máy khác đồng bộ để xóa theo
-  DM_XOA: ['loai', 'khoa', 'phien_ban', 'luc', 'nguoi']
+  DM_XOA: ['loai', 'khoa', 'phien_ban', 'luc', 'nguoi'],
+  NGUOI_DUNG: ['ten', 'vai_tro', 'cap_nhat'],
+  DOT: ['dot_id', 'trang_thai', 'tao_luc', 'chot_luc', 'chot_boi', 'mo_lai_luc', 'mo_lai_boi', 'ghi_lich_su_luc'],
+  DOT_PHAN: ['phan_id', 'dot_id', 'nguoi', 'nguon', 'trang_thai', 'gui_luc', 'so_dong', 'so_don', 'con_combo', 'con_chua_ro', 'phien', 'ghi_chu'],
+  DOT_DL: ['phan_id', 'thu_tu', 'du_lieu']
 };
 // Thao tác tự động (tự học, đổi khóa combo cũ): vẫn tăng mốc đồng bộ nhưng KHÔNG tăng số phiên bản / không đổi người sửa
 var HD_TU_DONG = ['upsertSkuBatch', 'doiKhoaCombo'];
@@ -70,6 +90,7 @@ var GIU_XOA = 2000; // số bản ghi xóa giữ lại để đồng bộ
 // Cột số; mọi cột khác lưu dạng chữ (tránh Google Sheets tự đổi mã vạch thành số / ngày tháng)
 var COT_SO = { SKU_NHA: ['gia_gan_nhat', 'phien_ban', 'dong_bo'], COMBO: ['phien_ban', 'dong_bo'], COMBO_THANH_PHAN: ['gia_goc', 'so_luong'],
                MA_CHUAN: ['gia_bia', 'phien_ban', 'dong_bo'], DM_XOA: ['phien_ban'],
+               DOT_PHAN: ['so_dong', 'so_don', 'con_combo', 'con_chua_ro', 'phien'], DOT_DL: ['thu_tu'],
                LS_DAT_HANG: ['gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo'] };
 var NGUONG_GOM_THANG = 40000;   // LS_DAT_HANG quá số dòng này → gom các ngày cũ hơn 180 ngày thành 1 dòng / tháng
 var NGUONG_NHAC_LON = 30000;    // nhắc khi dữ liệu lớn
@@ -90,9 +111,11 @@ function doGet(e) {
     if (action === 'lichSu') return traVe_({ ok: true, lich_su: docLichSu_(SO_LICH_SU) });
     if (action === 'lichSuDatHang') return traVe_(docLichSuDatHang_(e.parameter.tu));
     if (action === 'thayDoi') return traVe_(docThayDoi_(e.parameter.tu));
+    if (action === 'dot') return traVe_(docDot_(e.parameter.id, e.parameter.duLieu === '1'));
+    if (action === 'dsDot') return traVe_(dsDot_());
     var rev = revHienTai_(); // đọc mốc TRƯỚC dữ liệu: có ai ghi chen giữa thì lần đồng bộ sau tải lại phần đó
     var cat = docCatalog_();
-    return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan });
+    return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_() });
   } catch (err) {
     return traVe_({ ok: false, error: String(err && err.message || err) });
   }
@@ -124,6 +147,11 @@ function xuLy_(action, data, nguoi) {
   if (action === 'ping') return { ok: true };
   if (action === 'ghiLichSuDatHang') return ghiLichSuDatHang_(data);
   if (action === 'napLichSuDatHang') return napLichSuDatHang_(data);
+  if (action === 'luuNguoiDung') return luuNguoiDung_(data, nguoi);
+  if (action === 'baoXong') return baoXong_(data, nguoi);
+  if (action === 'moLaiPhan') return moLaiPhan_(data, nguoi);
+  if (action === 'chotDot') return chotDot_(data, nguoi);
+  if (action === 'moLaiDot') return moLaiDot_(data, nguoi);
   var cat = docCatalog_();
   var revCu = revHienTai_();
   var ctx = { action: action, now: bayGio_(), log: [], doiSku: false, doiCombo: false, nguoi: nguoi || '', rev: revCu + 1 };
@@ -1041,13 +1069,13 @@ function docThayDoi_(tu) {
     var cat = docCatalog_();
     var catBo = Number(PropertiesService.getScriptProperties().getProperty('DM_XOA_CAT')) || 0;
     if (tu <= 0 || tu < catBo || tu > rev) {
-      return { ok: true, api: API, rev: rev, toanBo: true, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan };
+      return { ok: true, api: API, rev: rev, toanBo: true, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_() };
     }
     var moi = function (r) { return soPb_(r.dong_bo) > tu; };
     var xoa = docBang_(SH.XOA).filter(function (x) { return soPb_(x.phien_ban) > tu; })
       .map(function (x) { return { loai: x.loai, khoa: x.khoa }; });
     return { ok: true, api: API, rev: rev, skus: cat.skus.filter(moi), combos: cat.combos.filter(moi), ma_chuan: cat.ma_chuan.filter(moi),
-             xoa: xoa, log: docLogSau_(tu) };
+             xoa: xoa, log: docLogSau_(tu), nguoi_dung: docNguoiDung_() };
   } finally {
     if (coKhoa) lock.releaseLock();
   }
@@ -1062,6 +1090,216 @@ function docLogSau_(tu) {
     if (soPb_(r[6]) > tu) out.push({ thoi_gian: r[0] instanceof Date ? dinhDang_(r[0]) : String(r[0]), hanh_dong: String(r[1]), khoa: String(r[2]), nguoi: String(r[5] || '') });
   });
   return out;
+}
+
+/* ===================== Người dùng ===================== */
+
+function docNguoiDung_() {
+  return docBang_(SH.ND).filter(function (x) { return x.ten; })
+    .map(function (x) { return { ten: x.ten, vai_tro: x.vai_tro === 'dat_hang' ? 'dat_hang' : 'san' }; });
+}
+/* Thay cả danh sách (tên không trùng, vai trò san | dat_hang) */
+function luuNguoiDung_(d, nguoi) {
+  var now = bayGio_(), da = {}, ds = [];
+  (d.ds || []).forEach(function (x) {
+    var ten = chuoi_(x.ten).slice(0, 40);
+    if (!ten || da[ten.toLowerCase()]) return;
+    da[ten.toLowerCase()] = 1;
+    ds.push({ ten: ten, vai_tro: x.vai_tro === 'dat_hang' ? 'dat_hang' : 'san', cap_nhat: now });
+  });
+  var cu = docNguoiDung_();
+  ghiBang_(SH.ND, ds);
+  ghiLichSu_([[now, 'luuNguoiDung', ds.length + ' người', JSON.stringify(cu), JSON.stringify(ds), nguoi || '', '']]);
+  return { ok: true, nguoi_dung: docNguoiDung_() };
+}
+
+/* ===================== Đợt đặt hàng ===================== */
+
+function homNayVN_() { return Utilities.formatDate(new Date(), MUI_GIO_VN, 'yyyy-MM-dd'); }
+function laNgay_(s) { return /^\d{4}-\d{2}-\d{2}$/.test(chuoi_(s)); }
+function congNgay_(s, n) {
+  var p = s.split('-'), d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + n));
+  return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+}
+function timDot_(ds, id) { return ds.filter(function (x) { return x.dot_id === id; })[0] || null; }
+
+/* Sheet dữ liệu dòng của 1 đợt (ẩn). taoMoi = false: chưa có thì trả null */
+function sheetDl_(dotId, taoMoi) {
+  var ss = bangTinh_(), ten = DOT_DL + dotId, s = ss.getSheetByName(ten);
+  if (!s && taoMoi) {
+    s = ss.insertSheet(ten);
+    s.getRange(1, 1, 1, COT.DOT_DL.length).setValues([COT.DOT_DL]).setFontWeight('bold');
+    s.setFrozenRows(1);
+    try { s.hideSheet(); } catch (e) { /* không ẩn được cũng không sao */ }
+  }
+  return s;
+}
+function docDl_(dotId) {
+  var s = sheetDl_(dotId, false), out = {};
+  if (!s || s.getLastRow() < 2) return out;
+  var manh = {};
+  s.getRange(2, 1, s.getLastRow() - 1, 3).getValues().forEach(function (r) {
+    var id = String(r[0]);
+    if (!id) return;
+    (manh[id] = manh[id] || []).push([Number(r[1]) || 0, String(r[2])]);
+  });
+  Object.keys(manh).forEach(function (id) {
+    var chuoi = manh[id].sort(function (a, b) { return a[0] - b[0]; }).map(function (x) { return x[1]; }).join('');
+    try { out[id] = JSON.parse(chuoi); } catch (e) { out[id] = { cot: [], dong: [], loi: 'Dữ liệu hỏng' }; }
+  });
+  return out;
+}
+/* Thay dữ liệu của 1 phần (xóa mảnh cũ của phan_id, ghi mảnh mới) – chỉ ghi lại sheet của đợt đó */
+function ghiDl_(dotId, phanId, duLieu) {
+  var s = sheetDl_(dotId, true), n = s.getLastRow();
+  var giu = n > 1 ? s.getRange(2, 1, n - 1, 3).getValues().filter(function (r) { return r[0] && String(r[0]) !== phanId; }) : [];
+  var json = JSON.stringify(duLieu), moi = [];
+  for (var i = 0, k = 0; i < json.length; i += CHIA_O, k++) moi.push([phanId, k, json.slice(i, i + CHIA_O)]);
+  var tatCa = giu.concat(moi);
+  if (tatCa.length) {
+    var r = s.getRange(2, 1, tatCa.length, 3);
+    r.setNumberFormat('@');
+    r.setValues(tatCa.map(function (x) { return [String(x[0]), String(x[1]), String(x[2])]; }));
+  }
+  if (n - 1 > tatCa.length) s.getRange(tatCa.length + 2, 1, n - 1 - tatCa.length, 3).clearContent();
+}
+
+function dongDot_(x) {
+  return { dot_id: x.dot_id, trang_thai: x.trang_thai === 'da_chot' ? 'da_chot' : 'dang_nhan', tao_luc: x.tao_luc, chot_luc: x.chot_luc, chot_boi: x.chot_boi,
+           mo_lai_luc: x.mo_lai_luc, mo_lai_boi: x.mo_lai_boi, ghi_lich_su_luc: x.ghi_lich_su_luc };
+}
+function dongPhan_(x) {
+  var o = {};
+  COT.DOT_PHAN.forEach(function (c) { o[c] = x[c]; });
+  COT_SO.DOT_PHAN.forEach(function (c) { o[c] = Number(o[c]) || 0; });
+  return o;
+}
+
+/* Trạng thái 1 đợt: đợt + các phần đã gửi (+ dữ liệu dòng nếu duLieu) */
+function docDot_(id, duLieu) {
+  var homNay = homNayVN_();
+  id = laNgay_(id) ? chuoi_(id) : homNay;
+  var dot = timDot_(docBang_(SH.DOT), id);
+  var phan = docBang_(SH.PHAN).filter(function (x) { return x.dot_id === id; }).map(dongPhan_);
+  if (duLieu) {
+    var dl = docDl_(id);
+    phan.forEach(function (p) { var d = dl[p.phan_id] || { cot: [], dong: [] }; p.cot = d.cot; p.dong = d.dong; });
+  }
+  return { ok: true, api: API, hom_nay: homNay, dot: dot ? dongDot_(dot) : { dot_id: id, trang_thai: 'dang_nhan', chua_tao: true },
+           phan: phan, nguoi_dung: docNguoiDung_() };
+}
+function dsDot_() {
+  var phan = docBang_(SH.PHAN), dem = {};
+  phan.forEach(function (p) { dem[p.dot_id] = (dem[p.dot_id] || 0) + 1; });
+  var ds = docBang_(SH.DOT).map(function (x) { var o = dongDot_(x); o.so_phan = dem[x.dot_id] || 0; return o; });
+  ds.sort(function (a, b) { return a.dot_id < b.dot_id ? 1 : -1; });
+  return { ok: true, api: API, hom_nay: homNayVN_(), dot: ds };
+}
+
+/* Tạo đợt (đang nhận) nếu chưa có. Trả về danh sách đợt sau khi thêm. */
+function damBaoDot_(ds, id) {
+  if (timDot_(ds, id)) return ds;
+  ds.push({ dot_id: id, trang_thai: 'dang_nhan', tao_luc: bayGio_(), chot_luc: '', chot_boi: '', mo_lai_luc: '', mo_lai_boi: '', ghi_lich_su_luc: '' });
+  return ds;
+}
+
+/* Khóa nhận dạng đơn để so trùng: đơn sàn = nguồn:mã đơn ; file web = web#dấu file */
+function khoaDon_(cot, r) {
+  var iSan = cot.indexOf('san'), iMa = cot.indexOf('ma_don'), iWk = cot.indexOf('web_key');
+  var san = String(r[iSan] || ''), ma = String(r[iMa] || '');
+  if (ma) return san + ':' + ma;
+  if (san === 'Web' && iWk >= 0 && r[iWk]) return 'web#' + r[iWk];
+  return '';
+}
+
+/* Nhân viên "Báo xong": thay phần cũ của chính người đó trong đợt. Đợt đã chốt → chuyển sang đợt sau (ngày mai). */
+function baoXong_(d, nguoi) {
+  if (!nguoi) throw new Error('Máy này chưa chọn "Tôi là" (Cài đặt).');
+  var cot = [].concat(d.cot || []), dong = [].concat(d.dong || []);
+  if (cot.indexOf('san') < 0 || cot.indexOf('ma_don') < 0) throw new Error('Thiếu cột dữ liệu dòng đơn.');
+  if (dong.length > 20000) throw new Error('Quá nhiều dòng (' + dong.length + ').');
+  var goc = laNgay_(d.dot_id) ? chuoi_(d.dot_id) : homNayVN_(), dotId = goc;
+  var dots = docBang_(SH.DOT), chuyen = false, k = 0;
+  while (timDot_(dots, dotId) && timDot_(dots, dotId).trang_thai === 'da_chot' && k++ < 60) { dotId = congNgay_(dotId, 1); chuyen = true; }
+  damBaoDot_(dots, dotId);
+  ghiBang_(SH.DOT, dots);
+
+  // So mã đơn với phần người khác đã gửi trong đợt
+  var phanId = dotId + '|' + nguoi, dl = docDl_(dotId), cuaToi = {}, trung = {};
+  dong.forEach(function (r) { var kd = khoaDon_(cot, r); if (kd) cuaToi[kd] = 1; });
+  var phans = docBang_(SH.PHAN);
+  phans.filter(function (p) { return p.dot_id === dotId && p.nguoi !== nguoi; }).forEach(function (p) {
+    var x = dl[p.phan_id];
+    if (!x || !x.cot) return;
+    var da = {};
+    (x.dong || []).forEach(function (r) { var kd = khoaDon_(x.cot, r); if (kd && cuaToi[kd] && !da[kd]) { da[kd] = 1; trung[p.nguoi] = (trung[p.nguoi] || 0) + 1; } });
+  });
+
+  ghiDl_(dotId, phanId, { cot: cot, dong: dong });
+  var i = -1;
+  phans.forEach(function (p, j) { if (p.phan_id === phanId) i = j; });
+  var cu = i >= 0 ? phans[i] : null;
+  var moi = { phan_id: phanId, dot_id: dotId, nguoi: nguoi, nguon: chuoi_([].concat(d.nguon || []).join(', ')), trang_thai: 'da_gui', gui_luc: bayGio_(),
+              so_dong: dong.length, so_don: Number(d.so_don) || Object.keys(cuaToi).length, con_combo: Number(d.con_combo) || 0,
+              con_chua_ro: Number(d.con_chua_ro) || 0, phien: (cu ? Number(cu.phien) || 0 : 0) + 1, ghi_chu: chuoi_(d.ghi_chu).slice(0, 200) };
+  if (i >= 0) phans[i] = moi; else phans.push(moi);
+  ghiBang_(SH.PHAN, phans);
+  donDotCu_();
+  return { ok: true, dot_id: dotId, dot_goc: goc, chuyen_dot: chuyen, phan: dongPhan_(moi), thay_ban_cu: !!cu,
+           trung: Object.keys(trung).map(function (n) { return { nguoi: n, so_don: trung[n] }; }) };
+}
+
+/* "Mở lại" phần đã báo xong để sửa tiếp (đợt chưa chốt) */
+function moLaiPhan_(d, nguoi) {
+  var dotId = laNgay_(d.dot_id) ? chuoi_(d.dot_id) : homNayVN_();
+  var dot = timDot_(docBang_(SH.DOT), dotId);
+  if (dot && dot.trang_thai === 'da_chot') return { ok: true, da_chot: true, dot_id: dotId };
+  var phans = docBang_(SH.PHAN), id = dotId + '|' + nguoi, doi = false;
+  phans.forEach(function (p) { if (p.phan_id === id) { p.trang_thai = 'mo_lai'; p.ghi_chu = 'Mở lại ' + bayGio_(); doi = true; } });
+  if (doi) ghiBang_(SH.PHAN, phans);
+  return { ok: true, dot_id: dotId, da_chot: false };
+}
+
+/* Chốt đợt: khóa đợt + ghi lịch sử đặt hàng của đợt (ghi đè theo ngày + nhà → chốt lại sau "Mở lại đợt" không cộng 2 lần) */
+function chotDot_(d, nguoi) {
+  var dotId = chuoi_(d.dot_id);
+  if (!laNgay_(dotId)) throw new Error('Thiếu ngày đợt.');
+  var dots = damBaoDot_(docBang_(SH.DOT), dotId), dot = timDot_(dots, dotId);
+  if (dot.trang_thai === 'da_chot') return { ok: true, da_chot_truoc: true, dot: dongDot_(dot) };
+  var kqLs = null;
+  if (d.lich_su) {
+    var ls = Object.assign({}, d.lich_su, { ngay: dotId, nhas: NHA_CHINH.slice() });
+    kqLs = ghiLichSuDatHang_(ls);
+    dot.ghi_lich_su_luc = bayGio_();
+  }
+  dot.trang_thai = 'da_chot'; dot.chot_luc = bayGio_(); dot.chot_boi = nguoi || '';
+  ghiBang_(SH.DOT, dots);
+  ghiLichSu_([[bayGio_(), 'chotDot', dotId, '', JSON.stringify({ ghi_chu: 'Chốt đợt ' + dotId + (kqLs ? ' – ghi lịch sử ' + kqLs.soDong + ' đầu sách' : '') }), nguoi || '', '']]);
+  return { ok: true, dot: dongDot_(dot), lichSu: kqLs };
+}
+function moLaiDot_(d, nguoi) {
+  var dotId = chuoi_(d.dot_id);
+  var dots = docBang_(SH.DOT), dot = timDot_(dots, dotId);
+  if (!dot) throw new Error('Không có đợt ' + dotId + '.');
+  dot.trang_thai = 'dang_nhan'; dot.mo_lai_luc = bayGio_(); dot.mo_lai_boi = nguoi || '';
+  ghiBang_(SH.DOT, dots);
+  ghiLichSu_([[bayGio_(), 'moLaiDot', dotId, '', JSON.stringify({ ghi_chu: 'Mở lại đợt ' + dotId }), nguoi || '', '']]);
+  return { ok: true, dot: dongDot_(dot) };
+}
+
+/* Dọn đợt cũ hơn GIU_DOT ngày (đợt, phần gửi, sheet dữ liệu) */
+function donDotCu_() {
+  var moc = congNgay_(homNayVN_(), -GIU_DOT);
+  var dots = docBang_(SH.DOT), cu = dots.filter(function (x) { return x.dot_id < moc; });
+  var ss = bangTinh_();
+  ss.getSheets().forEach(function (s) {
+    var n = s.getName();
+    if (n.indexOf(DOT_DL) === 0 && n.slice(DOT_DL.length) < moc) ss.deleteSheet(s);
+  });
+  if (!cu.length) return 0;
+  ghiBang_(SH.DOT, dots.filter(function (x) { return x.dot_id >= moc; }));
+  ghiBang_(SH.PHAN, docBang_(SH.PHAN).filter(function (x) { return x.dot_id >= moc; }));
+  return cu.length;
 }
 
 /* ===================== Đọc / ghi sheet ===================== */
@@ -1174,12 +1412,12 @@ function bayGio_() { return dinhDang_(new Date()); }
 
 /** Chạy 1 lần: tạo đủ 4 sheet có dòng tiêu đề. */
 function khoiTao() {
-  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA].forEach(sheet_);
+  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN].forEach(sheet_);
   var ss = bangTinh_();
   ss.getSheets().forEach(function (s) {
     if (/^(Sheet1|Trang tính1)$/.test(s.getName()) && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
-  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA.');
+  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN.');
 }
 
 /** Sao lưu 3 sheet danh mục sang file "Sao lưu danh mục – Tách đơn nhập nhà", giữ 30 bản gần nhất. */

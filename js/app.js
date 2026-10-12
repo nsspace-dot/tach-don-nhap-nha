@@ -101,6 +101,7 @@
   function nhanFiles(list) {
     var files = Array.prototype.slice.call(list || []);
     if (!files.length) return;
+    if (S.gop) { toast('Đang xem GỘP đợt – bấm “↩️ Về phần của tôi” rồi mới thả file nha.', 'loi'); return; }
     var viec = files.map(function (f) {
       if (!/\.xlsx?$/i.test(f.name)) {
         return Promise.resolve({ file: f.name, error: 'Mèo chỉ đọc được file Excel (.xlsx) thôi nha.' });
@@ -177,10 +178,31 @@
     var r = rows();
     S.kq = r.length ? PL.classify(r, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : null;
     if (!S.kq) S.duPhong = { HA: {}, KV: {}, ML: {} };
+    $('drop').hidden = !!S.gop;
     veChips();
     veKetQua(moi);
     tuHoc();
     doiKhoaCu();
+    if (root.ManDot) root.ManDot.sauXuLy();
+  }
+
+  /* ---------- Xem gộp đợt (Người đặt hàng): tạm cất phần của mình, đưa các phần đã báo xong vào màn Tách đơn ---------- */
+  function vaoGop(info) {
+    if (!S.gop) S.gop = { cat: { files: S.files, demFile: S.demFile, duPhong: S.duPhong, tab: S.tab } };
+    S.gop.dot_id = info.dot_id;
+    S.files = info.files;
+    S.demFile = info.files.length;
+    S.duPhong = { HA: {}, KV: {}, ML: {} };
+    gop();
+    xuLy(true);
+  }
+  function thoatGop() {
+    if (!S.gop) return;
+    var c = S.gop.cat;
+    S.gop = null;
+    S.files = c.files; S.demFile = c.demFile; S.duPhong = c.duPhong; S.tab = c.tab;
+    gop();
+    xuLy(false);
   }
 
   /* Combo khai báo bằng khóa mã vạch trơn ("sku:<mã vạch>") → đổi sang "sku:<mã vạch>|<phân loại>" (ghi LICH_SU) */
@@ -676,7 +698,7 @@
       }
       if (btn) btn.disabled = true;
       var info = { tenShop: DM.caiDat.tenShop, sdt: DM.caiDat.sdt, diaChi: DM.caiDat.diaChi, ghiChu: DM.caiDat.ghiChu };
-      var ngay = new Date();
+      var ngay = S.gop ? root.DotGop.ngayDate(S.gop.dot_id) : new Date(); // file gộp đợt: ngày của đợt
       // Tải lần lượt từng nhà (cách nhau một chút để trình duyệt không chặn)
       return nhas.reduce(function (p, n, i) {
         return p.then(function () {
@@ -688,7 +710,8 @@
       }, Promise.resolve())
         .then(function () {
           toast('📥 Đã tải ' + nhas.length + ' đơn đặt hàng: ' + nhas.map(function (n) { return PL.TEN_NHA[n]; }).join(', '), 'ok');
-          ghiLichSu(nhas);
+          // Có Đợt đặt hàng: lịch sử thống kê chỉ ghi 1 lần khi "🔒 Chốt đợt", tải file không ghi nữa
+          if (!DM.coDot()) ghiLichSu(nhas);
         })
         .catch(function (e) { toast('Lỗi tạo file Excel: ' + e.message, 'loi'); })
         .then(function () { if (btn) btn.disabled = false; });
@@ -731,7 +754,8 @@
       b.hidden = false;
     } else if (DM.canCapNhatAppsScript()) {
       b.innerHTML = '⚠️ <b>Cần cập nhật Apps Script</b> – Google Sheets đang chạy Code.gs bản cũ nên app chạy <b>chế độ 1 người</b> như trước ' +
-        '(chưa tự đồng bộ danh mục, chưa chống ghi đè khi nhiều người sửa). Cập nhật theo HUONG-DAN.md, Phần D (Phiên bản mới, không tạo triển khai mới).';
+        (DM.nhieuNguoi() ? '(chưa có Người dùng, Đợt đặt hàng, Báo xong). ' : '(chưa tự đồng bộ danh mục, chưa chống ghi đè, chưa có Đợt đặt hàng). ') +
+        'Cập nhật theo HUONG-DAN.md, Phần D (Phiên bản mới, không tạo triển khai mới).';
       b.hidden = false;
     } else if (DM.nhieuNguoi() && !c.toiLa) {
       b.innerHTML = '👤 Máy này chưa chọn <b>“Tôi là”</b> – lịch sử và thông báo sẽ không có tên bạn. <button class="linkish" data-di="caidat">Vào Cài đặt</button>';
@@ -740,7 +764,7 @@
   }
 
   function diToi(man) {
-    ['chinh', 'thongke', 'danhmuc', 'caidat'].forEach(function (m) {
+    ['chinh', 'dot', 'thongke', 'danhmuc', 'caidat'].forEach(function (m) {
       $('man-' + m).hidden = m !== man;
     });
     document.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -751,6 +775,7 @@
     if (man === 'danhmuc' && root.ManDanhMuc) root.ManDanhMuc.ve();
     if (man === 'caidat' && root.CaiDat) root.CaiDat.ve();
     if (man === 'thongke' && root.ManThongKe) root.ManThongKe.ve();
+    if (man === 'dot' && root.ManDot) root.ManDot.veTongHop(true);
     DM.dongBo();
   }
 
@@ -1034,6 +1059,7 @@
     $('drop-cat').innerHTML = LV.meo('om');
     $('empty-cat').innerHTML = LV.meo('ngu');
     ganSuKien();
+    if (root.ManDot) root.ManDot.khoiPhucNhap(); // phần đang làm dở (nháp trên máy)
     veTrangThai();
     DM.taiLai();
     DM.batDongBo();
@@ -1043,7 +1069,8 @@
   root.App = {
     S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge, baoLoi: baoLoi,
     rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
-    LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon
+    LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon,
+    gop: gop, xuLy: xuLy, taiNha: taiNha, vaoGop: vaoGop, thoatGop: thoatGop, soDongCho: soDongCho, veBanner: veBanner
   };
   document.addEventListener('DOMContentLoaded', khoiDong);
 })(typeof self !== 'undefined' ? self : this);

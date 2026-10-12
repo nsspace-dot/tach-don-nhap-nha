@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261012a">
+  <link rel="stylesheet" href="style.css?v=20261012b">
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -24,10 +24,12 @@
     </div>
     <nav class="nav" aria-label="Chuyển màn hình">
       <button class="nav-btn is-active" data-man="chinh" aria-current="page">📦 Tách đơn</button>
+      <button class="nav-btn" data-man="dot" id="nav-dot" hidden>📦 Tổng hợp đợt</button>
       <button class="nav-btn" data-man="thongke">📊 Thống kê</button>
       <button class="nav-btn" data-man="danhmuc">📚 Danh mục</button>
       <button class="nav-btn" data-man="caidat">⚙️ Cài đặt</button>
     </nav>
+    <button class="dot-nhan" id="dot-nhan" type="button" hidden></button>
     <button class="sync" id="sync" type="button" title="Bấm để tải lại danh mục">
       <span class="sync-dot" aria-hidden="true"></span><span id="sync-text">Chưa kết nối</span>
     </button>
@@ -38,6 +40,7 @@
   <main id="noi-dung">
     <!-- ============ MÀN CHÍNH ============ -->
     <section class="man" id="man-chinh" aria-label="Tách đơn">
+      <div class="gop-bar" id="gop-bar" role="status" hidden></div>
       <div class="drop" id="drop" tabindex="0" role="button" aria-describedby="drop-mota">
         <div class="drop-cat" id="drop-cat" aria-hidden="true"></div>
         <div class="drop-text">
@@ -57,6 +60,7 @@
       </div>
 
       <div id="ket-qua" hidden>
+        <div class="bao-xong" id="bao-xong" role="status" hidden></div>
         <div class="xong" id="xong">
           <div class="xong-cat" id="xong-cat" aria-hidden="true"></div>
           <div class="xong-text" id="xong-text"></div>
@@ -83,6 +87,28 @@
         </details>
       </div>
       <div class="confetti" id="confetti" aria-hidden="true"></div>
+    </section>
+
+    <!-- ============ MÀN TỔNG HỢP ĐỢT (người đặt hàng) ============ -->
+    <section class="man" id="man-dot" aria-label="Tổng hợp đợt" hidden>
+      <div class="panel dot-head">
+        <div class="dot-tieu-de">
+          <h2>📦 Tổng hợp đợt</h2>
+          <label class="sr" for="dot-chon">Chọn đợt</label>
+          <select class="select" id="dot-chon" aria-label="Chọn đợt (ngày)"></select>
+          <span class="dot-tt" id="dot-tt"></span>
+        </div>
+        <div class="actions">
+          <button class="btn" id="dot-lam-moi" type="button">🔄 Làm mới</button>
+          <button class="btn btn-primary" id="dot-xem" type="button" title="Lấy mọi phần đã báo xong, tính lại theo danh mục mới nhất, bỏ đơn trùng giữa các người">👀 Xem trước gộp</button>
+          <button class="btn" id="dot-tai" type="button">⬇️ Tải 3 file nhà</button>
+          <button class="btn btn-danger" id="dot-chot" type="button">🔒 Chốt đợt</button>
+          <button class="btn" id="dot-mo-lai" type="button" hidden>🔓 Mở lại đợt</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="table-wrap" id="dot-bang"></div>
+      </div>
     </section>
 
     <!-- ============ MÀN THỐNG KÊ ============ -->
@@ -159,10 +185,20 @@
       <form class="panel form" id="form-caidat" autocomplete="off">
         <h2>Tôi là</h2>
         <label class="field">
-          <span>Tên người dùng máy này</span>
+          <span>Người dùng máy này</span>
+          <select class="input" style="max-width:260px" id="cd-toila-chon" hidden></select>
           <input class="input" style="max-width:260px" id="cd-toila" type="text" maxlength="40" placeholder="Ví dụ: Lan">
-          <small>Hiện trong lịch sử danh mục và thông báo cho người khác (“Lan vừa khai báo combo…”). Chỉ lưu trên máy này, đổi lúc nào cũng được.</small>
+          <small>Chọn 1 lần trên mỗi máy (lưu trên máy này, đổi lúc nào cũng được). Tên hiện trong lịch sử danh mục, thông báo cho người khác và phần “Báo xong”.</small>
         </label>
+        <div class="nd-khung" id="cd-nd" hidden>
+          <h2 class="h-phu">👥 Người dùng</h2>
+          <p class="muted" style="margin:0 0 8px">Danh sách dùng chung cho mọi máy. Vai trò chỉ để ẩn nút: chỉ <b>Người đặt hàng</b> thấy “📦 Tổng hợp đợt” (gộp, tải 3 file nhà, chốt đợt). Không có mật khẩu.</p>
+          <table class="tbl nd-bang"><thead><tr><th>Tên</th><th>Vai trò</th><th><span class="sr">Xóa</span></th></tr></thead><tbody id="cd-nd-ds"></tbody></table>
+          <div class="actions" style="margin-top:8px">
+            <button class="btn btn-ghost" type="button" id="cd-nd-them">＋ Thêm người</button>
+            <button class="btn" type="button" id="cd-nd-luu">💾 Lưu danh sách người dùng</button>
+          </div>
+        </div>
         <h2 class="h-phu">Kết nối Google Sheets</h2>
         <label class="field">
           <span>URL Apps Script (Web App)</span>
@@ -386,18 +422,20 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261012a"></script>
-  <script src="js/phanloai.js?v=20261012a"></script>
-  <script src="js/thongke.js?v=20261012a"></script>
-  <script src="js/xuatfile.js?v=20261012a"></script>
-  <script src="js/danhmuc.js?v=20261012a"></script>
-  <script src="js/danhmuc-excel.js?v=20261012a"></script>
-  <script src="js/linhvat.js?v=20261012a"></script>
-  <script src="js/app.js?v=20261012a"></script>
-  <script src="js/khaibao.js?v=20261012a"></script>
-  <script src="js/barcode.js?v=20261012a"></script>
-  <script src="js/mandanhmuc.js?v=20261012a"></script>
-  <script src="js/caidat.js?v=20261012a"></script>
-  <script src="js/manthongke.js?v=20261012a"></script>
+  <script src="js/docfile.js?v=20261012b"></script>
+  <script src="js/phanloai.js?v=20261012b"></script>
+  <script src="js/thongke.js?v=20261012b"></script>
+  <script src="js/xuatfile.js?v=20261012b"></script>
+  <script src="js/danhmuc.js?v=20261012b"></script>
+  <script src="js/danhmuc-excel.js?v=20261012b"></script>
+  <script src="js/linhvat.js?v=20261012b"></script>
+  <script src="js/app.js?v=20261012b"></script>
+  <script src="js/khaibao.js?v=20261012b"></script>
+  <script src="js/barcode.js?v=20261012b"></script>
+  <script src="js/mandanhmuc.js?v=20261012b"></script>
+  <script src="js/caidat.js?v=20261012b"></script>
+  <script src="js/manthongke.js?v=20261012b"></script>
+  <script src="js/dot-gop.js?v=20261012b"></script>
+  <script src="js/dot.js?v=20261012b"></script>
 </body>
 </html>

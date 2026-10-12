@@ -84,10 +84,13 @@ Mỗi tối khoảng **23h**, script tự chép 3 sheet danh mục sang 1 file r
 dán code mới → 💾 Lưu → **Triển khai → Quản lý các bản triển khai** → bấm ✏️ **Chỉnh sửa** → *Phiên bản (Version)*: **Phiên bản mới (New version)** → **Triển khai**.
 (Nếu tạo *New deployment* thì sẽ ra URL khác.)
 
-> 🆕 **Bản nhiều người dùng (đồng bộ danh mục, chống ghi đè):** cần `Code.gs` mới. Cập nhật đúng như trên:
+> 🆕 **Bản nhiều người dùng (đồng bộ danh mục, chống ghi đè, Người dùng + Đợt đặt hàng):** cần `Code.gs` mới. Cập nhật đúng như trên:
 > 1. Mở file Google Sheets → **Tiện ích mở rộng → Apps Script** → xóa hết code cũ → dán toàn bộ [`apps-script/Code.gs`](apps-script/Code.gs) mới → 💾 **Lưu**.
 > 2. **Triển khai → Quản lý các bản triển khai** → ✏️ **Chỉnh sửa** → *Phiên bản*: **Phiên bản mới** → **Triển khai**. **KHÔNG** bấm *Triển khai mới (New deployment)*.
-> 3. Không cần chạy lại `khoiTao` – sheet / cột mới (`DM_XOA`, cột `phien_ban`, `dong_bo`, `nguoi_sua`…) **tự thêm vào cuối**, dữ liệu cũ giữ nguyên.
+> 3. Không cần chạy lại `khoiTao` – sheet / cột mới **tự thêm**, dữ liệu cũ giữ nguyên:
+>    cột `phien_ban`, `dong_bo`, `nguoi_sua` (cuối SKU_NHA, COMBO, MA_CHUAN), `nguoi`, `phien_ban` (cuối LICH_SU);
+>    sheet mới `DM_XOA`, `NGUOI_DUNG`, `DOT`, `DOT_PHAN` và mỗi đợt 1 sheet ẩn `DOT_DL_<ngày>` (tự xóa sau 30 ngày).
+> 4. Mở app → **⚙️ Cài đặt → 👥 Người dùng**: nhập tên + vai trò từng người → **Lưu**. Mỗi máy chọn **Tôi là**.
 >
 > Chưa cập nhật mà đã mở app bản mới: app vẫn chạy **chế độ 1 người** như trước và hiện dòng vàng *"Cần cập nhật Apps Script"*.
 
@@ -332,6 +335,35 @@ Cần `Code.gs` bản mới (xem cuối Phần D).
 - **Combo trùng:** khai báo combo có đúng các cuốn của combo người khác vừa tạo → app hỏi gắn dòng của bạn vào combo đó.
 - Tự học / cập nhật giá tự động không bao giờ gây hỏi xung đột.
 
+## Đợt đặt hàng 🗓️ (nhân viên sàn + người đặt hàng)
+
+Cần `Code.gs` mới (cuối Phần D). Mỗi ngày (giờ Việt Nam) là **1 đợt**, app tự tạo. Thanh trên cùng hiện *"🗓️ Đợt 12/10 · Bạn: Lan"*.
+
+**Người dùng:** ⚙️ Cài đặt → 👥 Người dùng: tên + vai trò (*Nhân viên sàn* / *Người đặt hàng*), dùng chung mọi máy, không mật khẩu.
+Vai trò chỉ để ẩn nút: chỉ Người đặt hàng thấy **📦 Tổng hợp đợt** (gộp, tải 3 file nhà, chốt đợt).
+
+**Nhân viên sàn:**
+1. Thả file, khai báo combo / chọn nhà như cũ. Phần đang làm **tự lưu nháp trên máy** – đóng trình duyệt mở lại vẫn còn.
+2. Bấm **✅ Báo xong** (thanh xanh trên kết quả). Còn combo chưa khai báo / chưa rõ nhà thì app nhắc, vẫn cho gửi.
+   App gửi lên Google Sheets **danh sách dòng đã chuẩn hóa** (nguồn, mã đơn, barcode/SKU, tên sàn, phân loại, giá, SL, ngày đặt, tên file; file web kèm dấu nhận dạng file) – **không gửi file gốc, không có thông tin khách**.
+3. Chỉ khi Google Sheets xác nhận mới hiện *"✅ Đã báo xong lúc …"*. Mất mạng thì báo rõ, bấm **🔁 Thử lại**.
+   Đơn trùng với phần người khác đã gửi → báo *"n đơn trùng với phần của B"* (khi gộp chỉ tính 1 lần).
+4. Cần sửa: **↩️ Mở lại** → sửa tiếp → **Báo xong lại**: bản mới **thay** bản cũ của chính bạn.
+5. Đợt đã chốt mà vẫn báo xong → *"Đợt đã chốt, phần này vào đợt ngày mai"*.
+6. Hôm sau: bấm **🧹 Làm phần mới** (hoặc × từng file) để bắt đầu phần mới.
+
+**Người đặt hàng – 📦 Tổng hợp đợt:**
+- Bảng trạng thái (tự làm mới 30 giây): người · nguồn · trạng thái + giờ · số dòng · còn sót (combo / chưa rõ); người trong danh sách chưa gửi gì cũng có 1 dòng *"⏳ Chưa gửi"*.
+- **👀 Xem trước gộp:** lấy mọi phần đã báo xong, **tính lại theo danh mục mới nhất** (ai khai báo combo sau khi người khác đã gửi thì phần đó vẫn tách đúng),
+  bỏ đơn trùng giữa các người (cùng sàn + mã đơn; file web cùng dấu nhận dạng – người gửi trước được giữ) và báo số đã bỏ.
+  Kết quả hiện ngay ở màn Tách đơn (thanh tím *"Đang xem GỘP đợt"*): 3 bảng nhà + Combo + Chưa rõ nhà, vẫn khai báo / sửa được.
+  Có người chưa báo xong → app nhắc, vẫn làm tiếp được. **↩️ Về phần của tôi** để quay lại file của mình (không mất).
+- **⬇️ Tải 3 file nhà:** đúng định dạng 4 cột như trước, tên file theo ngày của đợt.
+- **🔒 Chốt đợt:** khóa đợt và **ghi lịch sử thống kê đúng 1 lần tại đây** (tải file không ghi lịch sử nữa). **🔓 Mở lại đợt** được; chốt lại thì lịch sử được ghi đè, không cộng 2 lần.
+- Chọn ngày ở ô cạnh tiêu đề để xem / tải lại **đợt cũ**. Dữ liệu đợt giữ 30 ngày rồi tự dọn.
+
+Chưa cập nhật `Code.gs`: app chạy như trước (1 người), không có Báo xong / Tổng hợp đợt; tải file vẫn ghi lịch sử như cũ.
+
 ## Màn Danh mục
 
 - **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), cột **Tên sách** (sửa được, lọc "Chưa có tên khai báo"), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
@@ -400,5 +432,6 @@ node test/kiemtra-combo.js         # combo dạng "A+B", nghi combo theo giá, "
 node test/kiemtra-tensach.js       # tên sách khai báo, không gộp theo tên, khớp mã web theo tên + phân loại
 node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp file cũ), thống kê, dự báo dự phòng
 node test/kiemtra-nhieunguoi.js     # nhiều người dùng: đồng bộ phần thay đổi, chống ghi đè, combo trùng, Code.gs cũ
+node test/kiemtra-dot.js            # đợt đặt hàng: báo xong, đơn trùng giữa người, gộp tính lại, mở lại, chốt, đợt mai, dọn 30 ngày
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

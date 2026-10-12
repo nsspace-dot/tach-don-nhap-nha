@@ -15,6 +15,7 @@ function Sheet(name) { this.name = name; this.data = []; this.frozen = 0; }
 Sheet.prototype.getName = function () { return this.name; };
 Sheet.prototype.setName = function (n) { this.name = n; return this; };
 Sheet.prototype.setFrozenRows = function (n) { this.frozen = n; };
+Sheet.prototype.hideSheet = function () { this.an = true; return this; };
 Sheet.prototype.getLastRow = function () {
   for (var i = this.data.length - 1; i >= 0; i--) {
     if ((this.data[i] || []).some(function (x) { return x !== '' && x !== undefined && x !== null; })) return i + 1;

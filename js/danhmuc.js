@@ -33,6 +33,16 @@
   var nghe = [];
   // api: phiên bản Apps Script (0 = bản cũ, chưa có nhiều người dùng; null = chưa biết) ; rev: mốc đồng bộ đang có
   var may = { api: null, rev: 0, urlRev: '', dangDongBo: null, lanToanBo: 0 };
+  // Danh sách người dùng chung (Apps Script api ≥ 3) – lưu tạm trên máy để mở app lúc mất mạng vẫn biết vai trò
+  var nguoiDung = (cache && cache.nguoiDung) || [];
+  function nhanNguoiDung(ds) {
+    if (!Array.isArray(ds)) return;
+    var moi = ds.map(function (x) { return { ten: String(x.ten || ''), vai_tro: x.vai_tro === 'dat_hang' ? 'dat_hang' : 'san' }; }).filter(function (x) { return x.ten; });
+    if (JSON.stringify(moi) === JSON.stringify(nguoiDung)) return;
+    nguoiDung = moi;
+    luuCache();
+    phat('nguoidung');
+  }
   var DONG_BO_MS = 30000, TOAN_BO_MS = 10 * 60000;
 
   function chuanHoa(c) {
@@ -73,7 +83,7 @@
     if (state === 'ok') trangThai.luc = new Date().toISOString();
     phat('trangthai');
   }
-  function luuCache() { ghiLS(LS_DANHMUC, { catalog: catalog, luc: new Date().toISOString() }); }
+  function luuCache() { ghiLS(LS_DANHMUC, { catalog: catalog, luc: new Date().toISOString(), nguoiDung: nguoiDung }); }
   function nhanCatalog(c, info) {
     catalog = chuanHoa(c);
     luuCache();
@@ -83,6 +93,7 @@
   function nhanMoc(j) {
     var apiMoi = Number(j.api) || 0;
     if (may.api !== apiMoi) { may.api = apiMoi; phat('api'); }
+    if (j.nguoi_dung) nhanNguoiDung(j.nguoi_dung);
     if (!apiMoi) return true;
     var rev = Number(j.rev) || 0;
     if (may.urlRev === caiDat.url && rev < may.rev) return false;
@@ -90,6 +101,13 @@
     return true;
   }
   function nhieuNguoi() { return !!(caiDat.url && may.api >= 2); }
+  /* Có Người dùng + Đợt đặt hàng (Apps Script api ≥ 3) */
+  function coDot() { return !!(caiDat.url && may.api >= 3); }
+  /* Vai trò của "Tôi là" trên máy này: dat_hang | san | '' (chưa chọn / không có trong danh sách) */
+  function vaiTro() {
+    var x = nguoiDung.filter(function (n) { return n.ten === caiDat.toiLa; })[0];
+    return x ? x.vai_tro : '';
+  }
 
   function taiLai() {
     if (!caiDat.url) { datTrangThai('none'); return Promise.resolve(false); }
@@ -313,7 +331,12 @@
     get api() { return may.api; },
     get rev() { return may.rev; },
     nhieuNguoi: nhieuNguoi,
-    canCapNhatAppsScript: function () { return !!caiDat.url && may.api === 0; },
+    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 3; },
+    get nguoiDung() { return nguoiDung; },
+    nhanNguoiDung: nhanNguoiDung,
+    coDot: coDot,
+    vaiTro: vaiTro,
+    docGet: docGet,
     dongBo: dongBo,
     batDongBo: batDongBo,
     pbSku: pbSku,

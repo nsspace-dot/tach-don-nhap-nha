@@ -476,3 +476,31 @@ main:has(> #man-chinh:not([hidden])) { max-width: none; padding: 16px 16px 40px;
 .banner { max-width: none; margin: 12px 16px 0; }
 .khoa-them { display: flex; gap: 8px; margin-top: 6px; }
 .khoa-them .input { flex: 1; padding: 7px 10px; font-size: 13px; }
+
+/* ============ Người dùng + Đợt đặt hàng ============ */
+.dot-nhan {
+  font: 700 13px/1.2 var(--font); color: var(--ink); background: var(--paper); border: 2px solid var(--line);
+  border-radius: 999px; padding: 8px 14px; cursor: pointer; white-space: nowrap;
+}
+.dot-nhan b { color: var(--brand-dark); }
+.dot-chot { display: inline-block; background: #ece7e3; color: #5f544e; border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+.dot-canh { color: var(--cr-ink); font-weight: 700; }
+.dot-xong { color: var(--kv-ink); font-weight: 700; }
+.bao-xong, .gop-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; padding: 12px 16px;
+  border-radius: var(--r-md); background: var(--kv); border: 2px solid var(--kv-deep); color: var(--kv-ink); font-size: 14px;
+}
+.bao-xong .muted { color: var(--kv-ink); opacity: .8; font-size: 13px; }
+.gop-bar { background: var(--cb); border-color: var(--cb-deep); color: var(--cb-ink); justify-content: space-between; }
+.gop-bar .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.dot-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; margin-bottom: 14px; }
+.dot-head .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dot-tieu-de { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.dot-tieu-de h2 { margin: 0; }
+.dot-tt { font-weight: 700; border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.dot-tt.dang-nhan { background: var(--kv); color: var(--kv-ink); }
+.dot-tt.da-chot { background: var(--bq); color: var(--bq-ink); }
+.dot-chua td { color: var(--muted); }
+.nd-bang { max-width: 560px; }
+.nd-bang td { padding: 6px 8px; }
+@media (max-width: 680px) { .dot-nhan { white-space: normal; } }
