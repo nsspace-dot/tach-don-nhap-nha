@@ -234,6 +234,9 @@
       }
       var kq = PL.classify(rows, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia });
       var dong = TK.dongNapLichSu(kq);
+      // Lịch sử bán MỌI sách (kể cả nhà khác) cho Dự báo nhập kho – theo ngày đặt, đơn trùng mã bỏ qua ở Apps Script
+      var bh = DM.coBanHang() && root.BanHang ? root.BanHang.maHoa(dung, '') : null;
+      if (bh) bh.d = bh.d.filter(function (x) { return x[3]; });
       var chuaTinh = kq.combo.reduce(function (s, g) { return s + g.sl; }, 0) + kq.chuaRo.reduce(function (s, g) { return s + g.sl; }, 0);
       var ngay = dong.map(function (d) { return d.ngay; }).sort();
       var soDon = {};
@@ -246,18 +249,43 @@
         '· Đơn đã có trong lịch sử sẽ được bỏ qua (không cộng 2 lần)' +
         (chuaTinh ? '\n· ' + so(chuaTinh) + ' cuốn là combo chưa khai báo / chưa rõ nhà – không tính' : '') +
         (khongNgay ? '\n· ' + so(khongNgay) + ' dòng không có ngày đặt – bỏ qua' : '') +
-        (hong.length ? '\n· ' + hong.length + ' file không đọc được: ' + hong.map(function (p) { return p.file; }).join(', ') : '');
-      if (!dong.length) { A.toast('Không có dòng nào thuộc 3 nhà để nạp.', 'loi'); return; }
+        (hong.length ? '\n· ' + hong.length + ' file không đọc được: ' + hong.map(function (p) { return p.file; }).join(', ') : '') +
+        (bh ? '\n· Lịch sử bán cho 📈 Dự báo (mọi nhà, kể cả nhà khác): ' + so(bh.d.length) + ' dòng' : '');
+      if (!dong.length && !(bh && bh.d.length)) { A.toast('Không có dòng nào để nạp.', 'loi'); return; }
       return A.hoi(noiDung, '📥 Nạp', { nhe: true, tieuDe: 'Nạp lịch sử từ file đơn cũ' }).then(function (ok) {
         if (!ok) return;
-        return guiTheoLo(dong).then(function (t) {
-          A.toast('📥 Đã nạp lịch sử: ' + so(t.soDonMoi) + ' đơn mới' + (t.soDonTrung ? ', bỏ qua ' + so(t.soDonTrung) + ' đơn đã có' : '') + '.', 'ok');
-          A.nhacLichSuLon(t);
-          return A.taiLichSu(A.LS.tu || null, true);
-        });
+        return (dong.length ? guiTheoLo(dong) : Promise.resolve(null)).then(function (t) {
+          if (t) {
+            A.toast('📥 Đã nạp lịch sử: ' + so(t.soDonMoi) + ' đơn mới' + (t.soDonTrung ? ', bỏ qua ' + so(t.soDonTrung) + ' đơn đã có' : '') + '.', 'ok');
+            A.nhacLichSuLon(t);
+          }
+          return bh && bh.d.length ? napBanHang(bh) : null;
+        }).then(function () { return A.taiLichSu(A.LS.tu || null, true); });
       });
     }).catch(function (e) { A.toast('Không nạp được: ' + e.message, 'loi'); })
       .then(function () { btn.disabled = !DM.coTheGhi(); });
+  }
+
+  /* Lịch sử bán (dự báo): gửi theo lô 3000 dòng, mỗi lô kèm đúng các sản phẩm của lô */
+  function napBanHang(bh) {
+    var lo = [], tong = { moi: 0, trung: 0 };
+    for (var i = 0; i < bh.d.length; i += 3000) {
+      var sp = [], map = {}, d = [];
+      bh.d.slice(i, i + 3000).forEach(function (x) {
+        if (!(x[0] in map)) { map[x[0]] = sp.length; sp.push(bh.sp[x[0]]); }
+        d.push([map[x[0]], x[1], x[2], x[3], x[4]]);
+      });
+      lo.push({ sp: sp, d: d });
+    }
+    return lo.reduce(function (p, x, i) {
+      return p.then(function () {
+        if (lo.length > 1) A.toast('📈 Đang nạp lịch sử bán phần ' + (i + 1) + '/' + lo.length + '…');
+        return DM.goi('napBanHang', x).then(function (j) { tong.moi += j.soDongMoi || 0; tong.trung += j.soDongTrung || 0; });
+      });
+    }, Promise.resolve()).then(function () {
+      A.toast('📈 Lịch sử bán cho dự báo: thêm ' + so(tong.moi) + ' dòng' + (tong.trung ? ', bỏ qua ' + so(tong.trung) + ' dòng đã có' : '') + '.', 'ok');
+      if (root.ManDuBao) root.ManDuBao.taiLai();
+    });
   }
 
   /* Chia lô theo đơn: các dòng cùng mã đơn luôn đi chung 1 lần gửi */

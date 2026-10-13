@@ -199,6 +199,7 @@
   function xuLy(moi) {
     var r = rows();
     S.kq = r.length ? PL.classify(r, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : null;
+    if (S.kq) locManSang(S.kq);
     if (!S.kq) S.duPhong = { HA: {}, KV: {}, ML: {} };
     $('drop').hidden = !!S.gop;
     veChips();
@@ -206,6 +207,7 @@
     tuHoc();
     doiKhoaCu();
     if (root.ManDot) root.ManDot.sauXuLy();
+    if (root.ManDuBao) root.ManDuBao.filesDoi();
   }
 
   /* ---------- Xem gộp đợt (Người đặt hàng): tạm cất phần của mình, đưa các phần đã báo xong vào màn Tách đơn ---------- */
@@ -225,6 +227,27 @@
     S.files = c.files; S.demFile = c.demFile; S.duPhong = c.duPhong; S.tab = c.tab;
     gop();
     xuLy(false);
+  }
+
+  /* Màn sáng chỉ hiện việc ảnh hưởng đơn hôm nay của HA/KV/ML (Apps Script có lịch sử bán):
+   * - dòng chưa rõ nhà đã "⏭ Để sau" → sang tab Chờ khai báo
+   * - nhắc tái bản / cùng cuốn / listing cần sửa barcode của sách NHÀ KHÁC → không hiện (vào tab Chờ khai báo) */
+  function locManSang(kq) {
+    kq.deSauAn = [];
+    if (!DM.coBanHang()) return;
+    var ds = DM.deSau;
+    kq.deSauAn = kq.chuaRo.filter(function (g) { return ds[g.key]; });
+    kq.chuaRo = kq.chuaRo.filter(function (g) { return !ds[g.key]; });
+    var khac = {}, reKhac = PL.codeRegex(DM.caiDat.maKhac || PL.MA_KHAC_MAC_DINH);
+    kq.lines.forEach(function (ln) {
+      if (ln.loai !== 'bo_qua' || ln.lyDo === 'Không phải sách') return;
+      var r = ln.row;
+      if (/^Nhà khác/.test(ln.lyDo) || (PL.findCodes(r.ten + ' ' + r.phanLoai, reKhac).length && !PL.findCodes(r.ten + ' ' + r.phanLoai, PL.RE_NHA).length)) khac[r.san + '|' + PL.norm(r.ten)] = 1;
+    });
+    var laKhac = function (san, ten) { return khac[san + '|' + PL.norm(ten)]; };
+    kq.listingCanSua = kq.listingCanSua.filter(function (l) { return !laKhac(l.san, l.ten); });
+    kq.taiBan = kq.taiBan.filter(function (t) { return !(PL.NHA.indexOf(t.nha) < 0 && (laKhac('Shopee', t.ten) || laKhac('TikTok', t.ten))); });
+    kq.cungCuon = kq.cungCuon.filter(function (c) { return !laKhac(c.san, c.ten); });
   }
 
   /* Combo khai báo bằng khóa mã vạch trơn ("sku:<mã vạch>") → đổi sang "sku:<mã vạch>|<phân loại>" (ghi LICH_SU) */
@@ -324,7 +347,8 @@
         '<span><i style="background:#cfe5ff"></i>Có đơn dùng mã cũ (tái bản) – nên sửa listing</span>' +
         '<span><i style="background:var(--warn)"></i>Cùng SKU nhưng giá gốc khác</span></div>';
     } else if (S.tab === 'chuaRo') {
-      legend = '<div class="legend">Chọn nhà cho từng dòng – mèo sẽ nhớ cho lần sau 🐾</div>';
+      legend = '<div class="legend">Chọn nhà cho từng dòng – mèo sẽ nhớ cho lần sau 🐾' +
+        (S.kq.deSauAn && S.kq.deSauAn.length ? ' · <button class="linkish" data-di="chokb">' + S.kq.deSauAn.length + ' dòng đã để sau → 📝 Chờ khai báo</button>' : '') + '</div>';
     } else {
       legend = '<div class="legend">Khai báo 1 lần, lần sau combo tự tách thành từng cuốn 🐾</div>';
     }
@@ -559,7 +583,8 @@
           '<td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td>' +
           '<td>' + nutNha('chuaRo', i) +
           '<div class="actions" style="margin-top:6px">' + (g.isCombo ? nutGhi('🧩 Khai báo combo', 'class="btn btn-sm" data-khai-bao-cr="' + i + '"')
-            : nutGhi('🎁 Chuyển thành combo', 'class="btn btn-sm" data-la-combo-cr="' + i + '"')) + '</div>' +
+            : nutGhi('🎁 Chuyển thành combo', 'class="btn btn-sm" data-la-combo-cr="' + i + '"')) +
+            (DM.coBanHang() ? nutGhi('⏭ Để sau', 'class="btn btn-sm btn-ghost" data-de-sau="' + i + '" title="Chưa cần cho đơn hôm nay – chuyển sang tab 📝 Chờ khai báo"') : '') + '</div>' +
           '</td></tr>';
       }).join('') + '</tbody></table>';
   }
@@ -790,7 +815,7 @@
   }
 
   function diToi(man) {
-    ['chinh', 'dot', 'thongke', 'danhmuc', 'caidat'].forEach(function (m) {
+    ['chinh', 'dot', 'dubao', 'chokb', 'thongke', 'danhmuc', 'caidat'].forEach(function (m) {
       $('man-' + m).hidden = m !== man;
     });
     document.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -802,6 +827,7 @@
     if (man === 'caidat' && root.CaiDat) root.CaiDat.ve();
     if (man === 'thongke' && root.ManThongKe) root.ManThongKe.ve();
     if (man === 'dot' && root.ManDot) root.ManDot.veTongHop(true);
+    if ((man === 'dubao' || man === 'chokb') && root.ManDuBao) root.ManDuBao.ve(man);
     DM.dongBo();
   }
 
@@ -962,6 +988,12 @@
       } else if (b.dataset.laComboCr) {
         var gc = S.kq.chuaRo[+b.dataset.laComboCr];
         root.KhaiBao.moKhaiBao(nhomCombo(gc.lines.map(function (l) { return l.row; }), gc.nha, gc.sl));
+      } else if (b.dataset.deSau) {
+        var gd = S.kq.chuaRo[+b.dataset.deSau];
+        b.disabled = true;
+        DM.goi('deSau', { khoa: gd.key, ten: gd.ten })
+          .then(function (j) { DM.nhanDeSau(j.de_sau); toast('⏭ Đã để sau: "' + gd.ten.slice(0, 40) + '" – xem ở tab 📝 Chờ khai báo.', 'ok'); })
+          .catch(function (e) { b.disabled = false; baoLoi('Không lưu được', e); });
       } else if (b.dataset.luuDm) {
         var gl = S.kq.nha[S.tab][+b.dataset.luuDm], nhaDm = S.tab;
         b.disabled = true;
@@ -1071,6 +1103,7 @@
     DM.nghe(function (loai, info) {
       if (loai === 'trangthai') veTrangThai();
       if (loai === 'catalog' || loai === 'caidat') veLai(loai === 'catalog' ? info : null);
+      if (loai === 'desau' && S.files.length) giuViTri(veLaiNgay);
       if (loai === 'caidat') { veTrangThai(); taiLichSu(); }
       if (loai === 'api' || loai === 'admin' || loai === 'nguoidung' || loai === 'caidat') { veBanner(); veQuyen(); }
     });
@@ -1099,6 +1132,7 @@
     rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
     LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon,
     laAdmin: laAdmin, laDatHang: laDatHang, veQuyen: veQuyen, hoiMaAdmin: hoiMaAdmin,
+    ganNha: ganNha, moSuaTen: moSuaTen, moBarcodeDong: moBarcodeDong, nhomCombo: nhomCombo,
     gop: gop, xuLy: xuLy, taiNha: taiNha, vaoGop: vaoGop, thoatGop: thoatGop, soDongCho: soDongCho, veBanner: veBanner
   };
   document.addEventListener('DOMContentLoaded', khoiDong);

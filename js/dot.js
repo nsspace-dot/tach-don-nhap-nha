@@ -281,10 +281,14 @@
         .then(function (ok) {
           if (!ok) return;
           var bg = kq ? root.ThongKe.banGhiNgay(kq, PL.NHA.slice(), T.gop.dot_id) : null;
-          return DM.goi('chotDot', { dot_id: T.gop.dot_id, lich_su: bg }).then(function (j) {
+          // Lịch sử bán (mọi sách, kể cả nhà khác) cho Dự báo nhập kho – lưu đúng 1 lần khi chốt
+          var bh = DM.coBanHang() && root.BanHang ? root.BanHang.maHoa(A.S.files, T.gop.dot_id) : undefined;
+          return DM.goi('chotDot', { dot_id: T.gop.dot_id, lich_su: bg, ban_hang: bh }).then(function (j) {
+            if (j.banHang && root.ManDuBao) root.ManDuBao.taiLai();
             T.dot = j.dot;
             A.toast(j.da_chot_truoc ? '🔒 Đợt này đã được chốt trước đó.' : '🔒 Đã chốt đợt ' + DG.ngayNgan(T.gop.dot_id) +
-              (j.lichSu ? ' – ghi lịch sử ' + A.so(j.lichSu.soDong) + ' đầu sách.' : '.'), 'ok');
+              (j.lichSu ? ' – ghi lịch sử ' + A.so(j.lichSu.soDong) + ' đầu sách' : '') +
+              (j.banHang ? ', lưu ' + A.so(j.banHang.soDong) + ' dòng bán' + (j.banHang.boTrung ? ' (bỏ ' + A.so(j.banHang.boTrung) + ' dòng đơn treo đã tính)' : '') : '') + '.', 'ok');
             if (j.lichSu) A.taiLichSu(undefined, true);
             taiTongHop();
           });

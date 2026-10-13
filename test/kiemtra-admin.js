@@ -21,7 +21,7 @@ var HOM_NAY = m.get({ action: 'dot' }).hom_nay;
 
 console.log('\n1. Chưa đặt mã Admin');
 var g = m.get();
-check('GET báo chưa đặt mã, api 4', g.api === 4 && g.admin_da_dat_ma === false);
+check('GET báo chưa đặt mã, api ≥ 4', g.api >= 4 && g.admin_da_dat_ma === false);
 var r = P('luuNguoiDung', { ds: [{ ten: 'Tú', vai_tro: 'admin' }], _maAdmin: 'gi-cung-duoc' }, 'Tú');
 check('Thao tác Admin → báo hướng dẫn đặt mã (datMaAdmin)', !r.ok && /^CHUA_DAT_MA_ADMIN/.test(r.error) && /datMaAdmin/.test(r.error), r.error);
 r = P('upsertSku', { key: 'sku:111', sku: '111', ten: 'Sách A', nha: 'HA', nguon: 'tay' }, 'Lan');

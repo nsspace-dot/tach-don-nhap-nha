@@ -97,7 +97,7 @@ Gộp cả 3 phần: danh mục đồng bộ + chống ghi đè, Người dùng 
    **KHÔNG** bấm *Triển khai mới (New deployment)* – giữ nguyên URL, các máy không phải dán lại.
 5. **Không cần** chạy lại `khoiTao`. Mọi thứ mới **tự thêm**, dữ liệu cũ giữ nguyên, không đổi tên / xóa / đổi thứ tự cột cũ:
    - cột cuối `phien_ban`, `dong_bo`, `nguoi_sua` (SKU_NHA, COMBO, MA_CHUAN) ; `nguoi`, `phien_ban` (LICH_SU)
-   - sheet mới: `DM_XOA`, `NGUOI_DUNG`, `DOT`, `DOT_PHAN`, `CAI_DAT_CHUNG`, và mỗi đợt 1 sheet ẩn `DOT_DL_<ngày>` (tự xóa sau 30 ngày).
+   - sheet mới: `DM_XOA`, `NGUOI_DUNG`, `DOT`, `DOT_PHAN`, `CAI_DAT_CHUNG`, `BAN_HANG`, `DE_SAU`, và mỗi đợt 1 sheet ẩn `DOT_DL_<ngày>` (tự xóa sau 30 ngày).
 6. Mở app trên máy Admin → bấm 🔄 (hoặc tải lại trang) → **⚙️ Cài đặt**:
    - **Tôi là**: chọn / gõ tên mình.
    - **🔑 Admin**: nhập mã Admin → **Đăng nhập Admin** (máy nhớ mã).
@@ -397,6 +397,29 @@ Cần `Code.gs` mới (cuối Phần D). Mỗi ngày (giờ Việt Nam) là **1 
 
 Chưa cập nhật `Code.gs`: app chạy như trước (1 người), không có Báo xong / Tổng hợp đợt; tải file vẫn ghi lịch sử như cũ.
 
+## 📈 Dự báo nhập kho & 📝 Chờ khai báo
+
+Cần `Code.gs` bản mới (api 5).
+
+**Lịch sử bán** (sheet `BAN_HANG`): lưu khi **🔒 Chốt đợt** (đúng 1 lần, chốt lại thì thay) – dòng đơn đã chuẩn hóa của **mọi sách, kể cả nhà khác**
+(ngày đặt, nguồn, mã đơn, barcode/SKU, tên sàn, phân loại, giá, SL; không thông tin khách; bỏ lịch, tranh, decal, trà… không phải sách).
+- Shopee/TikTok: mỗi (sàn + mã đơn + dòng sản phẩm) chỉ đếm 1 lần – đơn treo nhiều ngày không cộng lặp. Web: cộng thẳng, file thả trùng chỉ tính 1 lần.
+- Số bán được **tính lại theo danh mục mới nhất** mỗi lần xem → khai báo combo / nhà / barcode muộn thì số quá khứ cũng tự đúng.
+- Nạp dữ liệu cũ: tab 📊 Thống kê → **📥 Nạp lịch sử từ file đơn cũ** (Order_all Shopee / TikTok / web các tháng trước): chỉ đơn không hủy, theo ngày đặt, đơn đã có bỏ qua.
+- Sheet lớn thì app tự gom các ngày cũ hơn 120 ngày thành 1 khối / tháng.
+
+**📈 Dự báo nhập kho** (Người đặt hàng + Admin): chọn nhà (nhà khác MEGA, VT, QB…; HA/KV/ML để tham khảo).
+Mỗi cuốn 1 dòng: bán 7 / 30 ngày, TB/ngày (trung bình có trọng số 28 ngày, ngày gần nặng hơn), xu hướng (7 ngày gần nhất so với 7 ngày trước),
+**Gợi ý đặt** = làm tròn lên (TB/ngày × số ngày đủ bán – mặc định 7, chỉnh riêng từng nhà, dùng chung). Không tính tồn kho.
+Sửa số / tick cuốn cần đặt → **⬇️ Xuất Excel nhà này** (4 cột như file 3 nhà, tên `Du-kien-nhap_<Nhà>_dd-mm-yyyy.xlsx`). Chưa đủ 14 ngày dữ liệu thì có ghi chú, vẫn hiện số.
+
+**📝 Chờ khai báo** (mọi người): việc không ảnh hưởng đơn đặt hôm nay của HA/KV/ML – combo nhà khác chưa khai, combo trộn còn thiếu phần nhà khác,
+dòng **⏭ Để sau**, sách nhà khác chưa có tên khai báo, barcode thiếu / sai. Có số lần xuất hiện, lần cuối gặp, nguồn; sắp theo số lần giảm dần;
+khai báo ngay tại tab (hoặc **🙈 Bỏ qua**). Khai báo xong thì tự biến mất, dự báo tự tính lại. Số việc hiện trên menu: *📝 Chờ khai báo (23)*.
+
+**Màn Tách đơn buổi sáng** chỉ còn việc ảnh hưởng đơn hôm nay: dòng chưa rõ nhà có nút **⏭ Để sau**; nhắc tái bản / cùng cuốn / listing cần sửa barcode của sách nhà khác chuyển sang tab Chờ khai báo.
+Combo trộn nhà (vd "COMBO HA + … (MEGA)"): chỉ cần khai phần HA/KV/ML là lưu được – phần nhà khác không bắt buộc.
+
 ## Màn Danh mục
 
 - **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), cột **Tên sách** (sửa được, lọc "Chưa có tên khai báo"), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
@@ -468,5 +491,6 @@ node test/kiemtra-thongke.js       # lịch sử đặt hàng (ghi đè, nạp f
 node test/kiemtra-nhieunguoi.js     # nhiều người dùng: đồng bộ phần thay đổi, chống ghi đè, combo trùng, Code.gs cũ
 node test/kiemtra-dot.js            # đợt đặt hàng: báo xong, đơn trùng giữa người, gộp tính lại, mở lại, chốt, đợt mai, dọn 30 ngày
 node test/kiemtra-admin.js          # Admin: mã ở Script Properties, khóa sau 5 lần sai, thao tác chỉ Admin, hoàn tác của người khác
+node test/kiemtra-dubao.js          # lịch sử bán (đơn treo, web, khai báo muộn, nạp file cũ, gom tháng), dự báo, chờ khai báo
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

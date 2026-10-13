@@ -610,8 +610,40 @@
       return null;
     }
 
+    // settings.caNhaKhac: gom thêm sách của NHÀ KHÁC (MEGA, VT…, nhà cung cấp web khác) theo mã nhà – dùng cho dự báo / chờ khai báo.
+    // Không đổi kết quả 3 nhà.
+    var nhaKhac = settings.caNhaKhac ? new Map() : null;
+    function themNhaKhac(ma, item) {
+      if (!nhaKhac || !ma) return;
+      if (!nhaKhac.has(ma)) nhaKhac.set(ma, new Map());
+      addToHouse(nhaKhac.get(ma), item, optTen);
+    }
+    function maKhacCua(text) { var c = findCodes(text, reKhac); return c.length ? c[0] : ''; }
+    // Nhà cung cấp trên đơn web → mã nhà khác nếu nhận ra (MegaBook → MEGA, Quang Bình → QB), không thì giữ tên nhà cung cấp
+    function maTheoNcc(ncc) {
+      var t = boDau(ncc);
+      if (/mega ?book/.test(t)) return 'MEGA';
+      if (/quang binh/.test(t)) return 'QB';
+      return clean(ncc) || 'KHAC';
+    }
+
     lines.forEach(function (ln) {
       var r = ln.row;
+      if (nhaKhac && ln.loai === 'bo_qua' && !ln.isCombo && ln.lyDo !== 'Không phải sách') {
+        var maK = r.san === 'Web' && nhaTheoNcc(r.ncc) === 'KHAC' ? maTheoNcc(r.ncc) : maKhacCua(r.ten + ' ' + r.phanLoai);
+        var kbK = tenKB(r.sku, rowKey(r, false));
+        themNhaKhac(maK, { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, maCu: r.skuCu,
+          tenKB: kbK && kbK.ten, nguonTen: kbK && kbK.nguon, src: { san: r.san, row: r } });
+      }
+      if (nhaKhac && ln.loai === 'tach_combo') (ln.combo.thanh_phan || []).forEach(function (tp) {
+        if (NHA.indexOf(tp.nha) >= 0) return;
+        var skuK = clean(tp.sku) ? maMoiNhat(idx, tp.sku) : '';
+        var kbT = tenKB(skuK, '') || (clean(tp.ten) ? { ten: tenGon(tp.ten, maKhac), nguon: 'combo' } : null);
+        themNhaKhac(maKhacCua(clean(tp.ten)) || maKhacCua(r.ten + ' ' + r.phanLoai) || 'KHAC', {
+          sku: skuK, ten: clean(tp.ten), phanLoai: '', gia: giaThanhPhan(idx, giaFile, tp).gia, sl: r.sl * (Number(tp.so_luong) || 1), rankSan: 'combo', laTp: true,
+          tenKB: kbT && kbT.ten, nguonTen: kbT && kbT.nguon,
+          src: { san: r.san, combo: ln.combo.ten_combo, comboId: ln.combo.combo_id, tpTen: clean(tp.ten), tpSku: clean(tp.sku), row: r } });
+      });
       if (NHA.indexOf(ln.nha) >= 0 && (ln.loai === 'nha' || ln.loai === 'combo')) dongTheoNha[ln.nha]++;
       if (ln.loai === 'nguyen_combo') dongTheoNha[ln.nha]++;
       if (ln.doiKhoa) {
@@ -703,6 +735,14 @@
       list.forEach(function (g) { g.canhBaoGia = dem[g.nhom] > 1; delete g.rank; delete g.nhom; });
       out.nha[n] = list.sort(sortVi);
     });
+    if (nhaKhac) {
+      out.nhaKhac = {};
+      nhaKhac.forEach(function (m, ma) {
+        var list = Array.from(m.values());
+        list.forEach(function (g) { delete g.rank; delete g.nhom; });
+        out.nhaKhac[ma] = list.sort(sortVi);
+      });
+    }
     out.combo = Array.from(comboMap.values()).sort(sortVi);
     out.chuaRo = Array.from(chuaRoMap.values()).sort(sortVi);
     out.boQua = Array.from(boQuaMap.values()).sort(function (a, b) {

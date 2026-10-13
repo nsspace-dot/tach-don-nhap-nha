@@ -504,3 +504,14 @@ main:has(> #man-chinh:not([hidden])) { max-width: none; padding: 16px 16px 40px;
 .nd-bang { max-width: 560px; }
 .nd-bang td { padding: 6px 8px; }
 @media (max-width: 680px) { .dot-nhan { white-space: normal; } }
+
+/* ============ Dự báo nhập kho + Chờ khai báo ============ */
+.db-songay { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.db-ghichu { padding: 0 6px 10px; margin: 0; }
+.xh-tang { color: var(--kv-ink); font-weight: 700; }
+.xh-giam { color: var(--danger); font-weight: 700; }
+.xh-deu { color: var(--muted); }
+.db-sl { width: 80px; text-align: right; }
+.db-tong { padding: 10px 16px; font-weight: 700; }
+.kb-loai { white-space: nowrap; font-weight: 700; }
+.kb-bang .actions { display: flex; flex-wrap: wrap; gap: 4px; }

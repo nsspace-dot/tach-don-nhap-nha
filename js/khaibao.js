@@ -96,7 +96,8 @@
     $('cb-nguyen').disabled = false; // không khóa – chỉ cảnh báo
     $('cb-nguyen-nhan').classList.remove('is-khoa');
     $('cb-cach-ghichu').textContent = opt.tronNha
-      ? '⚠ Combo này có sách của nhà khác (' + (opt.maTron || 'MEGA, TN…') + ') – nên tách để chỉ lấy phần HA/KV/ML (xuất nguyên thì cả combo vào 1 nhà).'
+      ? '⚠ Combo này có sách của nhà khác (' + (opt.maTron || 'MEGA, TN…') + ') – nên tách để chỉ lấy phần HA/KV/ML (xuất nguyên thì cả combo vào 1 nhà).' +
+        ' Cuốn nhà khác (chọn nhà “Khác”) KHÔNG bắt buộc: chỉ cần khai phần HA/KV/ML là lưu được' + (DM.coBanHang() ? '; để trống thì combo vào tab 📝 Chờ khai báo (còn thiếu phần nhà khác).' : '.')
       : 'Xuất nguyên: dùng cho sách mà hệ thống lên đơn chỉ có dạng combo, không có từng cuốn lẻ.';
     $('cb-nha').value = PL.NHA.indexOf(opt.nha) >= 0 ? opt.nha : (PL.NHA.indexOf(opt.nhaGoiY) >= 0 ? opt.nhaGoiY : 'HA');
     $('cb-maht').value = opt.ma_he_thong || '';

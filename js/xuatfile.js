@@ -66,11 +66,15 @@
   /* File gửi nhà: 1 sheet (tên nhà), đúng 4 cột STT | Tên sách | Giá bìa | Số lượng.
    * Dòng 1 là tiêu đề cột, dữ liệu từ dòng 2. Không SKU, không thành tiền, không dòng tổng/thông tin shop. */
   function buildDonDatHang(result, nha, info, ExcelJS, date) {
-    var ds = dongCuaNha(result, nha);
+    return buildBang(dongCuaNha(result, nha), TEN_NHA[nha], ExcelJS, date);
+  }
+
+  /* Cùng định dạng 4 cột cho danh sách bất kỳ: ds = [{ ten, gia, sl }] (dùng cho file "Dự kiến nhập") */
+  function buildBang(ds, tenSheet, ExcelJS, date) {
     var wb = new ExcelJS.Workbook();
     wb.creator = 'Tách đơn nhập nhà';
     wb.created = date || new Date();
-    var ws = wb.addWorksheet(TEN_NHA[nha]);
+    var ws = wb.addWorksheet(String(tenSheet || 'Don dat hang').replace(/[\\/?*[\]:]/g, ' ').slice(0, 31));
     ws.columns = [{ width: 6 }, { width: 64 }, { width: 12 }, { width: 10 }];
     var hd = ws.getRow(1);
     hd.values = ['STT', 'Tên sách', 'Giá bìa', 'Số lượng'];
@@ -104,7 +108,7 @@
 
   return {
     NHA: NHA, TEN_NHA: TEN_NHA,
-    fileName: fileName, buildDonDatHang: buildDonDatHang, dongCuaNha: dongCuaNha,
+    fileName: fileName, buildDonDatHang: buildDonDatHang, buildBang: buildBang, dongCuaNha: dongCuaNha, TEN_FILE: TEN_FILE, ngayChu: ngayChu,
     nhaCoHang: nhaCoHang, kiemTraTruocKhiTai: kiemTraTruocKhiTai
   };
 });

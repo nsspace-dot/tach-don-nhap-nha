@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261013a">
+  <link rel="stylesheet" href="style.css?v=20261013b">
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -25,6 +25,8 @@
     <nav class="nav" aria-label="Chuyển màn hình">
       <button class="nav-btn is-active" data-man="chinh" aria-current="page">📦 Tách đơn</button>
       <button class="nav-btn" data-man="dot" id="nav-dot" hidden>📦 Tổng hợp đợt</button>
+      <button class="nav-btn" data-man="dubao" id="nav-dubao" hidden>📈 Dự báo nhập kho</button>
+      <button class="nav-btn" data-man="chokb" id="nav-chokb" hidden>📝 Chờ khai báo <span id="dem-chokb" class="dem"></span></button>
       <button class="nav-btn" data-man="thongke">📊 Thống kê</button>
       <button class="nav-btn" data-man="danhmuc">📚 Danh mục</button>
       <button class="nav-btn" data-man="caidat">⚙️ Cài đặt</button>
@@ -110,6 +112,41 @@
       <div class="panel">
         <div class="table-wrap" id="dot-bang"></div>
       </div>
+    </section>
+
+    <!-- ============ MÀN DỰ BÁO NHẬP KHO (người đặt hàng + Admin) ============ -->
+    <section class="man" id="man-dubao" aria-label="Dự báo nhập kho" hidden>
+      <div class="panel dot-head">
+        <div class="dot-tieu-de">
+          <h2>📈 Dự báo nhập kho</h2>
+          <select class="select" id="db-nha" aria-label="Chọn nhà"></select>
+          <label class="db-songay">Đủ bán <input class="input input-ngan" id="db-songay" type="number" min="1" max="90" step="1" aria-label="Số ngày muốn đủ bán"> ngày</label>
+        </div>
+        <div class="actions">
+          <select class="select" id="db-sap" aria-label="Sắp xếp">
+            <option value="chay">Bán chạy (30 ngày)</option><option value="tang">Đang tăng</option><option value="goiy">Gợi ý cao nhất</option>
+          </select>
+          <input type="search" class="input" id="db-tim" placeholder="🔎 Tìm tên sách" aria-label="Tìm tên sách">
+          <label class="radio"><input type="checkbox" id="db-co-goiy"> Chỉ cuốn có gợi ý</label>
+          <button class="btn" id="db-lai" type="button">🔄 Tải lại</button>
+          <button class="btn btn-primary" id="db-xuat" type="button">⬇️ Xuất Excel nhà này</button>
+        </div>
+      </div>
+      <p class="legend db-ghichu" id="db-ghichu"></p>
+      <div class="panel"><div class="table-wrap" id="db-bang"></div></div>
+    </section>
+
+    <!-- ============ MÀN CHỜ KHAI BÁO ============ -->
+    <section class="man" id="man-chokb" aria-label="Chờ khai báo" hidden>
+      <div class="panel dot-head">
+        <div class="dot-tieu-de"><h2>📝 Chờ khai báo</h2><span class="muted" id="kb-tom"></span></div>
+        <div class="actions">
+          <select class="select" id="kb-loc" aria-label="Lọc loại việc"></select>
+          <button class="btn" id="kb-lai" type="button">🔄 Tải lại</button>
+        </div>
+      </div>
+      <p class="legend db-ghichu">Việc khai báo không ảnh hưởng đơn đặt hôm nay của HA/KV/ML – làm lúc rảnh. Lấy từ lịch sử bán đã lưu (60 ngày) + file đang mở trên máy, sắp theo số lần xuất hiện. Khai báo xong thì tự biến mất và dự báo tự tính lại.</p>
+      <div class="panel"><div class="table-wrap" id="kb-bang"></div></div>
     </section>
 
     <!-- ============ MÀN THỐNG KÊ ============ -->
@@ -463,20 +500,22 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261013a"></script>
-  <script src="js/phanloai.js?v=20261013a"></script>
-  <script src="js/thongke.js?v=20261013a"></script>
-  <script src="js/xuatfile.js?v=20261013a"></script>
-  <script src="js/danhmuc.js?v=20261013a"></script>
-  <script src="js/danhmuc-excel.js?v=20261013a"></script>
-  <script src="js/linhvat.js?v=20261013a"></script>
-  <script src="js/app.js?v=20261013a"></script>
-  <script src="js/khaibao.js?v=20261013a"></script>
-  <script src="js/barcode.js?v=20261013a"></script>
-  <script src="js/mandanhmuc.js?v=20261013a"></script>
-  <script src="js/caidat.js?v=20261013a"></script>
-  <script src="js/manthongke.js?v=20261013a"></script>
-  <script src="js/dot-gop.js?v=20261013a"></script>
-  <script src="js/dot.js?v=20261013a"></script>
+  <script src="js/docfile.js?v=20261013b"></script>
+  <script src="js/phanloai.js?v=20261013b"></script>
+  <script src="js/thongke.js?v=20261013b"></script>
+  <script src="js/xuatfile.js?v=20261013b"></script>
+  <script src="js/danhmuc.js?v=20261013b"></script>
+  <script src="js/danhmuc-excel.js?v=20261013b"></script>
+  <script src="js/linhvat.js?v=20261013b"></script>
+  <script src="js/app.js?v=20261013b"></script>
+  <script src="js/khaibao.js?v=20261013b"></script>
+  <script src="js/barcode.js?v=20261013b"></script>
+  <script src="js/mandanhmuc.js?v=20261013b"></script>
+  <script src="js/caidat.js?v=20261013b"></script>
+  <script src="js/manthongke.js?v=20261013b"></script>
+  <script src="js/dot-gop.js?v=20261013b"></script>
+  <script src="js/dot.js?v=20261013b"></script>
+  <script src="js/banhang.js?v=20261013b"></script>
+  <script src="js/dubao.js?v=20261013b"></script>
 </body>
 </html>

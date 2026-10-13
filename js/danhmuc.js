@@ -40,6 +40,15 @@
   var maAdmin = (docLS(LS_ADMIN, {}) || {}).ma || '';
   function luuMaAdmin(ma) { maAdmin = ma || ''; ghiLS(LS_ADMIN, { ma: maAdmin }); phat('admin'); }
   /* Cài đặt chung do Admin đặt (mã nhà khác, trạng thái Shopee, phân loại vô nghĩa) → ghi đè cài đặt trên máy */
+  /* Dòng "⏭ Để sau" (dùng chung mọi máy) */
+  var deSau = {};
+  function nhanDeSau(ds) {
+    var moi = {};
+    (ds || []).forEach(function (k) { moi[k] = 1; });
+    if (JSON.stringify(moi) === JSON.stringify(deSau)) return;
+    deSau = moi;
+    phat('desau');
+  }
   function nhanCaiDatChung(cd) {
     if (!cd || typeof cd !== 'object') return;
     may.caiDatChung = cd;
@@ -112,6 +121,7 @@
     if (j.nguoi_dung) nhanNguoiDung(j.nguoi_dung);
     if (j.admin_da_dat_ma !== undefined && may.adminDaDatMa !== !!j.admin_da_dat_ma) { may.adminDaDatMa = !!j.admin_da_dat_ma; phat('admin'); }
     if (j.cai_dat_chung) nhanCaiDatChung(j.cai_dat_chung);
+    if (j.de_sau) nhanDeSau(j.de_sau);
     if (!apiMoi) return true;
     var rev = Number(j.rev) || 0;
     if (may.urlRev === caiDat.url && rev < may.rev) return false;
@@ -123,6 +133,8 @@
   function coDot() { return !!(caiDat.url && may.api >= 3); }
   /* Có vai trò Admin (Apps Script api ≥ 4) */
   function coAdmin() { return !!(caiDat.url && may.api >= 4); }
+  /* Có lịch sử bán + dự báo + chờ khai báo (Apps Script api ≥ 5) */
+  function coBanHang() { return !!(caiDat.url && may.api >= 5); }
   /* Vai trò của "Tôi là" trên máy này: admin | dat_hang | san | '' (chưa chọn / không có trong danh sách) */
   function vaiTro() {
     var x = nguoiDung.filter(function (n) { return n.ten === caiDat.toiLa; })[0];
@@ -381,8 +393,11 @@
     get api() { return may.api; },
     get rev() { return may.rev; },
     nhieuNguoi: nhieuNguoi,
-    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 4; },
+    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 5; },
     coAdmin: coAdmin,
+    coBanHang: coBanHang,
+    get deSau() { return deSau; },
+    nhanDeSau: nhanDeSau,
     get coMaAdmin() { return !!maAdmin; },
     get adminDaDatMa() { return may.adminDaDatMa; },
     get caiDatChung() { return may.caiDatChung; },
