@@ -97,7 +97,7 @@ Gộp cả 3 phần: danh mục đồng bộ + chống ghi đè, Người dùng 
    **KHÔNG** bấm *Triển khai mới (New deployment)* – giữ nguyên URL, các máy không phải dán lại.
 5. **Không cần** chạy lại `khoiTao`. Mọi thứ mới **tự thêm**, dữ liệu cũ giữ nguyên, không đổi tên / xóa / đổi thứ tự cột cũ:
    - cột cuối `phien_ban`, `dong_bo`, `nguoi_sua` (SKU_NHA, COMBO, MA_CHUAN) ; `nguoi`, `phien_ban` (LICH_SU)
-   - sheet mới: `DM_XOA`, `NGUOI_DUNG`, `DOT`, `DOT_PHAN`, `CAI_DAT_CHUNG`, `BAN_HANG`, `DE_SAU`, và mỗi đợt 1 sheet ẩn `DOT_DL_<ngày>` (tự xóa sau 30 ngày).
+   - sheet mới: `DM_XOA`, `NGUOI_DUNG`, `DOT`, `DOT_PHAN`, `CAI_DAT_CHUNG`, `BAN_HANG`, `DE_SAU`, `NHA` (sổ nhà), và mỗi đợt 1 sheet ẩn `DOT_DL_<ngày>` (tự xóa sau 30 ngày).
 6. Mở app trên máy Admin → bấm 🔄 (hoặc tải lại trang) → **⚙️ Cài đặt**:
    - **Tôi là**: chọn / gõ tên mình.
    - **🔑 Admin**: nhập mã Admin → **Đăng nhập Admin** (máy nhớ mã).
@@ -440,10 +440,12 @@ Combo trộn nhà (vd "COMBO HA + … (MEGA)"): chỉ cần khai phần HA/KV/ML
   (Người sửa code: thêm chủ đề = 1 khối biến trong `themes.css` + 1 dòng trong `js/chude.js`.)
 - **Tôi là:** tên người dùng máy này (xem *Nhiều người dùng cùng lúc*).
 - **URL Apps Script** (xem Phần D, F).
-- **Mã nhà khác:** các mã sẽ bị bỏ qua (mặc định `MEGA, VT, HH, NS, QB, TN, HT`). Có nhà mới thì thêm vào, cách nhau dấu phẩy.
+- **🏠 Nhà:** sổ nhà dùng chung (sheet `NHA`). Mỗi nhà: mã, tên, loại (**Đặt hằng ngày** = có thẻ + file đặt riêng như HA/KV/ML; **Nhập kho** = không vào đơn hằng ngày, tính ở Dự báo nhập kho), màu, cách nhận diện: *mã trong tên* (vd `ĐT`), *tên NCC web* (vd `megabook` → MEGA), *tiền tố barcode* (tùy chọn, vd `8936067` → ML).
+  Mặc định: HA/KV/ML hằng ngày; MEGA, VT, HH, NS, QB, TN, HT (từ ô "Mã nhà khác" cũ) nhập kho – không mất gì. Thêm / sửa / xóa cần **Admin**; xóa nhà đang có sách sẽ hỏi chuyển sách sang nhà nào.
+  Mọi ô chọn nhà (Chưa rõ nhà, Đã bỏ qua, Chờ khai báo, Danh mục) liệt kê đủ nhà + **➕ Nhà mới…** (ai cũng thêm được, lưu xong gán luôn).
+- **Mã nhà khác** (chỉ hiện khi Code.gs chưa cập nhật bản có sổ nhà): các mã sẽ bị bỏ qua, cách nhau dấu phẩy.
 - **Kiểm tra kết nối.**
 - **Trạng thái đơn Shopee cần lấy:** mỗi dòng 1 trạng thái (mặc định *Chờ giao hàng*, *Chờ xác nhận*). Ghi đúng như cột "Trạng Thái Đơn Hàng" trong file Shopee.
-- **Mã nhà khác:** có nhà mới (vd sách ghi "(STK)") thì tự thêm vào ô này – app không tự thêm.
 - **Phân loại vô nghĩa:** các phân loại không ghép vào tên tạm (mặc định Not Specified, Default, Mặc định, Lẻ, 1 cuốn).
 - **Gợi ý đặt dự phòng:** bật/tắt cột gợi ý và số ngày dự phòng (mặc định 2, để 0 = tắt).
 
@@ -495,5 +497,6 @@ node test/kiemtra-nhieunguoi.js     # nhiều người dùng: đồng bộ phầ
 node test/kiemtra-dot.js            # đợt đặt hàng: báo xong, đơn trùng giữa người, gộp tính lại, mở lại, chốt, đợt mai, dọn 30 ngày
 node test/kiemtra-admin.js          # Admin: mã ở Script Properties, khóa sau 5 lần sai, thao tác chỉ Admin, hoàn tác của người khác
 node test/kiemtra-dubao.js          # lịch sử bán (đơn treo, web, khai báo muộn, nạp file cũ, gom tháng), dự báo, chờ khai báo
+node test/kiemtra-nha.js            # sổ nhà: mặc định, nhận diện (mã/NCC/tiền tố barcode), nhà mới, nhà hằng ngày thứ 4, xóa + chuyển sách
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

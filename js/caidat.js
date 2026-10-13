@@ -12,6 +12,7 @@
     veToiLa();
     veNguoiDung();
     veChuDe();
+    veNha();
     $('cd-makhac').value = (c.maKhac || []).join(', ');
     $('cd-tenshop').value = c.tenShop || '';
     $('cd-sdt').value = c.sdt || '';
@@ -37,6 +38,58 @@
       duPhongBat: $('cd-dp-bat').checked,
       soNgayDuPhong: Math.max(0, Math.min(30, Math.round(Number($('cd-dp-ngay').value) || 0))),
       tenShop: $('cd-tenshop').value.trim(), sdt: $('cd-sdt').value.trim(), diaChi: $('cd-diachi').value.trim(), ghiChu: $('cd-ghichu').value.trim() };
+  }
+
+  /* ---------- 🏠 Sổ nhà (dùng chung; Admin sửa / xóa) ---------- */
+  var nhaSua = null, nhaXoa = null; // bản đang sửa ; { i, ma } đang hỏi chuyển sách khi xóa
+  function soSachCua(ma) {
+    var n = DM.catalog.skus.filter(function (e) { return e.nha === ma; }).length;
+    DM.catalog.combos.forEach(function (c) { c.thanh_phan.forEach(function (t) { if (t.nha === ma) n++; }); });
+    return n;
+  }
+  function veNha() {
+    var co = DM.coNha();
+    $('cd-nha').hidden = !co;
+    $('cd-makhac-o').hidden = co; // có sổ nhà: ô "Mã nhà khác" cũ thay bằng danh sách nhà
+    if (!co) return;
+    var sua = A.laAdmin();
+    $('cd-nha-them').hidden = !sua; $('cd-nha-luu').hidden = !sua; $('cd-nha-chi-admin').hidden = sua;
+    if (!nhaSua) nhaSua = DM.soNha.map(function (x) {
+      return { ma: x.ma, ten: x.ten, loai: x.loai, mau: x.mau, ma_ten: x.ma_ten.filter(function (c) { return c !== x.ma; }).join(', '), ncc: x.ncc.join('; '), tien_to: x.tien_to.join(', '), daLuu: true };
+    });
+    var LOAI = { hang_ngay: 'Đặt hằng ngày', nhap_kho: 'Nhập kho' };
+    $('cd-nha-ds').innerHTML = nhaSua.map(function (x, i) {
+      if (!sua) return '<tr><td><b>' + A.esc(x.ma) + '</b></td><td>' + A.esc(x.ten) + '</td><td>' + LOAI[x.loai] + '</td><td>' + (x.mau ? '<span class="badge-nha" style="background:' + A.esc(x.mau) + '">&nbsp;&nbsp;</span>' : '') +
+        '</td><td>' + A.esc(x.ma_ten) + '</td><td>' + A.esc(x.ncc) + '</td><td>' + A.esc(x.tien_to) + '</td><td></td></tr>';
+      var o = function (f, ph) { return '<input class="input" data-nh-f="' + f + '" data-i="' + i + '" value="' + A.esc(x[f] || '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '>'; };
+      var xoa = nhaXoa && nhaXoa.i === i;
+      return '<tr><td>' + (x.daLuu ? '<b>' + A.esc(x.ma) + '</b>' : o('ma', 'DT')) + '</td><td>' + o('ten', 'Đinh Tị') + '</td>' +
+        '<td><select class="input" data-nh-f="loai" data-i="' + i + '">' + Object.keys(LOAI).map(function (k) { return '<option value="' + k + '"' + (x.loai === k ? ' selected' : '') + '>' + LOAI[k] + '</option>'; }).join('') + '</select></td>' +
+        '<td><input type="color" data-nh-f="mau" data-i="' + i + '" value="' + (/^#[0-9a-f]{6}$/i.test(x.mau) ? x.mau : '#dddddd') + '" aria-label="Màu"></td>' +
+        '<td>' + o('ma_ten', 'mã khác trong tên') + '</td><td>' + o('ncc', 'vd mega book') + '</td><td>' + o('tien_to', 'vd 8936067') + '</td>' +
+        '<td>' + (xoa ? '<div class="actions">Chuyển ' + nhaXoa.so + ' sách sang ' +
+          '<select class="input" id="cd-nha-sang">' + A.nhaOptions('', { dau: 'Không nhập / Khác', khongNhap: false, moi: false }).replace('<option value="' + A.esc(x.ma) + '">', '<option value="' + A.esc(x.ma) + '" disabled>') + '</select>' +
+          ' <button type="button" class="btn btn-sm btn-danger" data-nh-xoa-ok="' + i + '">Xóa</button> <button type="button" class="btn btn-sm" data-nh-xoa-huy="1">Thôi</button></div>'
+          : '<button type="button" class="btn btn-icon btn-ghost" data-nh-xoa="' + i + '" aria-label="Xóa nhà ' + A.esc(x.ma) + '">🗑</button>') + '</td></tr>';
+    }).join('');
+  }
+  function xoaNhaDaLuu(i, sang) {
+    var x = nhaSua[i];
+    DM.goi('xoaNha', { ma: x.ma, chuyen_sang: sang || '' })
+      .then(function (j) { DM.nhanNha(j.nha); nhaSua = null; nhaXoa = null; veNha(); A.toast('🗑 Đã xóa nhà ' + x.ma + (j.soChuyen ? ' – chuyển ' + j.soChuyen + ' sách sang ' + (sang || 'Không nhập / Khác') : '') + '.', 'ok'); })
+      .catch(function (e) { A.baoLoi('Không xóa được', e); });
+  }
+  function luuSoNha() {
+    var ds = nhaSua.map(function (x) { return { ma: PL.clean(x.ma).toUpperCase(), ten: PL.clean(x.ten), loai: x.loai, mau: x.mau || '', ma_ten: x.ma_ten, ncc: x.ncc, tien_to: x.tien_to }; })
+      .filter(function (x) { return x.ma; });
+    var trung = ds.filter(function (x, i) { return ds.some(function (y, j) { return j < i && y.ma === x.ma; }); });
+    if (trung.length) { A.toast('Mã nhà bị trùng: ' + trung[0].ma, 'loi'); return; }
+    if (!ds.some(function (x) { return x.loai === 'hang_ngay'; })) { A.toast('Cần ít nhất 1 nhà "Đặt hằng ngày".', 'loi'); return; }
+    $('cd-nha-luu').disabled = true;
+    DM.goi('luuNha', { ds: ds })
+      .then(function (j) { DM.nhanNha(j.nha); nhaSua = null; veNha(); A.toast('🏠 Đã lưu sổ nhà (' + ds.length + ' nhà) cho mọi máy.', 'ok'); })
+      .catch(function (e) { A.baoLoi('Không lưu được', e); })
+      .then(function () { $('cd-nha-luu').disabled = false; });
   }
 
   /* ---------- 🎨 Chủ đề (mỗi máy) ---------- */
@@ -162,6 +215,29 @@
       }
     });
     $('cd-kiemtra').addEventListener('click', kiemTra);
+    $('cd-nha').addEventListener('input', function (e) {
+      var t = e.target.closest('[data-nh-f]');
+      if (t && nhaSua) nhaSua[+t.dataset.i][t.dataset.nhF] = t.value;
+    });
+    $('cd-nha').addEventListener('change', function (e) {
+      var t = e.target.closest('[data-nh-f]');
+      if (t && nhaSua) nhaSua[+t.dataset.i][t.dataset.nhF] = t.value;
+    });
+    $('cd-nha').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      if (b.id === 'cd-nha-them') { nhaSua.push({ ma: '', ten: '', loai: 'nhap_kho', mau: '', ma_ten: '', ncc: '', tien_to: '' }); veNha(); return; }
+      if (b.id === 'cd-nha-luu') { luuSoNha(); return; }
+      if (b.dataset.nhXoaHuy) { nhaXoa = null; veNha(); return; }
+      if (b.dataset.nhXoaOk) { xoaNhaDaLuu(+b.dataset.nhXoaOk, $('cd-nha-sang').value); return; }
+      if (b.dataset.nhXoa) {
+        var i = +b.dataset.nhXoa, x = nhaSua[i];
+        if (!x.daLuu) { nhaSua.splice(i, 1); veNha(); return; } // dòng mới chưa lưu
+        var so = soSachCua(x.ma);
+        if (so) { nhaXoa = { i: i, so: so }; veNha(); return; } // hỏi chuyển sách sang nhà nào
+        A.hoi('Xóa nhà ' + x.ma + ' (' + x.ten + ') khỏi sổ nhà?', 'Xóa', { tieuDe: 'Xóa nhà' }).then(function (ok) { if (ok) xoaNhaDaLuu(i, ''); });
+      }
+    });
     $('cd-chude').addEventListener('click', function (e) {
       var b = e.target.closest('[data-chude]');
       if (!b) return;
@@ -204,7 +280,8 @@
     $('cd-admin-ma').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('cd-admin-vao').click(); } });
     $('cd-admin-ra').addEventListener('click', function () { DM.dangXuatAdmin(); A.toast('🚪 Đã đăng xuất Admin trên máy này.', 'ok'); veAdmin(); });
     DM.nghe(function (loai) {
-      if (loai === 'admin' && !$('man-caidat').hidden) veAdmin();
+      if (loai === 'admin' && !$('man-caidat').hidden) { veAdmin(); veNha(); }
+      if ((loai === 'nha' || loai === 'api' || loai === 'nguoidung') && !$('man-caidat').hidden && !$('cd-nha').contains(document.activeElement)) { nhaSua = null; veNha(); }
       if ((loai === 'nguoidung' || loai === 'api') && !$('man-caidat').hidden) { if (loai === 'api') dsSua = null; veToiLa(); if (!dsSua || !$('cd-nd').contains(document.activeElement)) { dsSua = null; veNguoiDung(); } }
     });
   });

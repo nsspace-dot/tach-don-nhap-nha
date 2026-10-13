@@ -182,9 +182,8 @@
         var choThay = PL.isBarcode(e.sku);
         return '<tr><td class="sku">' + (e.sku ? A.esc(e.sku) : '<span class="sku-la sku-trong">(trống)</span>') + phu + '</td>' +
           oTenSach(e, i, ghi, mc) + '<td class="ten pl">' + A.esc(e.ten) + (e.phan_loai ? ' <span class="nho">' + A.esc(e.phan_loai) + '</span>' : '') + nhanKhoa + '</td><td>' +
-          (ghi ? '<select class="select" data-sua-sku="' + i + '" aria-label="Nhà">' + (e.nha ? '' : '<option value="" selected disabled>— chọn nhà —</option>') + ['HA', 'KV', 'ML', PL.KHONG_NHAP].map(function (n) {
-            return '<option value="' + n + '"' + (e.nha === n ? ' selected' : '') + '>' + (n === PL.KHONG_NHAP ? 'Không nhập' : n + ' · ' + PL.TEN_NHA[n]) + '</option>';
-          }).join('') + '</select>' : A.badge(e.nha === PL.KHONG_NHAP ? 'Không nhập' : e.nha)) +
+          (ghi ? '<select class="select" data-sua-sku="' + i + '" aria-label="Nhà">' + (e.nha ? '' : '<option value="" selected disabled>— chọn nhà —</option>') +
+            A.nhaOptions(e.nha, {}) + '</select>' : A.badge(e.nha === PL.KHONG_NHAP ? 'Không nhập' : e.nha)) +
           '</td><td class="nguon-' + A.esc(e.nguon) + '">' + (e.nguon === 'tay' ? '✋ gán tay' : e.nguon === 'web' ? '🌐 web' : e.nguon === 'web_tu_khop' ? '🌐 web tự khớp' : '🤖 tự học') +
             (e.khong_combo ? '<div><span class="nho" title="Bạn đã bấm “Không phải combo” cho dòng này">🙅 không phải combo</span></div>' : '') + '</td>' +
           '<td class="so">' + (e.gia_gan_nhat ? A.so(e.gia_gan_nhat) + '<div class="pl">' + A.esc(e.ngay_gia) + '</div>' : '<span class="muted">—</span>') + '</td>' +
@@ -217,7 +216,8 @@
     dangSua = e;
     $('ss-goc').textContent = 'Nguồn hiện tại: ' + (e.nguon || '?') + (e.nguon_ma ? ' · mã phụ (' + e.nguon_ma + ')' : '');
     $('ss-key').value = e.key; $('ss-sku').value = e.sku; $('ss-ten').value = e.ten; $('ss-pl').value = e.phan_loai || '';
-    $('ss-tensach').value = e.ten_sach || ''; $('ss-nha').value = e.nha || ''; $('ss-gia').value = e.gia_gan_nhat || '';
+    $('ss-tensach').value = e.ten_sach || '';
+    $('ss-nha').innerHTML = A.nhaOptions(e.nha || '', { dau: '— chưa rõ —', moi: false }); $('ss-nha').value = e.nha || ''; $('ss-gia').value = e.gia_gan_nhat || '';
     $('ss-mamoi').value = e.ma_moi || ''; $('ss-ktb').value = e.khong_tai_ban || ''; $('ss-kcombo').checked = !!e.khong_combo;
     $('ss-loi').textContent = '';
     $('dlg-sua-sku').showModal();
@@ -498,7 +498,7 @@
     $('ss-luu').addEventListener('click', function () { luuSuaDong(false); });
     $('dm-bang').addEventListener('change', function (e) {
       var s = e.target.closest('[data-sua-sku]');
-      if (s) suaSku(+s.dataset.suaSku, s.value);
+      if (s) { var iS = +s.dataset.suaSku; A.chonNha(s).then(function (ma) { if (ma) suaSku(iS, ma); else ve(); }); }
       var sg = e.target.closest('[data-sua-gantay]');
       if (sg) {
         var eg = DM.catalog.skus[+sg.dataset.suaGantay], ma = PL.clean(sg.value).replace(/\s+/g, '').toUpperCase();

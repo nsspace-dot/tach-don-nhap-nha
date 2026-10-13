@@ -68,7 +68,8 @@
       if (!(e && e.ma_moi)) {
         $('bc-moi').hidden = false;
         var nha = w && w.nha ? w.nha : dang.nhaGoiY;
-        $('bc-nha').value = ['HA', 'KV', 'ML', PL.KHONG_NHAP].indexOf(nha) >= 0 ? nha : 'HA';
+        $('bc-nha').innerHTML = A.nhaOptions('', { moi: false }); // sổ nhà dùng chung
+        $('bc-nha').value = PL.laNha(nha) || nha === PL.KHONG_NHAP ? nha : PL.NHA[0];
         if (!$('bc-ten').dataset.daSua) $('bc-ten').value = (w && w.ten_gon) || dang.tenGoiY || '';
       }
     }

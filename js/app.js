@@ -78,7 +78,7 @@
 
   /* ---------- Trạng thái ---------- */
   var S = { files: [], demFile: 0, kq: null, tab: 'HA', hocDaGui: {}, hocDangGui: false,
-            duPhong: { HA: {}, KV: {}, ML: {} }, dpGoiY: [] }; // duPhong: số dự phòng ĐÃ BẤM thêm (theo nhà → khóa sách)
+            duPhong: {}, dpGoiY: [] }; // duPhong: số dự phòng ĐÃ BẤM thêm (theo nhà → khóa sách)
 
   /* ---------- Lịch sử đặt hàng (dùng chung cho gợi ý dự phòng + tab Thống kê) ---------- */
   var LS = { rows: null, tu: '', url: '', dangTai: null, loi: '', tongDong: 0, canhBaoLon: false, ngayCuNhat: '', nghe: [] };
@@ -111,13 +111,71 @@
   }
   function dpBat() { return DM.caiDat.duPhongBat !== false && Number(DM.caiDat.soNgayDuPhong) > 0; }
 
-  var THE = [
-    { k: 'HA', ten: 'Hồng Ân', emoji: '🌸' },
-    { k: 'KV', ten: 'Khang Việt', emoji: '🌿' },
-    { k: 'ML', ten: 'Minh Long', emoji: '🧈' },
-    { k: 'combo', ten: 'Combo', emoji: '🎁' },
-    { k: 'chuaRo', ten: 'Chưa rõ nhà', emoji: '🤔' }
-  ];
+  /* Thẻ kết quả: mỗi nhà "Đặt hằng ngày" (sổ nhà) + Combo + Chưa rõ nhà */
+  var EMOJI_NHA = { HA: '🌸', KV: '🌿', ML: '🧈' };
+  var THE = [];
+  function dungThe() {
+    THE.length = 0;
+    PL.NHA.forEach(function (n) { THE.push({ k: n, ten: PL.TEN_NHA[n] || n, emoji: EMOJI_NHA[n] || '🏷️' }); });
+    THE.push({ k: 'combo', ten: 'Combo', emoji: '🎁' }, { k: 'chuaRo', ten: 'Chưa rõ nhà', emoji: '🤔' });
+    PL.NHA.forEach(function (n) { S.duPhong[n] = S.duPhong[n] || {}; });
+    if (!THE.some(function (t) { return t.k === S.tab; })) S.tab = THE[0].k;
+  }
+  function dpRong() { var o = {}; PL.NHA.forEach(function (n) { o[n] = {}; }); return o; }
+  /* Màu nhà ngoài HA/KV/ML: lấy từ sổ nhà (ô Màu), không có thì theo bảng màu */
+  var MAU_PHU = ['#d9e7ff', '#ffe0f0', '#e2f5d0', '#ffe9c7', '#e6e1ff', '#d4f3f1', '#f6dccb'];
+  function mauNha(ma) {
+    if (EMOJI_NHA[ma]) return '';
+    var x = PL.timNha(ma), i = PL.DS_NHA.indexOf(x);
+    var bg = (x && x.mau) || MAU_PHU[(i < 0 ? 0 : i) % MAU_PHU.length];
+    return '--c-bg:' + bg + ';--c-ink:#2b2b2b;--c-deep:color-mix(in srgb, ' + bg + ' 55%, #000);';
+  }
+  /* <option> cho ô chọn nhà: nhóm Đặt hằng ngày / Nhập kho (+ Không nhập, ➕ Nhà mới…) */
+  function nhaOptions(chon, opt) {
+    opt = opt || {};
+    var nhom = function (loai, nhan) {
+      var ds = PL.DS_NHA.filter(function (x) { return x.loai === loai; });
+      return ds.length ? '<optgroup label="' + nhan + '">' + ds.map(function (x) {
+        return '<option value="' + esc(x.ma) + '"' + (x.ma === chon ? ' selected' : '') + '>' + esc(x.ma + (x.ten !== x.ma ? ' · ' + x.ten : '')) + '</option>';
+      }).join('') + '</optgroup>' : '';
+    };
+    return (opt.dau !== undefined ? '<option value=""' + (!chon ? ' selected' : '') + '>' + esc(opt.dau) + '</option>' : '') +
+      nhom('hang_ngay', 'Đặt hằng ngày') + (opt.chiNgay ? '' : nhom('nhap_kho', 'Nhập kho')) +
+      (opt.khongNhap === false ? '' : '<option value="' + PL.KHONG_NHAP + '"' + (chon === PL.KHONG_NHAP ? ' selected' : '') + '>Không nhập</option>') +
+      (opt.khac ? '<option value="KHAC"' + (chon === 'KHAC' ? ' selected' : '') + '>Khác (không rõ nhà)</option>' : '') +
+      (opt.moi === false || !DM.coNha() ? '' : '<option value="__moi__">➕ Nhà mới…</option>');
+  }
+  function chonNhaHtml(attrs, chon, opt) {
+    return '<select class="select" ' + attrs + '>' + nhaOptions(chon, Object.assign({ dau: '— chọn nhà —' }, opt || {})) + '</select>';
+  }
+  /* Form "➕ Nhà mới…" → Promise<mã nhà | null> */
+  function moiNha() {
+    return new Promise(function (resolve) {
+      var d = $('dlg-nha-moi');
+      $('nm-ma').value = ''; $('nm-ten').value = ''; $('nm-loai').value = 'nhap_kho'; $('nm-loi').textContent = '';
+      d.returnValue = '';
+      var xong = function (ma) { d.removeEventListener('close', dong); resolve(ma); };
+      var dong = function () { if (d.returnValue !== 'ok') xong(null); };
+      d.addEventListener('close', dong);
+      $('nm-luu').onclick = function () {
+        var nha = { ma: PL.clean($('nm-ma').value).toUpperCase().replace(/\s+/g, ''), ten: PL.clean($('nm-ten').value), loai: $('nm-loai').value };
+        if (!/^[A-Z0-9Đ_]{1,12}$/.test(nha.ma)) { $('nm-loi').textContent = 'Mã nhà: chữ không dấu / số, tối đa 12 ký tự (vd DT).'; return; }
+        if (PL.timNha(nha.ma)) { d.returnValue = 'ok'; d.close(); xong(nha.ma); return; }
+        $('nm-luu').disabled = true;
+        DM.goi('themNha', { nha: nha })
+          .then(function (j) { DM.nhanNha(j.nha); toast('🏠 Đã thêm nhà ' + nha.ma + (nha.ten ? ' – ' + nha.ten : '') + '.', 'ok'); d.returnValue = 'ok'; d.close(); xong(nha.ma); })
+          .catch(function (e) { $('nm-loi').textContent = e.message; })
+          .then(function () { $('nm-luu').disabled = false; });
+      };
+      d.showModal();
+      $('nm-ma').focus();
+    });
+  }
+  /* Ô chọn nhà vừa đổi → Promise<mã | null> ("➕ Nhà mới…" thì mở form) */
+  function chonNha(sel) {
+    if (sel.value !== '__moi__') return Promise.resolve(sel.value || null);
+    return moiNha().then(function (ma) { if (!ma) sel.value = ''; return ma; });
+  }
 
   /* ---------- Đọc file ---------- */
   function nhanFiles(list) {
@@ -200,7 +258,7 @@
     var r = rows();
     S.kq = r.length ? PL.classify(r, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : null;
     if (S.kq) locManSang(S.kq);
-    if (!S.kq) S.duPhong = { HA: {}, KV: {}, ML: {} };
+    if (!S.kq) S.duPhong = dpRong();
     $('drop').hidden = !!S.gop;
     veChips();
     veKetQua(moi);
@@ -216,7 +274,7 @@
     S.gop.dot_id = info.dot_id;
     S.files = info.files;
     S.demFile = info.files.length;
-    S.duPhong = { HA: {}, KV: {}, ML: {} };
+    S.duPhong = dpRong();
     gop();
     xuLy(true);
   }
@@ -315,10 +373,11 @@
       $('xong-cat').innerHTML = LV.meo('vay');
       LV.confetti($('confetti'));
     }
+    dungThe();
     $('cards').innerHTML = THE.map(function (t) {
       var tg = PL.tong(listTheo(t.k));
       var on = S.tab === t.k, laNha = PL.NHA.indexOf(t.k) >= 0;
-      return '<div class="card-o"><button class="card" role="tab" data-k="' + t.k + '" aria-selected="' + on + '"' + (on ? ' tabindex="0"' : ' tabindex="-1"') + '>' +
+      return '<div class="card-o"><button class="card" role="tab" data-k="' + esc(t.k) + '" aria-selected="' + on + '"' + (on ? ' tabindex="0"' : ' tabindex="-1"') + (laNha && mauNha(t.k) ? ' style="' + mauNha(t.k) + '"' : '') + '>' +
         '<span class="card-emoji" aria-hidden="true">' + t.emoji + '</span>' +
         '<span class="card-ten">' + t.ten + '</span>' +
         '<div class="card-so">' + so(tg.cuon) + ' <small>cuốn</small></div>' +
@@ -339,6 +398,7 @@
     var t = THE.filter(function (x) { return x.k === S.tab; })[0];
     var list = listTheo(S.tab);
     $('panel').className = 'panel theme-' + S.tab;
+    $('panel').setAttribute('style', PL.NHA.indexOf(S.tab) >= 0 ? mauNha(S.tab) : '');
     var legend = '';
     var dp = '';
     if (PL.NHA.indexOf(S.tab) >= 0) {
@@ -566,10 +626,11 @@
 
   function nutNha(nguon, i) {
     return '<div class="actions" role="group" aria-label="Chọn nhà">' +
-      ['HA', 'KV', 'ML'].map(function (n) {
+      PL.NHA.map(function (n) {
         return nutGhi(n, 'class="pick pick-' + n + '" data-gan="' + n + '" data-nguon="' + nguon + '" data-i="' + i + '" title="' + PL.TEN_NHA[n] + '"');
       }).join('') +
       nutGhi('Không nhập', 'class="pick pick-KHONG" data-gan="' + PL.KHONG_NHAP + '" data-nguon="' + nguon + '" data-i="' + i + '"') +
+      (DM.coTheGhi() && DM.coNha() ? chonNhaHtml('data-gan-sel="' + i + '" aria-label="Nhà khác / nhà mới"', '', { dau: 'Nhà khác…', khongNhap: false }) : '') +
       '</div>';
   }
 
@@ -590,8 +651,8 @@
   }
 
   function badge(nha) {
-    var cls = PL.NHA.indexOf(nha) >= 0 ? nha : 'x';
-    return '<span class="badge-nha badge-' + cls + '">' + esc(nha || '?') + '</span>';
+    var cls = PL.NHA.indexOf(nha) >= 0 ? nha : 'x', st = PL.timNha(nha) ? mauNha(nha) : '';
+    return '<span class="badge-nha badge-' + esc(cls) + '"' + (st ? ' style="' + st + 'background:var(--c-bg);color:var(--c-ink)"' : '') + '>' + esc(nha || '?') + '</span>';
   }
 
   function veBoQua() {
@@ -611,8 +672,9 @@
           (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-bq', i) + ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo-bq="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' : '') +
           '</td><td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.sl) + '</td><td>' +
           (DM.coTheGhi()
-            ? '<select class="select" data-gan-bq="' + i + '" aria-label="Gán lại nhà"><option value="">— chọn —</option>' +
-              PL.NHA.map(function (n) { return '<option value="' + n + '">' + n + ' · ' + PL.TEN_NHA[n] + '</option>'; }).join('') + '</select>'
+            ? (DM.coNha() ? chonNhaHtml('data-gan-bq="' + i + '" aria-label="Gán lại nhà"', '', { dau: '— chọn —' })
+              : '<select class="select" data-gan-bq="' + i + '" aria-label="Gán lại nhà"><option value="">— chọn —</option>' +
+              PL.NHA.map(function (n) { return '<option value="' + n + '">' + n + ' · ' + PL.TEN_NHA[n] + '</option>'; }).join('') + '</select>')
             : '<span class="muted" title="Dán URL Apps Script ở màn Cài đặt">🔌</span>') +
           '</td></tr>';
       }).join('') + '</tbody></table>';
@@ -1022,6 +1084,13 @@
         veKetQua(false);
       }
     });
+    // Chưa rõ nhà → "Nhà khác…" (mọi nhà trong sổ + ➕ Nhà mới…)
+    $('bang').addEventListener('change', function (e) {
+      var s = e.target.closest('[data-gan-sel]');
+      if (!s || !s.value) return;
+      var gs = S.kq.chuaRo[+s.dataset.ganSel];
+      chonNha(s).then(function (ma) { if (!ma) return; s.disabled = true; ganNha(gs, ma); });
+    });
     // "📖 Không phải combo – là sách lẻ của nhà …" (tab Combo)
     $('bang').addEventListener('change', function (e) {
       var s = e.target.closest('[data-khong-combo]');
@@ -1055,8 +1124,8 @@
     $('bang-bo-qua').addEventListener('change', function (e) {
       var s = e.target.closest('[data-gan-bq]');
       if (!s || !s.value) return;
-      s.disabled = true;
-      ganNha(S.kq.boQua[+s.dataset.ganBq], s.value);
+      var gq = S.kq.boQua[+s.dataset.ganBq];
+      chonNha(s).then(function (ma) { if (!ma) return; s.disabled = true; ganNha(gq, ma); });
     });
 
     $('ten-luu').addEventListener('click', luuSuaTen);
@@ -1133,6 +1202,7 @@
     rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
     LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon,
     laAdmin: laAdmin, laDatHang: laDatHang, veQuyen: veQuyen, hoiMaAdmin: hoiMaAdmin,
+    nhaOptions: nhaOptions, chonNhaHtml: chonNhaHtml, chonNha: chonNha, moiNha: moiNha, mauNha: mauNha,
     ganNha: ganNha, moSuaTen: moSuaTen, moBarcodeDong: moBarcodeDong, nhomCombo: nhomCombo,
     gop: gop, xuLy: xuLy, taiNha: taiNha, vaoGop: vaoGop, thoatGop: thoatGop, soDongCho: soDongCho, veBanner: veBanner
   };

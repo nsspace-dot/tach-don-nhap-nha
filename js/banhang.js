@@ -12,7 +12,7 @@
 })(typeof self !== 'undefined' ? self : this, function (PL, DG) {
   'use strict';
 
-  var NHA = ['HA', 'KV', 'ML'];
+  var NHA = PL.NHA; // nhà đặt hằng ngày (sổ nhà dùng chung)
   function sach(v) { return v === null || v === undefined ? '' : String(v).replace(/\s+/g, ' ').trim(); }
   function d2s(d) { return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
   function s2d(s) { var p = String(s).split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }

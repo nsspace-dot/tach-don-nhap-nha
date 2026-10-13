@@ -7,7 +7,7 @@
 })(typeof self !== 'undefined' ? self : this, function (PL) {
   'use strict';
 
-  var NHA = ['HA', 'KV', 'ML'];
+  var NHA = PL.NHA; // nhà đặt hằng ngày – cùng mảng với sổ nhà (đổi tại chỗ)
   var COT = ['ngay', 'nha', 'barcode', 'ten', 'gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo'];
   var NGUON = { Shopee: 'sl_shopee', TikTok: 'sl_tiktok', Web: 'sl_web' };
 

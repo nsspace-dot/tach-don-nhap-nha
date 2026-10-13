@@ -10,6 +10,23 @@
   var NHA = ['HA', 'KV', 'ML'];
   var TEN_NHA = { HA: 'Hồng Ân', KV: 'Khang Việt', ML: 'Minh Long' };
   var TEN_FILE = { HA: 'Hong-An', KV: 'Khang-Viet', ML: 'Minh-Long' };
+  var TEN_FILE_GOC = { HA: 'Hong-An', KV: 'Khang-Viet', ML: 'Minh-Long' };
+  function slug(t) {
+    return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'Nha';
+  }
+  /* Sổ nhà dùng chung: ds = [{ ma, ten, loai }] – nhà "Đặt hằng ngày" có file đặt riêng */
+  function datNha(ds) {
+    var ngay = (ds || []).filter(function (x) { return x.loai === 'hang_ngay'; });
+    if (!ngay.length) return;
+    NHA.length = 0;
+    [TEN_NHA, TEN_FILE].forEach(function (o) { Object.keys(o).forEach(function (k) { delete o[k]; }); });
+    (ds || []).forEach(function (x) {
+      TEN_NHA[x.ma] = x.ten || x.ma;
+      TEN_FILE[x.ma] = TEN_FILE_GOC[x.ma] || slug(x.ten || x.ma);
+      if (x.loai === 'hang_ngay') NHA.push(x.ma);
+    });
+  }
   var SO = '#,##0';
   var NEN_TIEU_DE = 'FFEFEFEF';
   var VIEN = { style: 'thin', color: { argb: 'FF8C8C8C' } };
@@ -107,7 +124,7 @@
   }
 
   return {
-    NHA: NHA, TEN_NHA: TEN_NHA,
+    NHA: NHA, TEN_NHA: TEN_NHA, datNha: datNha, slug: slug,
     fileName: fileName, buildDonDatHang: buildDonDatHang, buildBang: buildBang, dongCuaNha: dongCuaNha, TEN_FILE: TEN_FILE, ngayChu: ngayChu,
     nhaCoHang: nhaCoHang, kiemTraTruocKhiTai: kiemTraTruocKhiTai
   };

@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261013c">
-  <link rel="stylesheet" href="themes.css?v=20261013c">
-  <script src="js/chude.js?v=20261013c"></script>
+  <link rel="stylesheet" href="style.css?v=20261013d">
+  <link rel="stylesheet" href="themes.css?v=20261013d">
+  <script src="js/chude.js?v=20261013d"></script>
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -261,7 +261,18 @@
             Link chỉ được lưu trên máy này. 🔐 Ai có link này đều sửa được danh mục – đừng dán nó lên GitHub, Zalo nhóm đông người…</small>
         </label>
         <p class="muted" id="cd-chung-ghichu" hidden style="margin:12px 0 0">🔒 Mã nhà khác, trạng thái Shopee, phân loại vô nghĩa là <b>cài đặt chung</b> do Admin quản lý (dùng cho mọi máy).</p>
-        <label class="field">
+        <div class="nd-khung" id="cd-nha" hidden>
+          <h2 class="h-phu">🏠 Nhà</h2>
+          <p class="muted" style="margin:0 0 8px">Sổ nhà dùng chung mọi máy. <b>Đặt hằng ngày</b>: có thẻ + file đặt riêng (như HA/KV/ML). <b>Nhập kho</b>: vào 📈 Dự báo.
+            Nhận diện theo: mã trong tên sản phẩm, tên nhà cung cấp trên file web, tiền tố barcode (tùy chọn). <span id="cd-nha-chi-admin">Chỉ Admin sửa / xóa.</span></p>
+          <div class="table-wrap"><table class="tbl nha-bang"><thead><tr><th>Mã</th><th>Tên đầy đủ</th><th>Loại</th><th>Màu</th><th>Mã trong tên <small>(phẩy)</small></th><th>Tên NCC trên web <small>(;)</small></th><th>Tiền tố barcode</th><th><span class="sr">Xóa</span></th></tr></thead>
+            <tbody id="cd-nha-ds"></tbody></table></div>
+          <div class="actions" style="margin-top:8px">
+            <button class="btn btn-ghost" type="button" id="cd-nha-them">＋ Thêm nhà</button>
+            <button class="btn" type="button" id="cd-nha-luu">💾 Lưu sổ nhà</button>
+          </div>
+        </div>
+        <label class="field" id="cd-makhac-o">
           <span>Mã nhà khác (bỏ qua)</span>
           <input class="input" id="cd-makhac" type="text">
           <small>Cách nhau bằng dấu phẩy. Sách có các mã này (và không có HA/KV/ML) sẽ bị bỏ qua.</small>
@@ -462,6 +473,25 @@
     </form>
   </dialog>
 
+  <dialog class="dlg" id="dlg-nha-moi" aria-labelledby="dlg-nha-moi-title">
+    <form method="dialog">
+      <h2 id="dlg-nha-moi-title">🏠 Nhà mới</h2>
+      <p class="muted">Thêm vào sổ nhà dùng chung, rồi gán luôn cho dòng đang chọn. Sửa chi tiết (màu, cách nhận diện) ở Cài đặt → 🏠 Nhà.</p>
+      <div class="grid-2">
+        <label class="field"><span>Mã nhà <small>(vd DT – dùng nhận diện trong tên sản phẩm)</small></span><input class="input" id="nm-ma" maxlength="12" autocomplete="off"></label>
+        <label class="field"><span>Tên đầy đủ</span><input class="input" id="nm-ten" maxlength="80" placeholder="vd Đinh Tị"></label>
+      </div>
+      <label class="field"><span>Loại</span>
+        <select class="input" id="nm-loai"><option value="nhap_kho">Nhập kho (vào 📈 Dự báo)</option><option value="hang_ngay">Đặt hằng ngày (có thẻ + file đặt riêng)</option></select>
+      </label>
+      <p class="err" id="nm-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" type="button" id="nm-luu">💾 Thêm nhà</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="dlg-admin" aria-labelledby="dlg-admin-title">
     <form method="dialog" id="form-admin">
       <h2 id="dlg-admin-title">🔑 Mã Admin</h2>
@@ -505,22 +535,22 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261013c"></script>
-  <script src="js/phanloai.js?v=20261013c"></script>
-  <script src="js/thongke.js?v=20261013c"></script>
-  <script src="js/xuatfile.js?v=20261013c"></script>
-  <script src="js/danhmuc.js?v=20261013c"></script>
-  <script src="js/danhmuc-excel.js?v=20261013c"></script>
-  <script src="js/linhvat.js?v=20261013c"></script>
-  <script src="js/app.js?v=20261013c"></script>
-  <script src="js/khaibao.js?v=20261013c"></script>
-  <script src="js/barcode.js?v=20261013c"></script>
-  <script src="js/mandanhmuc.js?v=20261013c"></script>
-  <script src="js/caidat.js?v=20261013c"></script>
-  <script src="js/manthongke.js?v=20261013c"></script>
-  <script src="js/dot-gop.js?v=20261013c"></script>
-  <script src="js/dot.js?v=20261013c"></script>
-  <script src="js/banhang.js?v=20261013c"></script>
-  <script src="js/dubao.js?v=20261013c"></script>
+  <script src="js/docfile.js?v=20261013d"></script>
+  <script src="js/phanloai.js?v=20261013d"></script>
+  <script src="js/thongke.js?v=20261013d"></script>
+  <script src="js/xuatfile.js?v=20261013d"></script>
+  <script src="js/danhmuc.js?v=20261013d"></script>
+  <script src="js/danhmuc-excel.js?v=20261013d"></script>
+  <script src="js/linhvat.js?v=20261013d"></script>
+  <script src="js/app.js?v=20261013d"></script>
+  <script src="js/khaibao.js?v=20261013d"></script>
+  <script src="js/barcode.js?v=20261013d"></script>
+  <script src="js/mandanhmuc.js?v=20261013d"></script>
+  <script src="js/caidat.js?v=20261013d"></script>
+  <script src="js/manthongke.js?v=20261013d"></script>
+  <script src="js/dot-gop.js?v=20261013d"></script>
+  <script src="js/dot.js?v=20261013d"></script>
+  <script src="js/banhang.js?v=20261013d"></script>
+  <script src="js/dubao.js?v=20261013d"></script>
 </body>
 </html>

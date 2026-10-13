@@ -11,8 +11,9 @@
   var COT_TP = ['combo_id', 'sku', 'ten', 'nha', 'gia_goc', 'so_luong'];
   /* Barcode gán tay: dòng sàn (SKU trống / SKU chữ / barcode sai) → barcode đúng */
   var COT_GT = ['key', 'sku_tren_san', 'ten_tren_san', 'phan_loai', 'barcode_dung', 'cap_nhat'];
-  var NHA_SKU = ['HA', 'KV', 'ML', PL.KHONG_NHAP];
-  var NHA_TP = ['HA', 'KV', 'ML', 'KHAC'];
+  /* Nhà hợp lệ = sổ nhà dùng chung (+ Không nhập / Khác) */
+  function nhaSku() { return PL.DS_NHA.map(function (x) { return x.ma; }).concat([PL.KHONG_NHAP]); }
+  function nhaTp() { return PL.DS_NHA.map(function (x) { return x.ma; }).concat(['KHAC']); }
 
   function sheet(XLSX, cot, rows, rong) {
     var ws = XLSX.utils.aoa_to_sheet([cot].concat(rows.map(function (r) { return cot.map(function (c) { return r[c] === undefined ? '' : r[c]; }); })));
@@ -133,7 +134,7 @@
       var sku = PL.clean(r.sku), ten = PL.clean(r.ten), nha = PL.clean(r.nha).toUpperCase().replace(/\s+/g, '_');
       if (!sku && !ten && !nha) return;
       if (!nha && PL.clean(r.ma_moi)) return; // dòng chỉ để gán barcode → nằm ở sheet BARCODE_GAN_TAY
-      if (NHA_SKU.indexOf(nha) < 0) { loi.push('SKU_NHA dòng ' + (i + 2) + ': nhà "' + r.nha + '" không hợp lệ (HA/KV/ML/KHONG_NHAP).'); return; }
+      if (nhaSku().indexOf(nha) < 0) { loi.push('SKU_NHA dòng ' + (i + 2) + ': nhà "' + r.nha + '" không hợp lệ (' + nhaSku().join('/') + ').'); return; }
       var key = PL.clean(r.key);
       if (key) key = chuanKhoa(key);
       else if (PL.isBarcode(sku) || (sku && !ten)) key = PL.skuKey(sku);
@@ -173,7 +174,7 @@
       var c = theoId[id];
       if (!c) { loi.push('COMBO_THANH_PHAN dòng ' + (i + 2) + ': combo_id "' + id + '" không có trong sheet COMBO.'); return; }
       var nha = PL.clean(r.nha).toUpperCase();
-      if (NHA_TP.indexOf(nha) < 0) { loi.push('COMBO_THANH_PHAN dòng ' + (i + 2) + ': nhà "' + r.nha + '" không hợp lệ (HA/KV/ML/KHAC).'); return; }
+      if (nhaTp().indexOf(nha) < 0) { loi.push('COMBO_THANH_PHAN dòng ' + (i + 2) + ': nhà "' + r.nha + '" không hợp lệ (' + nhaTp().join('/') + ').'); return; }
       c.thanh_phan.push({
         sku: PL.clean(r.sku), ten: PL.clean(r.ten), nha: nha,
         gia_goc: Number(String(r.gia_goc).replace(/[^\d.]/g, '')) || 0, so_luong: Math.max(1, Number(r.so_luong) || 1)

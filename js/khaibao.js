@@ -3,7 +3,7 @@
   'use strict';
   var PL = root.PhanLoai, DM = root.DanhMuc, A = root.App;
   var $ = function (id) { return document.getElementById(id); };
-  var NHA_TP = ['HA', 'KV', 'ML', 'KHAC'];
+  /* Nhà của thành phần combo: mọi nhà trong sổ nhà + "Khác" */
 
   var dang = null; // { combo_id?, khoa: [], nhaGoiY, nhom? }
 
@@ -14,7 +14,7 @@
     var out = { ten: '', nha: '', gia: 0 };
     var k = PL.skuKey(sku);
     var e = DM.catalog.skus.filter(function (x) { return x.key === k; })[0];
-    if (e) { out.ten = e.ten; if (PL.NHA.indexOf(e.nha) >= 0) out.nha = e.nha; }
+    if (e) { out.ten = e.ten; if (PL.laNha(e.nha)) out.nha = e.nha; }
     // Chỉ lấy dòng sách lẻ (giá dòng combo là giá cả bộ, không phải giá 1 cuốn)
     var rows = A.rows().filter(function (r) { return !PL.comboReason(r) && PL.clean(r.sku).toUpperCase() === sku.toUpperCase(); });
     rows.sort(function (a, b) { return (a.san === 'TikTok' ? 0 : 1) - (b.san === 'TikTok' ? 0 : 1); });
@@ -63,9 +63,7 @@
       '<td class="tp-chon-o"><input type="checkbox" class="tp-chon" aria-label="Lấy cuốn này"' + (tp.chon === false ? '' : ' checked') + '></td>' +
       '<td><input class="input tp-sku" list="ds-sku" placeholder="Mã vạch" aria-label="SKU" value="' + A.esc(tp.sku || '') + '"></td>' +
       '<td><input class="input tp-ten" list="ds-ten" placeholder="Gõ tên sách…" aria-label="Tên sách" value="' + A.esc(tp.ten || '') + '"></td>' +
-      '<td><select class="input tp-nha" aria-label="Nhà">' + NHA_TP.map(function (n) {
-        return '<option value="' + n + '"' + ((tp.nha || dang.nhaGoiY) === n ? ' selected' : '') + '>' + (n === 'KHAC' ? 'Khác' : n) + '</option>';
-      }).join('') + '</select></td>' +
+      '<td><select class="input tp-nha" aria-label="Nhà">' + A.nhaOptions(tp.nha || dang.nhaGoiY, { khongNhap: false, khac: true, moi: false }) + '</select></td>' +
       '<td><input class="input tp-gia" type="number" min="0" step="1000" aria-label="Giá gốc" value="' + (tp.gia_goc || '') + '"></td>' +
       '<td><input class="input tp-sl" type="number" min="1" step="1" aria-label="Số lượng mỗi combo" value="' + (tp.so_luong || 1) + '"></td>' +
       '<td><button type="button" class="btn btn-icon btn-ghost tp-xoa" aria-label="Xóa cuốn này">🗑</button></td>';
@@ -99,6 +97,7 @@
       ? '⚠ Combo này có sách của nhà khác (' + (opt.maTron || 'MEGA, TN…') + ') – nên tách để chỉ lấy phần HA/KV/ML (xuất nguyên thì cả combo vào 1 nhà).' +
         ' Cuốn nhà khác (chọn nhà “Khác”) KHÔNG bắt buộc: chỉ cần khai phần HA/KV/ML là lưu được' + (DM.coBanHang() ? '; để trống thì combo vào tab 📝 Chờ khai báo (còn thiếu phần nhà khác).' : '.')
       : 'Xuất nguyên: dùng cho sách mà hệ thống lên đơn chỉ có dạng combo, không có từng cuốn lẻ.';
+    $('cb-nha').innerHTML = A.nhaOptions('', { chiNgay: true, khongNhap: false, moi: false });
     $('cb-nha').value = PL.NHA.indexOf(opt.nha) >= 0 ? opt.nha : (PL.NHA.indexOf(opt.nhaGoiY) >= 0 ? opt.nhaGoiY : 'HA');
     $('cb-maht').value = opt.ma_he_thong || '';
     $('cb-tenxuat').value = opt.ten_xuat || '';
@@ -145,7 +144,7 @@
   }
 
   /* Combo đã lưu có thành phần nhà khác → coi là trộn nhà */
-  function comboTron(c) { return c.thanh_phan.some(function (t) { return t.nha === 'KHAC'; }); }
+  function comboTron(c) { return c.thanh_phan.some(function (t) { return PL.NHA.indexOf(t.nha) < 0; }); } // có cuốn nhà khác / nhà nhập kho
 
   /* Mở form sửa combo đã có (màn Danh mục). cachMoi: ép chọn sẵn cách xuất (khi đổi qua lại) */
   function moSua(c, cachMoi, thongBao) {

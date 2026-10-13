@@ -72,7 +72,7 @@
   }
 
   /* ---------- Dự báo nhập kho ---------- */
-  var TEN_NHA = { HA: 'Hồng Ân', KV: 'Khang Việt', ML: 'Minh Long' };
+  var TEN_NHA = PL.TEN_NHA;
   var XH = { tang: '<span class="xh-tang" title="7 ngày gần nhất bán nhiều hơn 7 ngày trước đó">📈 tăng</span>',
              giam: '<span class="xh-giam" title="7 ngày gần nhất bán ít hơn 7 ngày trước đó">📉 giảm</span>', deu: '<span class="xh-deu">➖</span>' };
   function nhaDangChon() {
@@ -113,7 +113,7 @@
     var thuTu = nhas.filter(function (n) { return PL.NHA.indexOf(n) < 0; }).sort(function (a, b) { return tong(b) - tong(a); })
       .concat(PL.NHA.filter(function (n) { return db.nha[n]; }));
     $('db-nha').innerHTML = thuTu.map(function (n) {
-      return '<option value="' + esc(n) + '"' + (n === nha ? ' selected' : '') + '>' + esc(TEN_NHA[n] ? n + ' · ' + TEN_NHA[n] + ' (tham khảo)' : n) + ' – ' + db.nha[n].ds.length + ' cuốn</option>';
+      return '<option value="' + esc(n) + '"' + (n === nha ? ' selected' : '') + '>' + esc(n + (TEN_NHA[n] && TEN_NHA[n] !== n ? ' · ' + TEN_NHA[n] : '') + (PL.NHA.indexOf(n) >= 0 ? ' (đặt hằng ngày – tham khảo)' : '')) + ' – ' + db.nha[n].ds.length + ' cuốn</option>';
     }).join('');
     var x = db.nha[nha], st = trangThaiNha(nha);
     if (document.activeElement !== $('db-songay')) $('db-songay').value = x.soNgay;
@@ -178,7 +178,8 @@
     var h = '';
     if (x.loai === 'combo_khac') h = n('🧩 Khai báo thành phần', 'khaibao') + n('🔗 Combo đã có', 'cosan');
     else if (x.loai === 'combo_thieu') h = n('✏️ Sửa combo', 'suacombo');
-    else if (x.loai === 'de_sau') h = ['HA', 'KV', 'ML'].map(function (m) { return n(m, 'nha:' + m); }).join('') + n('Không nhập', 'nha:' + PL.KHONG_NHAP) +
+    else if (x.loai === 'de_sau') h = PL.NHA.map(function (m) { return n(m, 'nha:' + m); }).join('') + n('Không nhập', 'nha:' + PL.KHONG_NHAP) +
+      (DM.coNha() ? A.chonNhaHtml('data-kb-sel="' + i + '" aria-label="Nhà khác / nhà mới"', '', { dau: 'Nhà khác…', khongNhap: false }) : '') +
       (x.g.isCombo ? n('🧩 Khai báo combo', 'khaibao') : '') + n('↩️ Đưa lại màn sáng', 'botdesau');
     else if (x.loai === 'ten') h = n('✏️ Đặt tên sách', 'ten');
     else h = n('🏷️ Sửa barcode', 'barcode');
@@ -267,6 +268,12 @@
       var st = trangThaiNha($('db-nha').value), c = H.dsHien[+t.dataset.dbSl];
       st.sua[c.khoa] = Math.max(0, Math.round(Number(t.value) || 0));
       ghiLuu(); veTong();
+    });
+    $('kb-bang').addEventListener('change', function (e) {
+      var s = e.target.closest('[data-kb-sel]');
+      if (!s || !s.value) return;
+      var x = H.kbHien[+s.dataset.kbSel];
+      A.chonNha(s).then(function (ma) { if (ma) { s.disabled = true; A.ganNha(x.g, ma); } });
     });
     $('kb-bang').addEventListener('click', function (e) {
       var b = e.target.closest('[data-kb]');

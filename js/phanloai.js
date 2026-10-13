@@ -8,8 +8,12 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  /* Sổ nhà dùng chung. NHA = các nhà "Đặt hằng ngày" (có thẻ + file đặt riêng); nhà "Nhập kho" = mã nhà khác (vào dự báo).
+   * Mặc định HA / KV / ML + mã nhà khác cũ. datNha(ds) đổi tại chỗ (cùng mảng / object) để mọi module thấy ngay. */
   var NHA = ['HA', 'KV', 'ML'];
   var TEN_NHA = { HA: 'Hồng Ân', KV: 'Khang Việt', ML: 'Minh Long' };
+  var DS_NHA = [];      // [{ ma, ten, loai: 'hang_ngay' | 'nhap_kho', mau, ma_ten: [...], ncc: [...], tien_to: [...] }]
+  var BI_DANH = {};     // mã trong tên → mã nhà (vd "ĐT" → "DT")
   var KHONG_NHAP = 'KHONG_NHAP';
   var MA_KHAC_MAC_DINH = ['MEGA', 'VT', 'HH', 'NS', 'QB', 'TN', 'HT'];
 
@@ -56,6 +60,65 @@
     return new RegExp('(?<![\\p{L}\\p{N}])(' + list.join('|') + ')(?![\\p{L}\\p{N}])', 'gu');
   }
   var RE_NHA = codeRegex(NHA);
+  function maNha(c) { return BI_DANH[c] || c; }
+  /* Mã nhà (đã quy bí danh) xuất hiện trong chữ – bỏ trùng */
+  function maTrong(text, re) {
+    var out = [];
+    findCodes(text, re).forEach(function (c) { c = maNha(c); if (out.indexOf(c) < 0) out.push(c); });
+    return out;
+  }
+  function chuanNha(x) {
+    var ma = clean(x.ma).toUpperCase();
+    var ds = function (v, hoa) { return (Array.isArray(v) ? v : String(v || '').split(/\s*[,;]+\s*/)).map(function (t) { t = clean(t); return hoa ? t.toUpperCase() : t; }).filter(Boolean); };
+    var maTen = ds(x.ma_ten, true);
+    if (maTen.indexOf(ma) < 0) maTen.unshift(ma);
+    return { ma: ma, ten: clean(x.ten) || ma, loai: x.loai === 'hang_ngay' ? 'hang_ngay' : 'nhap_kho', mau: clean(x.mau),
+             ma_ten: maTen, ncc: ds(x.ncc, false), tien_to: ds(x.tien_to, false).map(function (t) { return t.replace(/\D/g, ''); }).filter(Boolean) };
+  }
+  /* Sổ nhà mặc định (khi chưa có sheet NHA): HA/KV/ML đặt hằng ngày + các mã nhà khác (nhập kho) */
+  function nhaMacDinh(maKhac) {
+    var ds = [{ ma: 'HA', ten: 'Hồng Ân', loai: 'hang_ngay', ncc: 'hong an' }, { ma: 'KV', ten: 'Khang Việt', loai: 'hang_ngay', ncc: 'khang viet' },
+              { ma: 'ML', ten: 'Minh Long', loai: 'hang_ngay', ncc: 'minh long' }];
+    (maKhac || MA_KHAC_MAC_DINH).forEach(function (m) {
+      m = clean(m).toUpperCase();
+      if (!m || ds.some(function (x) { return x.ma === m; })) return;
+      ds.push({ ma: m, ten: m, loai: 'nhap_kho', ncc: m === 'MEGA' ? 'mega book;megabook' : m === 'QB' ? 'quang binh' : '' });
+    });
+    return ds.map(chuanNha);
+  }
+  function datNha(ds) {
+    ds = (ds || []).map(chuanNha).filter(function (x) { return x.ma && x.ma !== KHONG_NHAP && x.ma !== 'KHAC'; });
+    if (!ds.some(function (x) { return x.loai === 'hang_ngay'; })) return false; // phải có ít nhất 1 nhà đặt hằng ngày
+    DS_NHA.length = 0; Array.prototype.push.apply(DS_NHA, ds);
+    NHA.length = 0;
+    Object.keys(TEN_NHA).forEach(function (k) { delete TEN_NHA[k]; });
+    Object.keys(BI_DANH).forEach(function (k) { delete BI_DANH[k]; });
+    var maTenNgay = [];
+    ds.forEach(function (x) {
+      TEN_NHA[x.ma] = x.ten;
+      x.ma_ten.forEach(function (c) { if (c !== x.ma) BI_DANH[c] = x.ma; });
+      if (x.loai === 'hang_ngay') { NHA.push(x.ma); maTenNgay = maTenNgay.concat(x.ma_ten); }
+    });
+    RE_NHA = codeRegex(maTenNgay);
+    return true;
+  }
+  /* Mã trong tên của các nhà "Nhập kho" (= ô "Mã nhà khác" cũ) */
+  function maNhapKho() {
+    var out = [];
+    DS_NHA.forEach(function (x) { if (x.loai !== 'hang_ngay') out = out.concat(x.ma_ten); });
+    return out;
+  }
+  function timNha(ma) { return DS_NHA.filter(function (x) { return x.ma === ma; })[0] || null; }
+  function laNha(ma) { return !!timNha(ma) || NHA.indexOf(ma) >= 0; }
+  /* Nhà theo tiền tố barcode (tùy chọn) → mã nhà hoặc '' */
+  function nhaTheoTienTo(sku) {
+    var s = clean(sku);
+    if (!isBarcode(s)) return '';
+    for (var i = 0; i < DS_NHA.length; i++) {
+      if (DS_NHA[i].tien_to.some(function (t) { return s.indexOf(t) === 0; })) return DS_NHA[i].ma;
+    }
+    return '';
+  }
 
   function findCodes(text, re) {
     if (!re) return [];
@@ -79,7 +142,7 @@
       var dau = s.slice(0, i);
       if (/^(sách|vở)(?![\p{L}\p{N}])/iu.test(dau) && dau.split(' ').length <= 4) s = s.slice(i + 3);
     }
-    var re = codeRegex(NHA.concat(maKhac || MA_KHAC_MAC_DINH));
+    var re = codeRegex(maTenNgay_().concat(maKhac || MA_KHAC_MAC_DINH));
     re.lastIndex = 0;
     var m = re.exec(s);
     if (m && m.index > 0) s = s.slice(0, m.index);
@@ -93,14 +156,26 @@
 
   /* ---------- Nhà cung cấp (cột "Nhà cung cấp" của đơn web) ---------- */
   function boDau(s) { return clean(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase(); }
-  /* "Nhà Sách Hồng Ân" → HA, "Nhà Sách Khang Việt" → KV, "Minh Long Book" → ML ; NCC khác → 'KHAC' ; trống → '' */
-  function nhaTheoNcc(ncc) {
+  function maTenNgay_() {
+    var out = NHA.slice();
+    DS_NHA.forEach(function (x) { if (x.loai === 'hang_ngay') x.ma_ten.forEach(function (c) { if (out.indexOf(c) < 0) out.push(c); }); });
+    return out;
+  }
+  /* Nhà theo tên nhà cung cấp trên file web (sổ nhà: "hong an" → HA, "mega book" → MEGA…) → mã nhà, '' nếu không nhận ra */
+  function nhaCuaNcc(ncc) {
     var t = boDau(ncc).replace(/\s+/g, ' ');
     if (!t) return '';
-    if (/hong an/.test(t)) return 'HA';
-    if (/khang viet/.test(t)) return 'KV';
-    if (/minh long/.test(t)) return 'ML';
-    return 'KHAC';
+    var ds = DS_NHA.length ? DS_NHA : nhaMacDinh();
+    for (var i = 0; i < ds.length; i++) {
+      if (ds[i].ncc.some(function (k) { k = boDau(k).replace(/\s+/g, ' '); return k && t.indexOf(k) >= 0; })) return ds[i].ma;
+    }
+    return '';
+  }
+  /* "Nhà Sách Hồng Ân" → HA, "Nhà Sách Khang Việt" → KV, "Minh Long Book" → ML (nhà đặt hằng ngày) ; NCC khác → 'KHAC' ; trống → '' */
+  function nhaTheoNcc(ncc) {
+    if (!clean(ncc)) return '';
+    var m = nhaCuaNcc(ncc);
+    return NHA.indexOf(m) >= 0 ? m : 'KHAC';
   }
   function isNotBook(ten) {
     var t = norm(ten);
@@ -321,7 +396,7 @@
     var ncc = row.san === 'Web' ? nhaTheoNcc(row.ncc) : '';
     if (ncc) {
       res.isCombo = false; res.comboLyDo = ''; res.nghiCombo = false; res.tronNha = false; res.key = rowKey(row, false);
-      if (ncc === 'KHAC') { res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + clean(row.ncc) + ')'; return res; }
+      if (ncc === 'KHAC') { res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + clean(row.ncc) + ')'; res.nhaKhac = nhaCuaNcc(row.ncc); return res; }
       res.loai = 'nha'; res.nha = ncc; res.nguonNha = 'nhà cung cấp (web)';
       if (isBarcode(row.sku)) res.hocWeb = true;
       return res;
@@ -358,14 +433,16 @@
         res.nguonNha = 'danh mục (gán tay)';
         return res;
       }
+      // Gán tay cho nhà "Nhập kho" (MEGA, nhà mới…) → như sách nhà khác: không vào đơn đặt hằng ngày, vào dự báo
+      if (timNha(e.nha)) { res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + e.nha + ')'; res.nhaKhac = e.nha; res.isCombo = false; res.key = rowKey(row, false); return res; }
     }
 
     // Bước 3: không phải sách
     if (isNotBook(row.ten)) { res.loai = 'bo_qua'; res.lyDo = 'Không phải sách'; return res; }
 
     // Bước 4: mã nhà trong tên / phân loại
-    var codes = findCodes(text, RE_NHA);
-    var khac = findCodes(text, reKhac);
+    var codes = maTrong(text, RE_NHA);
+    var khac = maTrong(text, reKhac);
     if (codes.length === 1) {
       res.nha = codes[0]; res.nguonNha = 'mã trong tên';
       if (khac.length) res.ghiChu = 'Combo trộn nhà – chỉ nhập phần ' + codes[0] + ' (có ' + khac.join(', ') + ')';
@@ -380,7 +457,12 @@
       res.loai = 'bo_qua'; res.lyDo = 'Đã đánh dấu "Không nhập"'; return res;
     } else if (khac.length) {
       // Bước 6: mã nhà khác
-      res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + khac.join(', ') + ')'; return res;
+      res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + khac.join(', ') + ')'; res.nhaKhac = khac[0]; return res;
+    } else if (!res.isCombo && nhaTheoTienTo(row.sku)) {
+      // Bước 6b: tiền tố barcode của nhà (tùy chọn, khai ở Cài đặt → 🏠 Nhà)
+      var tt = nhaTheoTienTo(row.sku);
+      if (NHA.indexOf(tt) >= 0) { res.nha = tt; res.nguonNha = 'tiền tố barcode'; }
+      else { res.loai = 'bo_qua'; res.lyDo = 'Nhà khác (' + tt + ')'; res.nhaKhac = tt; return res; }
     }
 
     if (NHA.indexOf(res.nha) >= 0) { res.loai = res.isCombo ? 'combo' : 'nha'; return res; }
@@ -452,9 +534,11 @@
     settings = settings || {};
     var idx = buildIndex(catalog);
     var reKhac = codeRegex(settings.maKhac || MA_KHAC_MAC_DINH);
-    var houses = { HA: new Map(), KV: new Map(), ML: new Map() };
+    var houses = {};
+    NHA.forEach(function (n) { houses[n] = new Map(); });
     var comboMap = new Map(), chuaRoMap = new Map(), boQuaMap = new Map();
-    var dongTheoNha = { HA: 0, KV: 0, ML: 0 };
+    var dongTheoNha = {};
+    NHA.forEach(function (n) { dongTheoNha[n] = 0; });
     var hoc = new Map(), hocXungDot = {}, doiKhoa = {};
     var maKhac = settings.maKhac || MA_KHAC_MAC_DINH;
     var plVN = settings.plVoNghia;
@@ -503,7 +587,7 @@
       listing.set(lk, l);
     }
     function nhaGoiY(row) {
-      var c = findCodes(row.ten + ' ' + row.phanLoai, RE_NHA);
+      var c = maTrong(row.ten + ' ' + row.phanLoai, RE_NHA);
       if (c.length === 1) return c[0];
       var e = lookup(idx.sku, row, false);
       return e && NHA.indexOf(e.nha) >= 0 ? e.nha : '';
@@ -618,9 +702,11 @@
       if (!nhaKhac.has(ma)) nhaKhac.set(ma, new Map());
       addToHouse(nhaKhac.get(ma), item, optTen);
     }
-    function maKhacCua(text) { var c = findCodes(text, reKhac); return c.length ? c[0] : ''; }
+    function maKhacCua(text) { var c = maTrong(text, reKhac); return c.length ? c[0] : ''; }
     // Nhà cung cấp trên đơn web → mã nhà khác nếu nhận ra (MegaBook → MEGA, Quang Bình → QB), không thì giữ tên nhà cung cấp
     function maTheoNcc(ncc) {
+      var m = nhaCuaNcc(ncc);
+      if (m) return m;
       var t = boDau(ncc);
       if (/mega ?book/.test(t)) return 'MEGA';
       if (/quang binh/.test(t)) return 'QB';
@@ -630,7 +716,7 @@
     lines.forEach(function (ln) {
       var r = ln.row;
       if (nhaKhac && ln.loai === 'bo_qua' && !ln.isCombo && ln.lyDo !== 'Không phải sách') {
-        var maK = r.san === 'Web' && nhaTheoNcc(r.ncc) === 'KHAC' ? maTheoNcc(r.ncc) : maKhacCua(r.ten + ' ' + r.phanLoai);
+        var maK = ln.nhaKhac || (r.san === 'Web' && nhaTheoNcc(r.ncc) === 'KHAC' ? maTheoNcc(r.ncc) : maKhacCua(r.ten + ' ' + r.phanLoai)) || nhaTheoTienTo(r.sku);
         var kbK = tenKB(r.sku, rowKey(r, false));
         themNhaKhac(maK, { sku: r.sku, ten: r.ten, phanLoai: r.phanLoai, gia: r.gia, sl: r.sl, rankSan: r.san, maCu: r.skuCu,
           tenKB: kbK && kbK.ten, nguonTen: kbK && kbK.nguon, src: { san: r.san, row: r } });
@@ -639,7 +725,7 @@
         if (NHA.indexOf(tp.nha) >= 0) return;
         var skuK = clean(tp.sku) ? maMoiNhat(idx, tp.sku) : '';
         var kbT = tenKB(skuK, '') || (clean(tp.ten) ? { ten: tenGon(tp.ten, maKhac), nguon: 'combo' } : null);
-        themNhaKhac(maKhacCua(clean(tp.ten)) || maKhacCua(r.ten + ' ' + r.phanLoai) || 'KHAC', {
+        themNhaKhac((tp.nha !== 'KHAC' && timNha(tp.nha) ? tp.nha : '') || maKhacCua(clean(tp.ten)) || maKhacCua(r.ten + ' ' + r.phanLoai) || nhaTheoTienTo(tp.sku) || 'KHAC', {
           sku: skuK, ten: clean(tp.ten), phanLoai: '', gia: giaThanhPhan(idx, giaFile, tp).gia, sl: r.sl * (Number(tp.so_luong) || 1), rankSan: 'combo', laTp: true,
           tenKB: kbT && kbT.ten, nguonTen: kbT && kbT.nguon,
           src: { san: r.san, combo: ln.combo.ten_combo, comboId: ln.combo.combo_id, tpTen: clean(tp.ten), tpSku: clean(tp.sku), row: r } });
@@ -756,14 +842,20 @@
     return list.reduce(function (s, g) { s.dong++; s.cuon += g.sl; return s; }, { dong: 0, cuon: 0 });
   }
 
-  return {
+  datNha(nhaMacDinh()); // mặc định cho tới khi nhận sổ nhà từ Google Sheets
+  var api = {
     NHA: NHA, TEN_NHA: TEN_NHA, KHONG_NHAP: KHONG_NHAP, MA_KHAC_MAC_DINH: MA_KHAC_MAC_DINH,
+    DS_NHA: DS_NHA, datNha: datNha, nhaMacDinh: nhaMacDinh, chuanNha: chuanNha, maNhapKho: maNhapKho, timNha: timNha, laNha: laNha,
+    nhaTheoTienTo: nhaTheoTienTo, nhaCuaNcc: nhaCuaNcc, maTrong: maTrong, maNha: maNha,
     classify: classify, classifyRow: classifyRow, buildIndex: buildIndex,
     comboReason: comboReason, isNotBook: isNotBook, isBarcode: isBarcode,
-    findCodes: findCodes, codeRegex: codeRegex, RE_NHA: RE_NHA,
+    findCodes: findCodes, codeRegex: codeRegex,
     maMoiNhat: maMoiNhat, nhaTheoNcc: nhaTheoNcc, giongTen: giongTen, ean13HopLe: ean13HopLe, homNayISO: homNayISO, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
     plCoNghia: plCoNghia, tenTam: tenTam, lyDoComboCong: lyDoComboCong, nghiComboTheoGia: nghiComboTheoGia, thanhPhanGoiY: thanhPhanGoiY, barcodeHopLe: barcodeHopLe, tenSoSanhDayDu: tenSoSanhDayDu, PL_VO_NGHIA_MAC_DINH: PL_VO_NGHIA_MAC_DINH,
     khoaKhongCombo: khoaKhongCombo, khoaBarcode: khoaBarcode, skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };
+  // RE_NHA đổi khi đổi sổ nhà → đọc qua getter
+  Object.defineProperty(api, 'RE_NHA', { get: function () { return RE_NHA; }, enumerable: true });
+  return api;
 });

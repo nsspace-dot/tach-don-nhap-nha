@@ -61,6 +61,12 @@
  *   CAI_DAT_CHUNG thêm khoa "duBaoNgay" = { "<nhà>": số ngày muốn đủ bán }
  *   GET ?action=banHang&tu=yyyy-MM-dd → { ok, khoi: [{ ngay, nguon, du_lieu }] }
  *   POST chotDot { …, ban_hang: { sp, d } }, napBanHang { sp, d }, deSau { khoa, ten, bo }, luuDuBaoNgay { nha, so_ngay }
+ *
+ * Sổ nhà (từ bản api 6):
+ *   NHA  ma | ten | loai (hang_ngay = Đặt hằng ngày, có thẻ + file đặt riêng ; nhap_kho = Nhập kho, vào dự báo) | mau |
+ *        ma_ten (mã trong tên sản phẩm, cách nhau dấu phẩy) | ncc (tên nhà cung cấp trên file web, cách nhau ";") | tien_to (tiền tố barcode) | thu_tu | cap_nhat
+ *        Sheet trống → mặc định HA/KV/ML (Đặt hằng ngày) + "Mã nhà khác" cũ (Nhập kho). Nhà hợp lệ ở mọi chỗ = theo sổ này.
+ *   POST luuNha { ds } (Admin), themNha { nha } (mọi người – chỉ thêm), xoaNha { ma, chuyen_sang } (Admin – chuyển sách sang nhà khác)
  *   POST luuNguoiDung { ds }, baoXong { dot_id, cot, dong, nguon, so_don, con_combo, con_chua_ro }, moLaiPhan { dot_id },
  *        chotDot { dot_id, lich_su }, moLaiDot { dot_id }
  *   GET  <url>?action=lichSuDatHang&tu=yyyy-MM-dd → { ok, cot, dong }
@@ -76,14 +82,14 @@
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
-var API = 5; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo)
+var API = 6; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo)
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA',
-           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG', BH: 'BAN_HANG', DS: 'DE_SAU' };
+           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG', BH: 'BAN_HANG', DS: 'DE_SAU', NHA: 'NHA' };
 var BH_TRUNG_NGAY = 60;      // chống trùng khi chốt: so với lịch sử bán 60 ngày gần nhất (đơn treo nhiều ngày)
 var BH_GOM_SAU_NGAY = 120;   // gom các ngày cũ hơn 120 ngày thành 1 khối / tháng
 var BH_NGUONG_GOM = 3000;    // … khi sheet BAN_HANG quá số dòng này
 var VAI_TRO = ['san', 'dat_hang', 'admin'];
-var HD_ADMIN = ['kiemTraMaAdmin', 'luuNguoiDung', 'moLaiDot', 'xoaDot', 'xoaPhan', 'suaPhan', 'luuCaiDatChung', 'importBatch', 'upsertMaChuan', 'xoaHangLoat'];
+var HD_ADMIN = ['kiemTraMaAdmin', 'luuNha', 'xoaNha', 'luuNguoiDung', 'moLaiDot', 'xoaDot', 'xoaPhan', 'suaPhan', 'luuCaiDatChung', 'importBatch', 'upsertMaChuan', 'xoaHangLoat'];
 var ADMIN_SAI_TOI_DA = 5, ADMIN_KHOA_PHUT = 10;
 var KHOA_CAI_DAT_CHUNG = ['maKhac', 'trangThaiShopee', 'plVoNghia'];
 var DOT_DL = 'DOT_DL_';   // + yyyy-MM-dd : dữ liệu dòng đơn của 1 đợt
@@ -110,7 +116,8 @@ var COT = {
   DOT_DL: ['phan_id', 'thu_tu', 'du_lieu'],
   CAI_DAT_CHUNG: ['khoa', 'gia_tri', 'cap_nhat', 'nguoi'],
   BAN_HANG: ['ngay', 'nguon', 'thu_tu', 'du_lieu', 'cap_nhat'],
-  DE_SAU: ['khoa', 'ten', 'luc', 'nguoi']
+  DE_SAU: ['khoa', 'ten', 'luc', 'nguoi'],
+  NHA: ['ma', 'ten', 'loai', 'mau', 'ma_ten', 'ncc', 'tien_to', 'thu_tu', 'cap_nhat']
 };
 // Thao tác tự động (tự học, đổi khóa combo cũ): vẫn tăng mốc đồng bộ nhưng KHÔNG tăng số phiên bản / không đổi người sửa
 var HD_TU_DONG = ['upsertSkuBatch', 'doiKhoaCombo'];
@@ -127,6 +134,8 @@ var GIU_DON_DA_GHI = 400;       // giữ mã đơn đã ghi trong 400 ngày
 var NHA_SKU = ['HA', 'KV', 'ML', 'KHONG_NHAP'];
 var NHA_TP = ['HA', 'KV', 'ML', 'KHAC'];
 var NHA_CHINH = ['HA', 'KV', 'ML'];
+var MA_KHAC_MAC_DINH = ['MEGA', 'VT', 'HH', 'NS', 'QB', 'TN', 'HT'];
+var soNhaNho_ = null; // sổ nhà đọc 1 lần mỗi lượt gọi
 var TACH_KHOA = ' ;; ';
 var SO_BAN_SAO_LUU = 30;
 var GIO_SAO_LUU = 23;
@@ -135,6 +144,7 @@ var SO_LICH_SU = 100;
 /* ===================== Web App ===================== */
 
 function doGet(e) {
+  soNhaNho_ = null;
   try {
     var action = e && e.parameter && e.parameter.action;
     if (action === 'lichSu') return traVe_({ ok: true, lich_su: docLichSu_(SO_LICH_SU) });
@@ -146,7 +156,7 @@ function doGet(e) {
     if (action === 'admin') return traVe_({ ok: true, api: API, da_dat_ma: !!maAdmin_(), khoa_con_phut: khoaAdminConPhut_() });
     var rev = revHienTai_(); // đọc mốc TRƯỚC dữ liệu: có ai ghi chen giữa thì lần đồng bộ sau tải lại phần đó
     var cat = docCatalog_();
-    return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_(),
+    return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_(), nha: soNha_(),
                     cai_dat_chung: docCaiDatChung_(), admin_da_dat_ma: !!maAdmin_(), de_sau: docDeSau_() });
   } catch (err) {
     return traVe_({ ok: false, error: String(err && err.message || err) });
@@ -154,6 +164,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  soNhaNho_ = null;
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return traVe_({ ok: false, error: 'Đang có máy khác ghi danh mục, thử lại sau vài giây nha.' });
   try {
@@ -187,6 +198,8 @@ function xuLy_(action, data, nguoi) {
   var nguoiLog = admin ? (nguoi || '?') + ' (Admin)' : nguoi;
   if (action === 'kiemTraMaAdmin') return { ok: true, admin: true };
   if (action === 'luuCaiDatChung') return luuCaiDatChung_(data, nguoiLog);
+  if (action === 'luuNha') return luuNha_(data, nguoiLog);
+  if (action === 'themNha') return themNha_(data, nguoiLog);
   if (action === 'xoaDot') return xoaDot_(data, nguoiLog);
   if (action === 'xoaPhan') return xoaPhan_(data, nguoiLog);
   if (action === 'suaPhan') return suaPhan_(data, nguoiLog);
@@ -289,6 +302,10 @@ function xuLy_(action, data, nguoi) {
     case 'deleteCombo':
       deleteCombo_(cat, data, ctx);
       break;
+    case 'xoaNha':
+      // Admin: xóa 1 nhà khỏi sổ, chuyển sách / thành phần combo của nhà đó sang nhà khác
+      extra.soChuyen = xoaNha_(cat, data, ctx);
+      break;
     case 'xoaHangLoat':
       // Admin: xóa hàng loạt dòng SKU / combo (mỗi dòng 1 bản ghi lịch sử – hoàn tác được)
       extra.soXoa = 0;
@@ -337,6 +354,7 @@ function xuLy_(action, data, nguoi) {
   if (doi.co || ctx.log.length) { rev = ctx.rev; datRev_(rev); }
 
   var out = { ok: true, catalog: cat, rev: rev, soThayDoiLichSu: ctx.log.length };
+  if (action === 'xoaNha') out.nha = soNha_();
   Object.keys(extra).forEach(function (k) { out[k] = extra[k]; });
   return out;
 }
@@ -350,7 +368,7 @@ function upsertSku_(cat, d, ctx, choGhiDeTay) {
   var nguon = ['tu_hoc', 'web'].indexOf(chuoi_(d.nguon)) >= 0 ? chuoi_(d.nguon) : 'tay';
   if (!key) throw new Error('Thiếu khóa (key).');
   if (!/^(sku|ten):/.test(key)) throw new Error('Khóa không hợp lệ: ' + key);
-  if (NHA_SKU.indexOf(nha) < 0) throw new Error('Nhà không hợp lệ: ' + d.nha);
+  if (nhaSku_().indexOf(nha) < 0) throw new Error('Nhà không hợp lệ: ' + d.nha);
   var i = timViTri_(cat.skus, 'key', key);
   var cu = i >= 0 ? cat.skus[i] : null;
   // Nhãn "tay" luôn ưu tiên hơn "tu_hoc": tự học không bao giờ ghi đè gán tay
@@ -395,7 +413,7 @@ function luuTenSach_(cat, d, ctx) {
     cat.skus[i] = moi;
   } else {
     var nha = chuoi_(d.nha).toUpperCase();
-    if (NHA_SKU.indexOf(nha) < 0) throw new Error('Cần chọn nhà cho sách mới: ' + key); // KHONG_NHAP: sách nhà khác (tab Chờ khai báo)
+    if (nhaSku_().indexOf(nha) < 0) throw new Error('Cần chọn nhà cho sách mới: ' + key); // KHONG_NHAP: sách nhà khác (tab Chờ khai báo)
     if (!ten) return false;
     moi = { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: nha, nguon: 'tay', cap_nhat: ctx.now, ten_sach: ten, phan_loai: chuoi_(d.phan_loai) };
     cat.skus.push(moi);
@@ -413,7 +431,7 @@ function khongPhaiCombo_(cat, d, ctx) {
   var i = timViTri_(cat.skus, 'key', key), cu = i >= 0 ? cat.skus[i] : null, gt = d.bo ? '' : '1';
   var nha = chuoi_(d.nha).toUpperCase();
   // "Là sách lẻ của nhà X" (chọn nhà) → gán tay luôn nhà đó
-  var ganNha = !d.bo && NHA_SKU.indexOf(nha) >= 0;
+  var ganNha = !d.bo && nhaSku_().indexOf(nha) >= 0;
   var moi = cu ? Object.assign({}, cu, { khong_combo: gt }, ganNha ? { nha: nha, nguon: 'tay' } : {})
     : { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: ganNha ? nha : '', nguon: ganNha ? 'tay' : 'tu_hoc',
         phan_loai: chuoi_(d.phan_loai), khong_combo: gt };
@@ -487,7 +505,7 @@ function ganBarcode_(cat, d, ctx) {
       if (tenSach && !chuoi_(ry.ten_sach)) cat.skus[j] = Object.assign({}, ry, { ten_sach: tenSach, cap_nhat: ctx.now });
       return;
     }
-    if (NHA_SKU.indexOf(nha) < 0) return; // không có nhà → chưa tạo (app vẫn nhận nhà theo mã trong tên)
+    if (nhaSku_().indexOf(nha) < 0) return; // không có nhà → chưa tạo (app vẫn nhận nhà theo mã trong tên)
     var mau = viec.filter(function (v) { return v.Y === Y; })[0];
     cat.skus.push({ key: 'sku:' + Y, sku: Y, ten: mau ? chuoi_(mau.it.ten) : chuoi_(tp && tp.ten), nha: nha, nguon: 'tay', cap_nhat: ctx.now,
                     ten_sach: tenSach, phan_loai: '' });
@@ -596,7 +614,7 @@ function ghiSoMaChuan_(cat, items, ctx) {
     var bc = chuoi_(it.barcode).toUpperCase();
     if (!/^\d{7,}$/.test(bc)) return;
     var x = { barcode: bc, ten_gon: chuoi_(it.ten_gon), gia_bia: soDuong_(it.gia_bia) || '', ncc: chuoi_(it.ncc),
-              nha: NHA_CHINH.indexOf(chuoi_(it.nha)) >= 0 ? chuoi_(it.nha) : '', ngay_thay: chuoi_(it.ngay_thay) || homNay_() };
+              nha: nhaChinh_().indexOf(chuoi_(it.nha)) >= 0 ? chuoi_(it.nha) : '', ngay_thay: chuoi_(it.ngay_thay) || homNay_() };
     if (!(bc in theoMa)) { x.khong_phai = ''; theoMa[bc] = cat.ma_chuan.length; cat.ma_chuan.push(x); moi++; return; }
     var cu = cat.ma_chuan[theoMa[bc]];
     if (x.ngay_thay < chuoi_(cu.ngay_thay)) return;
@@ -631,7 +649,7 @@ function luuMaPhu_(cat, d, ctx, tuDong) {
     var j = timSku_(cat, cur);
     cur = j >= 0 ? chuoi_(cat.skus[j].ma_moi).toUpperCase() : '';
   }
-  var goc = cu || { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: NHA_CHINH.indexOf(chuoi_(d.nha)) >= 0 ? chuoi_(d.nha) : '' };
+  var goc = cu || { key: key, sku: chuoi_(d.sku), ten: chuoi_(d.ten), nha: nhaChinh_().indexOf(chuoi_(d.nha)) >= 0 ? chuoi_(d.nha) : '' };
   var moi = Object.assign({}, goc, { ma_moi: Y, nguon_ma: tuDong ? 'web_tu_khop' : 'xac_nhan', cap_nhat: ctx.now });
   moi.nguon = tuDong ? (cu ? cu.nguon : 'web_tu_khop') : 'tay';
   if (i >= 0) cat.skus[i] = moi; else cat.skus.push(moi);
@@ -648,7 +666,7 @@ function boQuaCungCuon_(cat, d, ctx) {
   var i = timViTri_(cat.ma_chuan, 'barcode', bc);
   if (i < 0) { // barcode mới thấy trong file web hôm nay, chưa kịp ghi sổ
     cat.ma_chuan.push({ barcode: bc, ten_gon: chuoi_(d.ten_gon), gia_bia: soDuong_(d.gia_bia) || '', ncc: chuoi_(d.ncc),
-                        nha: NHA_CHINH.indexOf(chuoi_(d.nha)) >= 0 ? chuoi_(d.nha) : '', ngay_thay: homNay_(), khong_phai: '' });
+                        nha: nhaChinh_().indexOf(chuoi_(d.nha)) >= 0 ? chuoi_(d.nha) : '', ngay_thay: homNay_(), khong_phai: '' });
     i = cat.ma_chuan.length - 1;
   }
   var cu = cat.ma_chuan[i];
@@ -705,7 +723,7 @@ function napLichSuDatHang_(data) {
   var COT_NGUON = { Shopee: 'sl_shopee', TikTok: 'sl_tiktok', Web: 'sl_web' };
   (data.dong || []).forEach(function (d) {
     var ma = chuoi_(d.ma_don), ngay = chuoi_(d.ngay), nha = chuoi_(d.nha), bc = chuoi_(d.barcode);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ngay) || NHA_CHINH.indexOf(nha) < 0 || !bc) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ngay) || nhaChinh_().indexOf(nha) < 0 || !bc) return;
     if (ma && daCo[ma]) { donBoQua[ma] = 1; return; }
     if (ma) donMoi[ma] = ngay;
     var k = ngay + '|' + nha + '|' + bc;
@@ -927,10 +945,10 @@ function chuanCombo_(d) {
   });
   var cachXuat = chuoi_(d.cach_xuat) === 'nguyen' ? 'nguyen' : 'tach';
   var nha = chuoi_(d.nha).toUpperCase();
-  if (nha && NHA_CHINH.indexOf(nha) < 0) nha = '';
+  if (nha && nhaChinh_().indexOf(nha) < 0) nha = '';
   var tps = (d.thanh_phan || []).map(function (t) {
     var nha = chuoi_(t.nha).toUpperCase();
-    if (NHA_TP.indexOf(nha) < 0) nha = 'KHAC';
+    if (nhaTp_().indexOf(nha) < 0) nha = 'KHAC';
     var tenTp = chuoi_(t.ten) || chuoi_(t.sku) || '(chưa có tên)';
     return {
       sku: chuoi_(t.sku), ten: tenTp, nha: nha,
@@ -1152,7 +1170,7 @@ function docThayDoi_(tu) {
     var xoa = docBang_(SH.XOA).filter(function (x) { return soPb_(x.phien_ban) > tu; })
       .map(function (x) { return { loai: x.loai, khoa: x.khoa }; });
     return { ok: true, api: API, rev: rev, skus: cat.skus.filter(moi), combos: cat.combos.filter(moi), ma_chuan: cat.ma_chuan.filter(moi),
-             xoa: xoa, log: docLogSau_(tu), nguoi_dung: docNguoiDung_(), cai_dat_chung: docCaiDatChung_(), de_sau: docDeSau_() };
+             xoa: xoa, log: docLogSau_(tu), nguoi_dung: docNguoiDung_(), cai_dat_chung: docCaiDatChung_(), de_sau: docDeSau_(), nha: soNha_() };
   } finally {
     if (coKhoa) lock.releaseLock();
   }
@@ -1347,7 +1365,7 @@ function chotDot_(d, nguoi) {
   if (dot.trang_thai === 'da_chot') return { ok: true, da_chot_truoc: true, dot: dongDot_(dot) };
   var kqLs = null;
   if (d.lich_su) {
-    var ls = Object.assign({}, d.lich_su, { ngay: dotId, nhas: NHA_CHINH.slice() });
+    var ls = Object.assign({}, d.lich_su, { ngay: dotId, nhas: nhaChinh_() });
     kqLs = ghiLichSuDatHang_(ls);
     dot.ghi_lich_su_luc = bayGio_();
   }
@@ -1485,6 +1503,84 @@ function suaPhan_(d, nguoiLog) {
   ghiBang_(SH.PHAN, phans);
   ghiLichSu_([[bayGio_(), 'suaPhan', id, JSON.stringify(cu), JSON.stringify({ ghi_chu: 'Bỏ ' + (x.dong.length - giu.length) + ' dòng của file: ' + bo.join(', ') }), nguoiLog || '', '']]);
   return { ok: true, phan: dongPhan_(phans[i]), so_bo: x.dong.length - giu.length };
+}
+
+/* ===================== Sổ nhà ===================== */
+
+function chuanNha_(x, i) {
+  var ma = chuoi_(x.ma).toUpperCase().replace(/[^A-Z0-9Đ_]/g, '');
+  var ds = function (v) { return [].concat(v || []).join(',').split(/\s*[,;]+\s*/).map(chuoi_).filter(function (t) { return t; }); };
+  return { ma: ma, ten: chuoi_(x.ten).slice(0, 80) || ma, loai: x.loai === 'hang_ngay' ? 'hang_ngay' : 'nhap_kho', mau: chuoi_(x.mau).slice(0, 20),
+           ma_ten: ds(x.ma_ten).map(function (t) { return t.toUpperCase(); }).join(', '), ncc: ds(x.ncc).join('; '),
+           tien_to: ds(x.tien_to).map(function (t) { return t.replace(/\D/g, ''); }).filter(function (t) { return t; }).join(', '),
+           thu_tu: i === undefined ? Number(x.thu_tu) || 0 : i };
+}
+/* Sổ nhà: sheet NHA; trống → mặc định HA/KV/ML + "Mã nhà khác" cũ (cài đặt chung) */
+function soNha_() {
+  if (soNhaNho_) return soNhaNho_;
+  var ds = docBang_(SH.NHA).filter(function (x) { return x.ma; }).map(function (x) { return chuanNha_(x); })
+    .sort(function (a, b) { return a.thu_tu - b.thu_tu; });
+  if (!ds.some(function (x) { return x.loai === 'hang_ngay'; })) {
+    var cd = docCaiDatChung_(), khac = Array.isArray(cd.maKhac) && cd.maKhac.length ? cd.maKhac : MA_KHAC_MAC_DINH;
+    ds = [{ ma: 'HA', ten: 'Hồng Ân', loai: 'hang_ngay', ncc: 'hong an' }, { ma: 'KV', ten: 'Khang Việt', loai: 'hang_ngay', ncc: 'khang viet' },
+          { ma: 'ML', ten: 'Minh Long', loai: 'hang_ngay', ncc: 'minh long' }]
+      .concat(khac.map(function (m) { m = chuoi_(m).toUpperCase(); return { ma: m, ten: m, loai: 'nhap_kho', ncc: m === 'MEGA' ? 'mega book; megabook' : m === 'QB' ? 'quang binh' : '' }; }))
+      .filter(function (x, i, a) { return x.ma && a.map(function (y) { return y.ma; }).indexOf(x.ma) === i; })
+      .map(chuanNha_);
+  }
+  soNhaNho_ = ds;
+  return ds;
+}
+function maTatCa_() { return soNha_().map(function (x) { return x.ma; }); }
+function nhaChinh_() { var d = soNha_().filter(function (x) { return x.loai === 'hang_ngay'; }).map(function (x) { return x.ma; }); return d.length ? d : NHA_CHINH.slice(); }
+function nhaSku_() { return maTatCa_().concat(['KHONG_NHAP']); }
+function nhaTp_() { return maTatCa_().concat(['KHAC']); }
+function ghiSoNha_(ds, nguoiLog, ghiChu) {
+  var cu = soNha_(), now = bayGio_();
+  ghiBang_(SH.NHA, ds.map(function (x, i) { var o = chuanNha_(x, i); o.cap_nhat = now; return o; }));
+  soNhaNho_ = null;
+  ghiLichSu_([[now, 'luuNha', ghiChu || 'Sổ nhà', JSON.stringify(cu), JSON.stringify(soNha_()), nguoiLog || '', '']]);
+  return soNha_();
+}
+/* Admin: thay cả sổ nhà (mã không trùng, ít nhất 1 nhà Đặt hằng ngày) */
+function luuNha_(d, nguoiLog) {
+  var da = {}, ds = [];
+  (d.ds || []).forEach(function (x) { var o = chuanNha_(x); if (!o.ma || o.ma === 'KHONG_NHAP' || o.ma === 'KHAC' || da[o.ma]) return; da[o.ma] = 1; ds.push(o); });
+  if (!ds.some(function (x) { return x.loai === 'hang_ngay'; })) throw new Error('Cần ít nhất 1 nhà "Đặt hằng ngày".');
+  return { ok: true, nha: ghiSoNha_(ds, nguoiLog, 'Sửa sổ nhà (' + ds.length + ' nhà)') };
+}
+/* Mọi người: thêm 1 nhà mới (vd khi gán nhà cho dòng chưa rõ) – không sửa / xóa nhà đã có */
+function themNha_(d, nguoiLog) {
+  var o = chuanNha_(d.nha || d);
+  if (!o.ma || o.ma === 'KHONG_NHAP' || o.ma === 'KHAC') throw new Error('Mã nhà không hợp lệ.');
+  var ds = soNha_().slice();
+  if (ds.some(function (x) { return x.ma === o.ma; })) return { ok: true, nha: ds, da_co: true };
+  ds.push(o);
+  return { ok: true, nha: ghiSoNha_(ds, nguoiLog, 'Thêm nhà ' + o.ma + ' – ' + o.ten) };
+}
+/* Admin: xóa nhà, chuyển sách (SKU_NHA) + thành phần combo sang nhà chuyen_sang (trống = Không nhập / Khác) */
+function xoaNha_(cat, d, ctx) {
+  var ma = chuoi_(d.ma).toUpperCase(), sang = chuoi_(d.chuyen_sang).toUpperCase();
+  var ds = soNha_().filter(function (x) { return x.ma !== ma; });
+  if (ds.length === soNha_().length) throw new Error('Không có nhà ' + ma + '.');
+  if (!ds.some(function (x) { return x.loai === 'hang_ngay'; })) throw new Error('Cần giữ ít nhất 1 nhà "Đặt hằng ngày".');
+  if (sang && !ds.some(function (x) { return x.ma === sang; })) throw new Error('Nhà chuyển sang không có: ' + sang);
+  var n = 0;
+  cat.skus.forEach(function (e, i) {
+    if (e.nha !== ma) return;
+    cat.skus[i] = Object.assign({}, e, { nha: sang || 'KHONG_NHAP', cap_nhat: ctx.now });
+    ghiLog_(ctx, 'upsertSku', e.key, e, Object.assign({ ghi_chu: 'Xóa nhà ' + ma + ' → ' + (sang || 'Không nhập') }, cat.skus[i]));
+    n++;
+  });
+  var ngay = ds.filter(function (x) { return x.loai === 'hang_ngay'; }).map(function (x) { return x.ma; });
+  cat.combos.forEach(function (c) {
+    var doi = false;
+    c.thanh_phan.forEach(function (t) { if (t.nha === ma) { t.nha = sang || 'KHAC'; doi = true; n++; } });
+    if (c.nha === ma) { c.nha = ngay.indexOf(sang) >= 0 ? sang : ''; doi = true; }
+    if (doi) c.cap_nhat = ctx.now;
+  });
+  ghiSoNha_(ds, ctx.nguoiLog, 'Xóa nhà ' + ma + (sang ? ' (chuyển sang ' + sang + ')' : ''));
+  return n;
 }
 
 /* ===================== Lịch sử bán (dự báo nhập kho, chờ khai báo) ===================== */
@@ -1753,12 +1849,12 @@ function bayGio_() { return dinhDang_(new Date()); }
 
 /** Chạy 1 lần: tạo đủ 4 sheet có dòng tiêu đề. */
 function khoiTao() {
-  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN, SH.CDC, SH.BH, SH.DS].forEach(sheet_);
+  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN, SH.CDC, SH.BH, SH.DS, SH.NHA].forEach(sheet_);
   var ss = bangTinh_();
   ss.getSheets().forEach(function (s) {
     if (/^(Sheet1|Trang tính1)$/.test(s.getName()) && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
-  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN, CAI_DAT_CHUNG, BAN_HANG, DE_SAU.');
+  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN, CAI_DAT_CHUNG, BAN_HANG, DE_SAU, NHA.');
 }
 
 /** Sao lưu 3 sheet danh mục sang file "Sao lưu danh mục – Tách đơn nhập nhà", giữ 30 bản gần nhất. */

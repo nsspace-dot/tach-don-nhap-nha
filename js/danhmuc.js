@@ -16,7 +16,7 @@
   var LS_DANHMUC = 'tdn.danhmuc.v1';
   var LS_ADMIN = 'tdn.admin.v1'; // mã Admin của máy này (nhập 1 lần, "Đăng xuất Admin" để xóa)
   // Thao tác chỉ Admin (Apps Script api ≥ 4 kiểm tra mã)
-  var HD_ADMIN = { kiemTraMaAdmin: 1, luuNguoiDung: 1, moLaiDot: 1, xoaDot: 1, xoaPhan: 1, suaPhan: 1, luuCaiDatChung: 1, importBatch: 1, upsertMaChuan: 1, xoaHangLoat: 1 };
+  var HD_ADMIN = { kiemTraMaAdmin: 1, luuNha: 1, xoaNha: 1, luuNguoiDung: 1, moLaiDot: 1, xoaDot: 1, xoaPhan: 1, suaPhan: 1, luuCaiDatChung: 1, importBatch: 1, upsertMaChuan: 1, xoaHangLoat: 1 };
   var RE_LOI_ADMIN = /^(SAI_MA_ADMIN|KHOA_ADMIN|CHUA_DAT_MA_ADMIN|CAN_MA_ADMIN):\s*/;
 
   function docLS(k, macDinh) {
@@ -54,6 +54,7 @@
     may.caiDatChung = cd;
     var doi = false;
     ['maKhac', 'trangThaiShopee', 'plVoNghia'].forEach(function (k) {
+      if (k === 'maKhac' && may.api >= 6) return; // có sổ nhà: mã nhà khác lấy từ sổ nhà
       if (Array.isArray(cd[k]) && JSON.stringify(cd[k]) !== JSON.stringify(caiDat[k])) { caiDat[k] = cd[k].slice(); doi = true; }
     });
     if (doi) { ghiLS(LS_CAIDAT, caiDat); phat('caidat'); }
@@ -108,7 +109,27 @@
     if (state === 'ok') trangThai.luc = new Date().toISOString();
     phat('trangthai');
   }
-  function luuCache() { ghiLS(LS_DANHMUC, { catalog: catalog, luc: new Date().toISOString(), nguoiDung: nguoiDung }); }
+  function luuCache() { ghiLS(LS_DANHMUC, { catalog: catalog, luc: new Date().toISOString(), nguoiDung: nguoiDung, nha: soNhaMay }); }
+
+  /* ---------- Sổ nhà dùng chung (Apps Script api ≥ 6). Chưa có → HA/KV/ML + "Mã nhà khác" trên máy (như cũ) ---------- */
+  var soNhaMay = (cache && cache.nha) || null;
+  function apSoNha(ds) {
+    var PL = root.PhanLoai;
+    if (!PL.datNha(ds)) return false;
+    if (root.XuatFile) root.XuatFile.datNha(PL.DS_NHA);
+    caiDat.maKhac = PL.maNhapKho(); // ô "Mã nhà khác" cũ = mã các nhà "Nhập kho"
+    return true;
+  }
+  function nhanNha(ds) {
+    if (!Array.isArray(ds) || !ds.length) return;
+    if (JSON.stringify(ds) === JSON.stringify(soNhaMay)) return;
+    soNhaMay = ds;
+    if (!apSoNha(ds)) return;
+    ghiLS(LS_CAIDAT, caiDat);
+    luuCache();
+    phat('nha');
+    phat('caidat');
+  }
   function nhanCatalog(c, info) {
     catalog = chuanHoa(c);
     luuCache();
@@ -119,6 +140,7 @@
     var apiMoi = Number(j.api) || 0;
     if (may.api !== apiMoi) { may.api = apiMoi; phat('api'); }
     if (j.nguoi_dung) nhanNguoiDung(j.nguoi_dung);
+    if (j.nha) nhanNha(j.nha);
     if (j.admin_da_dat_ma !== undefined && may.adminDaDatMa !== !!j.admin_da_dat_ma) { may.adminDaDatMa = !!j.admin_da_dat_ma; phat('admin'); }
     if (j.cai_dat_chung) nhanCaiDatChung(j.cai_dat_chung);
     if (j.de_sau) nhanDeSau(j.de_sau);
@@ -294,7 +316,7 @@
   }
 
   /* ---------- Xung đột: "A vừa đổi X thành Hồng Ân lúc 8:45. Giữ hay đổi thành Khang Việt?" ---------- */
-  var TEN_NHA = { HA: 'Hồng Ân', KV: 'Khang Việt', ML: 'Minh Long', KHONG_NHAP: 'Không nhập', KHAC: 'nhà khác' };
+  var TEN_NHA = Object.assign(Object.create(root.PhanLoai.TEN_NHA), { KHONG_NHAP: 'Không nhập', KHAC: 'nhà khác' }); // + sổ nhà dùng chung
   function gioPhut(s) {
     var m = /(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/.exec(String(s || ''));
     if (!m) return '';
@@ -379,11 +401,15 @@
   function luuCaiDat(moi) {
     var doiUrl = moi.url !== undefined && moi.url !== caiDat.url;
     Object.assign(caiDat, moi);
+    if (moi.maKhac && !(may.api >= 6)) root.PhanLoai.datNha(root.PhanLoai.nhaMacDinh(moi.maKhac)); // chưa có sổ nhà: như cũ
     ghiLS(LS_CAIDAT, caiDat);
     if (doiUrl) { may.api = null; may.rev = 0; may.urlRev = ''; }
     phat('caidat');
     if (doiUrl) taiLai();
   }
+
+  // Áp sổ nhà ngay khi tải (trước lần phân loại đầu tiên)
+  if (!(soNhaMay && apSoNha(soNhaMay))) root.PhanLoai.datNha(root.PhanLoai.nhaMacDinh(caiDat.maKhac));
 
   root.DanhMuc = {
     get catalog() { return catalog; },
@@ -393,9 +419,12 @@
     get api() { return may.api; },
     get rev() { return may.rev; },
     nhieuNguoi: nhieuNguoi,
-    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 5; },
+    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 6; },
     coAdmin: coAdmin,
     coBanHang: coBanHang,
+    coNha: function () { return !!(caiDat.url && may.api >= 6); },
+    get soNha() { return root.PhanLoai.DS_NHA; },
+    nhanNha: nhanNha,
     get deSau() { return deSau; },
     nhanDeSau: nhanDeSau,
     get coMaAdmin() { return !!maAdmin; },
