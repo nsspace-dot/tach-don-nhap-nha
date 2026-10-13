@@ -543,3 +543,62 @@ main:has(> #man-chinh:not([hidden])) { max-width: none; padding: 16px 16px 40px;
 .nha-bang td { padding: 5px 6px; vertical-align: middle; }
 .nha-bang .input { padding: 6px 8px; min-width: 70px; }
 .nha-bang input[type="color"] { width: 44px; height: 32px; padding: 2px; border: 2px solid var(--line); border-radius: var(--r-sm); background: var(--input-bg); }
+
+/* ============ Biểu đồ Dự báo nhập kho (js/bieudo.js) – chỉ dùng biến màu nên hợp mọi chủ đề ============ */
+.bd-khung { position: relative; }
+#db-bieudo { display: flex; flex-direction: column; gap: 14px; }
+.bd-dau { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 6px; flex-wrap: wrap; }
+.bd-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.bd-o { background: var(--paper); border: 1.5px solid var(--line); border-radius: var(--r-md); padding: 12px 16px; box-shadow: var(--shadow); }
+.bd-o-nhan { color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-o-so { font-family: var(--font-head); font-size: 28px; font-weight: 800; line-height: 1.2; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bd-o-so span { font-size: 22px; }
+.bd-o-phu { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-luoi2 { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 14px; }
+.bd-the { padding: 14px 16px; min-width: 0; }
+.bd-the h3, .bd-ct h3 { margin: 0 0 8px; font-family: var(--font-head); font-size: 16px; }
+.bd-ve { width: 100%; min-width: 0; overflow: hidden; }
+.bd-svg { display: block; max-width: 100%; height: auto; font-family: var(--font-so); }
+.bd-luoi { stroke: var(--line); stroke-width: 1; }
+.bd-truc { fill: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.bd-duong { fill: none; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; opacity: .42; }
+.bd-duong.bd-dam { stroke-width: 3.2; opacity: 1; }
+.bd-x { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+.bd-cot-an { fill: transparent; cursor: crosshair; }
+.bd-cg-ds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.bd-cg { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; border: 1.5px solid var(--line);
+  background: var(--soft); color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.bd-cg i { width: 12px; height: 4px; border-radius: 2px; display: inline-block; }
+.bd-cg-chon { border-color: var(--ink); }
+.bd-cg-an { opacity: .45; text-decoration: line-through; background: transparent; }
+.bd-hang { cursor: pointer; }
+.bd-nen-hang { fill: transparent; }
+.bd-hang:hover .bd-nen-hang { fill: var(--row-hover); }
+.bd-nhan { fill: var(--ink); font-size: 12.5px; }
+.bd-so { fill: var(--ink); font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bd-goi { margin: 6px 0 0; font-size: 12.5px; }
+.bd-tia-o { cursor: pointer; padding-top: 4px; padding-bottom: 4px; }
+.bd-tia { display: block; }
+.bd-tia-nen { fill: var(--brand); opacity: .14; }
+.bd-tia-duong { fill: none; stroke: var(--brand-dark); stroke-width: 1.6; stroke-linejoin: round; }
+.bd-tia-cham { fill: var(--brand-dark); }
+.bd-ten { all: unset; cursor: pointer; font-weight: inherit; }
+.bd-ten:hover, .bd-ten:focus-visible { text-decoration: underline; color: var(--brand-dark); }
+.bd-ten:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+tr.bd-dang-xem td { background: var(--soft); }
+.bd-ct { padding: 14px 16px; }
+.bd-ct-dau { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bd-ct-so { margin: 0 0 8px; font-size: 13.5px; }
+.bd-goiy { color: var(--brand-dark); font-size: 15px; }
+.bd-cot { fill: var(--brand); }
+.bd-cot-0 { fill: var(--line); }
+.bd-vung-db { fill: var(--focus); opacity: .07; }
+.bd-tb { stroke: var(--focus); stroke-width: 2.2; stroke-dasharray: 7 5; }
+.bd-tb-chu { fill: var(--focus); font-size: 12px; font-weight: 700; }
+.bd-trong { display: flex; align-items: center; gap: 14px; padding: 14px 20px; }
+.bd-trong p { margin: 0; font-weight: 700; }
+.bd-trong .mini-cat { width: 70px; height: 70px; flex: none; }
+.bd-tip { position: fixed; z-index: 9999; pointer-events: none; white-space: pre-line; max-width: 300px;
+  background: var(--toast-bg); color: var(--toast-ink); padding: 7px 10px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.45;
+  box-shadow: var(--shadow); font-variant-numeric: tabular-nums; }
+@media (max-width: 980px) { .bd-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bd-luoi2 { grid-template-columns: minmax(0, 1fr); } }

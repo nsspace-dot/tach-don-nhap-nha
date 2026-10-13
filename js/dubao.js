@@ -2,7 +2,7 @@
  * Số liệu lấy từ lịch sử bán đã lưu (60 ngày) và TÍNH LẠI theo danh mục mới nhất mỗi lần danh mục đổi. */
 (function (root) {
   'use strict';
-  var DM = root.DanhMuc, A = root.App, PL = root.PhanLoai, BH = root.BanHang, DG = root.DotGop;
+  var DM = root.DanhMuc, A = root.App, PL = root.PhanLoai, BH = root.BanHang, DG = root.DotGop, BD = root.BieuDo;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return A.esc(s); };
   var LS_DB = 'tdn.dubao.v1';
@@ -10,7 +10,7 @@
 
   var H = { khoi: null, luc: 0, dangTai: null, loi: '', th: null, db: null, ck: null, henTinh: null };
   var luu = docLuu();
-  function docLuu() { try { var x = JSON.parse(localStorage.getItem(LS_DB)) || {}; return x.ngay === DG.homNayVN() ? x : { nha: x.nha || '' }; } catch (e) { return {}; } }
+  function docLuu() { try { var x = JSON.parse(localStorage.getItem(LS_DB)) || {}; return x.ngay === DG.homNayVN() ? x : { nha: x.nha || '', anDuong: x.anDuong, anBd: x.anBd }; } catch (e) { return {}; } }
   function ghiLuu() { luu.ngay = DG.homNayVN(); try { localStorage.setItem(LS_DB, JSON.stringify(luu)); } catch (e) { /* bỏ qua */ } }
 
   /* ---------- Dữ liệu ---------- */
@@ -43,7 +43,7 @@
       H.th = BH.tongHop(H.khoi, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }, dongTrenMay());
       H.db = null; H.ck = null;
     }
-    if (!H.db) H.db = BH.duBao(H.th, DG.homNayVN(), soNgayTheoNha());
+    if (!H.db) { H.db = BH.duBao(H.th, DG.homNayVN(), soNgayTheoNha()); H.dbSo = (H.dbSo || 0) + 1; }
     if (!H.ck) {
       var bo = DM.deSau;
       H.ck = BH.choKhaiBao(H.th, bo).filter(function (x) { return !bo['bo:' + idMuc(x)]; });
@@ -106,6 +106,7 @@
       $('db-nha').innerHTML = '';
       $('db-ghichu').textContent = '';
       $('db-bang').innerHTML = '<div class="trong-bang">Chưa có lịch sử bán. Lịch sử được lưu khi 🔒 Chốt đợt, hoặc nạp từ file đơn cũ ở tab 📊 Thống kê.</div>';
+      $('db-bieudo').innerHTML = bdTrong(); $('db-ct').hidden = true; H.bdKhoa = null;
       return;
     }
     var nha = nhaDangChon();
@@ -126,15 +127,95 @@
       : sap === 'goiy' ? function (a, b) { return slDat(b, st) - slDat(a, st) || b.b30 - a.b30; }
         : function (a, b) { return b.b30 - a.b30 || b.b7 - a.b7; });
     H.dsHien = ds;
+    veBieuDo(nha);
     $('db-bang').innerHTML = '<table class="tbl tbl-ghim2"><thead><tr><th><input type="checkbox" id="db-tatca" aria-label="Chọn tất cả cuốn đang hiện"></th><th>Tên sách</th>' +
-      '<th class="so">Giá bìa</th><th class="so">Bán 7 ngày</th><th class="so">Bán 30 ngày</th><th class="so">TB/ngày</th><th>Xu hướng</th><th class="so">Gợi ý đặt</th></tr></thead><tbody>' +
+      '<th class="so">Giá bìa</th><th class="so">Bán 7 ngày</th><th class="so">Bán 30 ngày</th><th class="so">TB/ngày</th><th>Xu hướng</th><th>14 ngày</th><th class="so">Gợi ý đặt</th></tr></thead><tbody>' +
       ds.map(function (c, i) {
-        return '<tr><td><input type="checkbox" data-db-chon="' + i + '"' + (daChon(c, st) ? ' checked' : '') + ' aria-label="Chọn ' + esc(c.ten) + '"></td>' +
-          '<td class="ten">' + esc(c.ten) + (c.sku ? '<div class="pl">' + esc(c.sku) + '</div>' : '') + '</td><td class="so">' + A.so(c.gia) + '</td>' +
+        return '<tr' + (c.khoa === H.ctKhoa ? ' class="bd-dang-xem"' : '') + '><td><input type="checkbox" data-db-chon="' + i + '"' + (daChon(c, st) ? ' checked' : '') + ' aria-label="Chọn ' + esc(c.ten) + '"></td>' +
+          '<td class="ten"><button type="button" class="bd-ten" data-db-ct="' + i + '" title="Xem biểu đồ cuốn này">' + esc(c.ten) + '</button>' + (c.sku ? '<div class="pl">' + esc(c.sku) + '</div>' : '') + '</td><td class="so">' + A.so(c.gia) + '</td>' +
           '<td class="so">' + A.so(c.b7) + '</td><td class="so"><b>' + A.so(c.b30) + '</b></td><td class="so">' + c.tb.toFixed(1).replace('.', ',') + '</td>' +
-          '<td>' + XH[c.xuHuong] + '</td><td class="so"><input class="input db-sl" type="number" min="0" step="1" data-db-sl="' + i + '" value="' + slDat(c, st) + '" aria-label="Số lượng đặt"></td></tr>';
+          '<td>' + XH[c.xuHuong] + '</td><td class="bd-tia-o" data-db-ct="' + i + '">' + BD.tiaNho(chuoi(c.ngay, db.ngayCuoi, 14)) + '</td><td class="so"><input class="input db-sl" type="number" min="0" step="1" data-db-sl="' + i + '" value="' + slDat(c, st) + '" aria-label="Số lượng đặt"></td></tr>';
       }).join('') + '</tbody></table><div class="db-tong" id="db-tong"></div>';
     veTong();
+    veChiTiet();
+  }
+
+  /* ---------- Biểu đồ ---------- */
+  function chuoi(map, cuoi, n) { var out = []; for (var i = n - 1; i >= 0; i--) out.push((map || {})[BH.congNgay(cuoi, -i)] || 0); return out; }
+  function dsNgay(cuoi, n) { var out = []; for (var i = n - 1; i >= 0; i--) out.push(BH.congNgay(cuoi, -i)); return out; }
+  function tongDs(a) { return a.reduce(function (s, v) { return s + v; }, 0); }
+  /* So 30 ngày gần nhất với 30 ngày trước đó (TB/ngày; kỳ trước có thể ngắn hơn 30 ngày nếu lịch sử chưa đủ) */
+  function soSanh(n) {
+    var db = H.db, x = db.nha[n], soTruoc = Math.min(30, db.soNgayDuLieu - 30);
+    var nay = tongDs(chuoi(x.ngay, db.ngayCuoi, 30));
+    if (soTruoc < 7) return { nay: nay, pct: null, soTruoc: Math.max(0, soTruoc) };
+    var truoc = tongDs(chuoi(x.ngay, BH.congNgay(db.ngayCuoi, -30), soTruoc));
+    return { nay: nay, truoc: truoc, soTruoc: soTruoc, pct: truoc > 0 ? ((nay / 30) / (truoc / soTruoc) - 1) * 100 : null };
+  }
+  function mauNha(n) { var i = PL.DS_NHA.indexOf(PL.timNha(n)); return BD.MAU[(i < 0 ? PL.DS_NHA.length : i) % BD.MAU.length]; }
+  function bdTrong() {
+    return '<div class="panel bd-trong"><div class="mini-cat">' + root.LinhVat.meo('ngu') + '</div><p>Chưa đủ dữ liệu, hãy nạp file đơn cũ ở tab 📊 Thống kê.</p></div>';
+  }
+  function pctHtml(p) {
+    if (p === null || p === undefined) return '<span class="xh-deu">—</span>';
+    var r = Math.round(p);
+    return r > 0 ? '<span class="xh-tang">▲ ' + r + '%</span>' : r < 0 ? '<span class="xh-giam">▼ ' + (-r) + '%</span>' : '<span class="xh-deu">0%</span>';
+  }
+  function veBieuDo(nha) {
+    var el = $('db-bieudo'), db = H.db;
+    luu.anDuong = luu.anDuong || {};
+    var rong = el.clientWidth || 900;
+    var khoa = [H.dbSo, nha, JSON.stringify(luu.anDuong), !!luu.anBd, rong].join('|');
+    if (khoa === H.bdKhoa) return;
+    H.bdKhoa = khoa;
+    if (!db.duDuLieu) { el.innerHTML = bdTrong(); return; }
+    var nut = '<button type="button" class="btn btn-sm btn-ghost bd-an-nut" id="db-an-bd">' + (luu.anBd ? '📊 Hiện biểu đồ' : '🙈 Ẩn biểu đồ') + '</button>';
+    if (luu.anBd) { el.innerHTML = '<div class="bd-dau">' + nut + '</div>'; return; }
+    var x = db.nha[nha], ss = soSanh(nha), nhas = Object.keys(db.nha);
+    var manh = null;
+    nhas.forEach(function (n) { var z = soSanh(n); if (z.pct !== null && z.truoc >= 5 && (!manh || z.pct > manh.pct)) manh = { ma: n, pct: z.pct }; });
+    var ten = function (n) { return n + (TEN_NHA[n] && TEN_NHA[n] !== n ? ' · ' + TEN_NHA[n] : ''); };
+    var o = function (nhan, gt, phu, tip) { return '<div class="bd-o" data-tip="' + esc(tip) + '"><div class="bd-o-nhan">' + nhan + '</div><div class="bd-o-so">' + gt + '</div><div class="bd-o-phu">' + phu + '</div></div>'; };
+    var kpi = '<div class="bd-kpi">' +
+      o('Bán 30 ngày · ' + esc(nha), A.so(Math.round(ss.nay)), 'cuốn', 'Tổng số cuốn ' + ten(nha) + ' bán trong 30 ngày đến ' + DG.ngayNgan(db.ngayCuoi)) +
+      o('Đầu sách có bán', A.so(x.ds.length), 'trong 30 ngày', 'Số đầu sách ' + nha + ' bán ít nhất 1 cuốn trong 30 ngày') +
+      o('So 30 ngày trước', pctHtml(ss.pct), ss.pct === null ? (ss.soTruoc < 7 ? 'cần thêm lịch sử' : 'kỳ trước không bán') : 'TB/ngày ' + BD.so(ss.nay / 30) + ' so với ' + BD.so(ss.truoc / ss.soTruoc),
+        ss.pct === null ? 'Cần ít nhất 37 ngày lịch sử để so sánh' : 'So TB/ngày 30 ngày gần nhất với ' + ss.soTruoc + ' ngày trước đó') +
+      o('Nhà tăng mạnh nhất', manh ? esc(manh.ma) + ' ' + pctHtml(manh.pct) : '—', manh ? esc(TEN_NHA[manh.ma] && TEN_NHA[manh.ma] !== manh.ma ? TEN_NHA[manh.ma] : '30 ngày gần nhất') : 'chưa đủ lịch sử',
+        'Nhà có TB/ngày tăng nhiều nhất so với kỳ trước (kỳ trước bán ≥ 5 cuốn)') + '</div>';
+    var thuTu = nhas.slice().sort(function (a, b) { return (a === nha ? -1 : b === nha ? 1 : 0) || tongDs(chuoi(db.nha[b].ngay, db.ngayCuoi, 30)) - tongDs(chuoi(db.nha[a].ngay, db.ngayCuoi, 30)); });
+    var chuGiai = thuTu.map(function (n) {
+      var an = !!luu.anDuong[n];
+      return '<button type="button" class="bd-cg' + (an ? ' bd-cg-an' : '') + (n === nha ? ' bd-cg-chon' : '') + '" data-bd-an="' + esc(n) + '" aria-pressed="' + !an + '" title="' + (an ? 'Bấm để hiện ' : 'Bấm để ẩn ') + esc(ten(n)) + '">' +
+        '<i style="background:' + mauNha(n) + '"></i>' + esc(n) + '</button>';
+    }).join('');
+    var top = x.ds.slice().sort(function (a, b) { return b.b30 - a.b30 || b.b7 - a.b7; }).slice(0, 10);
+    el.innerHTML = '<div class="bd-dau"><span class="muted">Biểu đồ 30 ngày đến ' + DG.ngayNgan(db.ngayCuoi) + ' · rê chuột để xem số</span>' + nut + '</div>' + kpi +
+      '<div class="bd-luoi2"><div class="panel bd-the"><h3>Bán mỗi ngày theo nhà</h3><div class="bd-cg-ds">' + chuGiai + '</div><div class="bd-ve" id="bd-duong"></div></div>' +
+      '<div class="panel bd-the"><h3>Top 10 bán chạy · ' + esc(nha) + '</h3><div class="bd-ve" id="bd-top"></div><p class="muted bd-goi">Bấm vào 1 cuốn để xem chi tiết.</p></div></div>';
+    var w1 = $('bd-duong').clientWidth, w2 = $('bd-top').clientWidth;
+    $('bd-duong').innerHTML = BD.duong({ rong: w1, cao: 240, ngay: dsNgay(db.ngayCuoi, 30), nhan: 'Số cuốn bán mỗi ngày theo nhà',
+      loat: thuTu.filter(function (n) { return !luu.anDuong[n]; }).map(function (n) { return { ma: n, mau: mauNha(n), dam: n === nha, gt: chuoi(db.nha[n].ngay, db.ngayCuoi, 30) }; }) });
+    $('bd-top').innerHTML = BD.thanhNgang({ rong: w2, mau: mauNha(nha), nhan: 'Top 10 bán chạy 30 ngày',
+      muc: top.map(function (c) { return { nhan: c.ten, gt: c.b30, tip: c.ten + '\nBán 30 ngày: ' + A.so(c.b30) + ' · 7 ngày: ' + A.so(c.b7) + '\nGợi ý đặt: ' + A.so(c.goiY), attr: 'data-db-ctk="' + esc(c.khoa) + '"' }; }) });
+  }
+  function veChiTiet() {
+    var el = $('db-ct'), nha = $('db-nha').value, x = H.db && H.db.nha[nha];
+    var c = x && H.ctKhoa && x.ds.filter(function (z) { return z.khoa === H.ctKhoa; })[0];
+    if (!c) { el.hidden = true; el.innerHTML = ''; return; }
+    var st = trangThaiNha(nha), dat = slDat(c, st);
+    el.hidden = false;
+    el.innerHTML = '<div class="bd-ct-dau"><h3>📖 ' + esc(c.ten) + '</h3><button type="button" class="btn btn-sm btn-ghost" id="db-ct-dong" aria-label="Đóng chi tiết">✕ Đóng</button></div>' +
+      '<p class="bd-ct-so">' + (c.sku ? '<span class="pl">' + esc(c.sku) + '</span> · ' : '') + 'Bán 7 ngày <b>' + A.so(c.b7) + '</b> · 30 ngày <b>' + A.so(c.b30) + '</b> · TB/ngày <b>' + BD.so(c.tb) + '</b> · ' + XH[c.xuHuong] +
+      ' · Gợi ý đặt đủ bán ' + x.soNgay + ' ngày: <b class="bd-goiy">' + A.so(c.goiY) + ' cuốn</b>' + (dat !== c.goiY ? ' (bạn đang để ' + A.so(dat) + ')' : '') + '</p>' +
+      '<div class="bd-ve" id="bd-ct-ve"></div>';
+    $('bd-ct-ve').innerHTML = BD.chiTiet({ rong: $('bd-ct-ve').clientWidth, cao: 220, ngay: dsNgay(H.db.ngayCuoi, 30), gt: chuoi(c.ngay, H.db.ngayCuoi, 30), tb: c.tb, soNgay: x.soNgay, goiY: c.goiY });
+  }
+  function moChiTiet(khoa) {
+    H.ctKhoa = khoa;
+    veDuBao();
+    var el = $('db-ct');
+    if (!el.hidden && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function veTong() {
     var nha = $('db-nha').value, x = H.db && H.db.nha[nha];
@@ -261,6 +342,26 @@
       var nha = $('db-nha').value, st = trangThaiNha(nha), t = e.target;
       if (t.id === 'db-tatca') { H.dsHien.forEach(function (c) { st.chon[c.khoa] = t.checked; }); ghiLuu(); veDuBao(); return; }
       if (t.dataset.dbChon) { st.chon[H.dsHien[+t.dataset.dbChon].khoa] = t.checked; ghiLuu(); veTong(); }
+    });
+    $('db-bang').addEventListener('click', function (e) {
+      var t = e.target.closest('[data-db-ct]');
+      if (t) moChiTiet(H.dsHien[+t.dataset.dbCt].khoa);
+    });
+    $('db-bieudo').addEventListener('click', function (e) {
+      var t = e.target.closest('[data-bd-an],[data-db-ctk],#db-an-bd');
+      if (!t) return;
+      if (t.id === 'db-an-bd') { luu.anBd = !luu.anBd; ghiLuu(); veDuBao(); return; }
+      if (t.dataset.dbCtk) { moChiTiet(t.dataset.dbCtk); return; }
+      var n = t.dataset.bdAn;
+      luu.anDuong = luu.anDuong || {};
+      if (luu.anDuong[n]) delete luu.anDuong[n]; else luu.anDuong[n] = 1;
+      ghiLuu(); veDuBao();
+    });
+    $('db-ct').addEventListener('click', function (e) { if (e.target.id === 'db-ct-dong') { H.ctKhoa = null; veDuBao(); } });
+    var henCo = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(henCo);
+      henCo = setTimeout(function () { if (!$('man-dubao').hidden && H.db) { H.bdKhoa = null; veDuBao(); } }, 250);
     });
     $('db-bang').addEventListener('input', function (e) {
       var t = e.target;

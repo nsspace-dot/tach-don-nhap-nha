@@ -413,6 +413,13 @@ Mỗi cuốn 1 dòng: bán 7 / 30 ngày, TB/ngày (trung bình có trọng số 
 **Gợi ý đặt** = làm tròn lên (TB/ngày × số ngày đủ bán – mặc định 7, chỉnh riêng từng nhà, dùng chung). Không tính tồn kho.
 Sửa số / tick cuốn cần đặt → **⬇️ Xuất Excel nhà này** (4 cột như file 3 nhà, tên `Du-kien-nhap_<Nhà>_dd-mm-yyyy.xlsx`). Chưa đủ 14 ngày dữ liệu thì có ghi chú, vẫn hiện số.
 
+**Biểu đồ** (đầu màn Dự báo, nút **🙈 Ẩn biểu đồ** nếu không cần; rê chuột / chạm để xem số):
+- 4 ô số: bán 30 ngày của nhà đang chọn, số đầu sách có bán, % so với 30 ngày trước (theo TB/ngày, cần ≥ 37 ngày lịch sử), nhà tăng mạnh nhất.
+- Đường bán mỗi ngày 30 ngày, mỗi nhà 1 đường – bấm tên nhà ở chú giải để ẩn / hiện; nhà đang chọn vẽ đậm.
+- Top 10 cuốn bán chạy 30 ngày; cột **14 ngày** trong bảng là đường nhỏ bán từng ngày.
+- Bấm tên sách (hoặc thanh Top 10, đường nhỏ) → khung chi tiết: cột bán từng ngày 30 ngày + vùng nét đứt dự báo cho số ngày "Đủ bán" và số gợi ý đặt.
+- Lịch sử dưới 14 ngày → hiện mèo + *"Chưa đủ dữ liệu, hãy nạp file đơn cũ ở tab Thống kê"*.
+
 **📝 Chờ khai báo** (mọi người): việc không ảnh hưởng đơn đặt hôm nay của HA/KV/ML – combo nhà khác chưa khai, combo trộn còn thiếu phần nhà khác,
 dòng **⏭ Để sau**, sách nhà khác chưa có tên khai báo, barcode thiếu / sai. Có số lần xuất hiện, lần cuối gặp, nguồn; sắp theo số lần giảm dần;
 khai báo ngay tại tab (hoặc **🙈 Bỏ qua**). Khai báo xong thì tự biến mất, dự báo tự tính lại. Số việc hiện trên menu: *📝 Chờ khai báo (23)*.

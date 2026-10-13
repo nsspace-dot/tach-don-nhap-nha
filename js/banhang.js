@@ -129,7 +129,9 @@
     var out = { ngayCuoi: ngayCuoi, soNgayDuLieu: soNgayDuLieu, duDuLieu: soNgayDuLieu >= NGAY_TOI_THIEU, nha: {} };
     Object.keys(tatCa).forEach(function (n) {
       var soNgay = Number((soNgayTheoNha || {})[n]) || 7;
+      var ngayTong = {}; // tổng bán theo ngày của cả nhà (biểu đồ)
       var ds = nhomTheoCuon(tatCa[n]).map(function (c) {
+        Object.keys(c.ngay).forEach(function (d) { ngayTong[d] = (ngayTong[d] || 0) + c.ngay[d]; });
         var b7 = 0, b30 = 0, truoc7 = 0, ts = 0;
         Object.keys(c.ngay).forEach(function (d) {
           var tuoi = cachNgay(d, ngayCuoi); // 0 = ngày cuối
@@ -142,9 +144,9 @@
         var tb = ts / tongW;
         var xh = b7 === truoc7 ? 'deu' : truoc7 === 0 ? 'tang' : b7 > truoc7 * 1.2 ? 'tang' : b7 < truoc7 * 0.8 ? 'giam' : 'deu';
         return { khoa: c.khoa, ten: c.ten, sku: c.sku, gia: c.gia, b7: b7, b30: b30, truoc7: truoc7, tb: tb, xuHuong: xh,
-                 goiY: tb > 0 ? Math.ceil(tb * soNgay - 1e-9) : 0 };
+                 goiY: tb > 0 ? Math.ceil(tb * soNgay - 1e-9) : 0, ngay: c.ngay };
       }).filter(function (c) { return c.b30 > 0; });
-      if (ds.length) out.nha[n] = { soNgay: soNgay, ds: ds };
+      if (ds.length) out.nha[n] = { soNgay: soNgay, ds: ds, ngay: ngayTong };
     });
     return out;
   }
