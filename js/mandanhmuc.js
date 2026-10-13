@@ -168,7 +168,8 @@
         : 'Danh mục SKU còn trống. Mèo sẽ tự học dần khi bạn tách đơn 🐾');
       return;
     }
-    var ghi = DM.coTheGhi(), idxDm = PL.buildIndex(DM.catalog);
+    var ghi = DM.coTheGhi(), idxDmNho = null;
+    var idxDm = function () { return idxDmNho || (idxDmNho = PL.buildIndex(DM.catalog)); }; // chỉ dựng khi có mã phụ cần hiện
     dsDangHien = ds.slice(0, TOI_DA);
     var soGoiY = dsDangHien.filter(function (e) { return canTen(e) && !e.ten_sach; }).length;
     $('dm-bang').innerHTML = (locTen ? '<div class="legend" style="padding:12px 16px">Ô tên đang điền sẵn <b>gợi ý</b> (tên web, hoặc tên sàn – phân loại). Sửa ô nào thì lưu ô đó; ' +
@@ -177,7 +178,7 @@
       ds.slice(0, TOI_DA).map(function (e) {
         var i = list.indexOf(e);
         var nhanKhoa = /^ten:/.test(e.key) ? '<div class="pl">nhận diện theo tên: ' + A.esc(e.key.split('|')[1] || '') + '</div>' : '';
-        var phu = e.ma_moi ? '<div><span class="nho nho-macu" title="Mã cũ – đơn dùng mã này được tính vào mã mới nhất">mã phụ → ' + A.esc(PL.maMoiNhat(idxDm, e.sku)) + '</span></div>' : '';
+        var phu = e.ma_moi ? '<div><span class="nho nho-macu" title="Mã cũ – đơn dùng mã này được tính vào mã mới nhất">mã phụ → ' + A.esc(PL.maMoiNhat(idxDm(), e.sku)) + '</span></div>' : '';
         var choThay = PL.isBarcode(e.sku);
         return '<tr><td class="sku">' + (e.sku ? A.esc(e.sku) : '<span class="sku-la sku-trong">(trống)</span>') + phu + '</td>' +
           oTenSach(e, i, ghi, mc) + '<td class="ten pl">' + A.esc(e.ten) + (e.phan_loai ? ' <span class="nho">' + A.esc(e.phan_loai) + '</span>' : '') + nhanKhoa + '</td><td>' +
@@ -490,7 +491,9 @@
     document.querySelectorAll('.seg-btn').forEach(function (b) {
       b.addEventListener('click', function () { tab = b.dataset.dm; ve(); });
     });
-    $('dm-tim').addEventListener('input', ve);
+    // Gõ tìm kiếm: đợi ngừng gõ 150ms mới vẽ lại (đỡ vẽ cả bảng sau mỗi phím)
+    var hen = null;
+    $('dm-tim').addEventListener('input', function () { clearTimeout(hen); hen = setTimeout(ve, 150); });
     $('dm-loc-ten').addEventListener('change', ve);
     $('ss-luu').addEventListener('click', function () { luuSuaDong(false); });
     $('dm-bang').addEventListener('change', function (e) {

@@ -20,9 +20,18 @@
     return { id: p.id, file: p.file, san: p.san, sheetName: p.sheetName, error: p.error || null, rows: p.rowsTatCa || p.rows || [],
              thoiGianXuat: p.thoiGianXuat, ngayXuat: p.ngayXuat, webKey: p.webKey };
   }
+  /* Dấu nhanh của bộ file trên máy (file chỉ đổi khi thả / bỏ file) – để khỏi ghi nháp / tính lại khi không đổi */
+  function dauFiles() {
+    return A.S.demFile + '|' + A.S.files.map(function (p) { return p.id + ':' + (p.rowsTatCa || p.rows || []).length + (p.error ? 'x' : ''); }).join(',');
+  }
+  var daLuuDau = null;
   function luuNhap() {
     if (A.S.gop) return; // đang xem gộp: không đụng nháp của mình
-    nhap.cheDoDot = DM.coDot() || (DM.api === null && !!nhap.cheDoDot); // chế độ 1 người: không giữ nháp (như cũ)
+    var cheDo = DM.coDot() || (DM.api === null && !!nhap.cheDoDot); // chế độ 1 người: không giữ nháp (như cũ)
+    var dau = dauFiles() + '|' + cheDo;
+    if (dau === daLuuDau) return; // file không đổi (vd chỉ đồng bộ danh mục) → không ghi lại localStorage
+    daLuuDau = dau;
+    nhap.cheDoDot = cheDo;
     nhap.files = A.S.files.map(goiFile);
     nhap.demFile = A.S.demFile;
     nhap.luc = new Date().toISOString();
@@ -37,9 +46,13 @@
     A.toast('📝 Đã mở lại phần đang làm dở (' + A.S.files.filter(function (p) { return !p.error; }).length + ' file).', 'ok');
   }
   /* Dấu nội dung phần của mình – để biết đã đổi sau khi Báo xong chưa */
+  var dauPhanNho = { k: null, v: '' };
   function dauPhan() {
+    var k = dauFiles();
+    if (dauPhanNho.k === k) return dauPhanNho.v;
     var g = DG.dongGui(A.S.files);
-    return g.dong.length + '#' + DG.dauFileWeb(JSON.stringify(g.dong));
+    dauPhanNho = { k: k, v: g.dong.length + '#' + DG.dauFileWeb(JSON.stringify(g.dong)) };
+    return dauPhanNho.v;
   }
 
   /* ---------- Thanh trên cùng ---------- */

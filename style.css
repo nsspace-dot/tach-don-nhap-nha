@@ -79,7 +79,7 @@ code { background: #fbefe6; padding: 1px 6px; border-radius: 6px; }
 /* ---------- Thanh trên ---------- */
 .topbar {
   display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
-  padding: 12px 24px; background: rgba(255, 255, 255, .85); backdrop-filter: blur(6px);
+  padding: 12px 24px; background: rgba(255, 255, 255, .97); /* không dùng backdrop-filter: làm lag khi cuộn bảng dài */
   border-bottom: 2px solid var(--line); position: sticky; top: 0; z-index: 5;
 }
 .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
