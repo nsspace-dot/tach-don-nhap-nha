@@ -1,0 +1,198 @@
+/* ============ Chủ đề giao diện ============
+ * Mặc định (🐱 Mèo pastel) = style.css, không cần gì ở đây.
+ * Mỗi chủ đề = 1 khối biến trên :root[data-chu-de="…"] + vài trang trí riêng. Thêm chủ đề mới: chép 1 khối, đổi biến,
+ * thêm tên vào CHU_DE trong js/chude.js (và phụ kiện mèo trong js/linhvat.js nếu muốn). */
+
+/* ---------- 📦 Bưu kiện ---------- */
+:root[data-chu-de="buu-kien"] {
+  --lech-bg: #fff1c2; --chip-x-bg: #ead8b6; --dp-bg: #ece2f6; --tk-thanh: #e6cfa5; --chuaten-bg: #ffd9c2; --nut-nho-hover: #ece2f6;
+  --bg: #d8b88a; --paper: #f2e2c4; --ink: #3b2a1a; --muted: #6e5538; --line: #b48a58;
+  --brand: #b8402c; --brand-ink: #fff8ec; --brand-dark: #8e2c1c; --focus: #1f5aa6;
+  --ha: #ffd9c9; --ha-ink: #8c2a14; --ha-deep: #d9603f;
+  --kv: #cfeedd; --kv-ink: #135c3b; --kv-deep: #3f9b6e;
+  --ml: #ffeaa0; --ml-ink: #634800; --ml-deep: #d1a51a;
+  --cr: #ffd2b0; --cr-ink: #8a3505; --cr-deep: #e07a34;
+  --cb: #dcd3f2; --cb-ink: #46307f; --cb-deep: #8e74d0;
+  --bq: #e4d6c0; --bq-ink: #574531;
+  --warn: #ffe27a; --danger: #b3261e;
+  --r-lg: 6px; --r-md: 4px; --r-sm: 3px;
+  --shadow: 0 3px 0 rgba(90, 60, 25, .35), 0 8px 16px rgba(90, 60, 25, .18);
+  --font-head: "Roboto Slab", "Baloo 2", Georgia, serif;
+  --soft: #e6cfa5; --soft-2: #ead8b6; --th-bg: #ead6b2; --row-hover: #f7ecd6; --input-bg: #fffaf0; --select-bg: #fffaf0;
+  --topbar-bg: #e8d0a6; --dot-nen: rgba(120, 80, 30, .10);
+  --note-bg: #fff1c2; --note-line: #c9a24a; --note-ink: #5c4300;
+  --info-bg: #e3edf9; --info-line: #8fb0d8; --info-ink: #1d4277; --info-2: #cddff4;
+  --xong-tu: #f2e2c4; --xong-den: #ead1a7; --drop-over: #f7e8cb; --drop-line: #8a6438;
+  --err-bg: #fbe1dc; --err-line: #d58a7e; --err-ink: #8a1f12;
+  --toast-bg: #3b2a1a; --toast-ink: #fff3dc;
+}
+[data-chu-de="buu-kien"] body {
+  background-image: repeating-linear-gradient(45deg, rgba(110, 70, 25, .05) 0 2px, transparent 2px 7px),
+                    radial-gradient(circle at 12px 12px, var(--dot-nen) 1.5px, transparent 2px);
+  background-size: auto, 22px 22px;
+}
+/* thùng carton + băng keo ở góc */
+[data-chu-de="buu-kien"] .panel, [data-chu-de="buu-kien"] .drop, [data-chu-de="buu-kien"] .xong, [data-chu-de="buu-kien"] .dlg {
+  position: relative; border: 2px solid var(--line);
+  background-image: repeating-linear-gradient(0deg, rgba(120, 80, 30, .05) 0 1px, transparent 1px 4px);
+}
+[data-chu-de="buu-kien"] .panel::before, [data-chu-de="buu-kien"] .drop::before, [data-chu-de="buu-kien"] .xong::before {
+  content: ""; position: absolute; top: 10px; left: -22px; width: 92px; height: 22px; transform: rotate(-38deg);
+  background: rgba(255, 246, 214, .82); border-top: 1px dashed rgba(150, 110, 50, .45); border-bottom: 1px dashed rgba(150, 110, 50, .45);
+  pointer-events: none; z-index: 4;
+}
+[data-chu-de="buu-kien"] .drop { border-style: dashed; border-width: 3px; overflow: hidden; }
+/* tiêu đề / nhãn như phiếu vận đơn */
+[data-chu-de="buu-kien"] h2 { letter-spacing: .3px; }
+[data-chu-de="buu-kien"] .panel-head h2, [data-chu-de="buu-kien"] .dot-tieu-de h2 {
+  display: inline-block; background: #fffaf0; border: 2px dashed var(--line); padding: 2px 12px; font-family: "Roboto Mono", monospace; text-transform: uppercase; font-size: 18px;
+}
+[data-chu-de="buu-kien"] .tbl th { font-family: "Roboto Mono", monospace; letter-spacing: .4px; }
+/* tem bưu điện viền răng cưa: thẻ 5 nhóm */
+[data-chu-de="buu-kien"] .card {
+  border-radius: 2px; box-shadow: none; border: 0;
+  -webkit-mask: radial-gradient(circle 4px at 4px 4px, transparent 3.5px, #000 4px) -4px -4px / 10px 10px, linear-gradient(#000 0 0) 6px 6px / calc(100% - 12px) calc(100% - 12px) no-repeat;
+          mask: radial-gradient(circle 4px at 4px 4px, transparent 3.5px, #000 4px) -4px -4px / 10px 10px, linear-gradient(#000 0 0) 6px 6px / calc(100% - 12px) calc(100% - 12px) no-repeat;
+  padding: 18px 20px;
+}
+[data-chu-de="buu-kien"] .card.is-active { outline: 3px solid var(--c-deep); outline-offset: -9px; box-shadow: none; }
+/* nhãn dán bưu kiện cho từng nhà */
+[data-chu-de="buu-kien"] .badge-nha { border-radius: 2px; border: 1.5px solid currentColor; box-shadow: 1px 1px 0 rgba(60, 40, 15, .35); }
+/* nút chính như con dấu */
+[data-chu-de="buu-kien"] .btn-primary, [data-chu-de="buu-kien"] .btn-big {
+  background: transparent; color: var(--brand); border: 3px double var(--brand); box-shadow: none; border-radius: 6px;
+  font-family: "Roboto Mono", monospace; text-transform: uppercase; letter-spacing: .5px; transform: rotate(-1.5deg);
+}
+[data-chu-de="buu-kien"] .btn-primary:hover:not(:disabled), [data-chu-de="buu-kien"] .btn-big:hover:not(:disabled) { background: rgba(184, 64, 44, .1); color: var(--brand-dark); border-color: var(--brand-dark); }
+[data-chu-de="buu-kien"] .nav-btn.is-active { background: #fffaf0; border: 1.5px dashed var(--line); box-shadow: none; }
+
+/* ---------- 📒 Sổ tay học trò ---------- */
+:root[data-chu-de="so-tay"] {
+  --lech-bg: #fffbd6; --chip-x-bg: #e8eefc; --dp-bg: #f1eeff; --tk-thanh: #e8eefc; --chuaten-bg: #ffe3cc; --nut-nho-hover: #f1eeff;
+  --bg: #fbfcff; --paper: #ffffff; --ink: #1d3c8f; --muted: #5a6ea8; --line: #c9d6f2;
+  --brand: #2f5bd3; --brand-ink: #fff; --brand-dark: #1f43a8; --focus: #d6336c;
+  --ha: #ffe0e6; --ha-ink: #9b1b3d; --ha-deep: #f08aa3;
+  --kv: #d9f5e4; --kv-ink: #146b3a; --kv-deep: #6ccf96;
+  --ml: #fff3b8; --ml-ink: #6a5200; --ml-deep: #e9c84a;
+  --cr: #ffe3cc; --cr-ink: #8d3e06; --cr-deep: #f3a35f;
+  --cb: #e6e0fb; --cb-ink: #46309a; --cb-deep: #a693ea;
+  --bq: #eef1f8; --bq-ink: #4c5a7a;
+  --warn: #fff27a; --danger: #c92a3a;
+  --r-lg: 14px; --r-md: 10px; --r-sm: 8px;
+  --shadow: 0 2px 0 #dbe4f7, 0 6px 14px rgba(40, 70, 150, .08);
+  --font-head: "Patrick Hand", "Baloo 2", "Comic Sans MS", sans-serif;
+  --soft: #eef3fe; --soft-2: #e8eefc; --th-bg: #f3f6ff; --row-hover: #f7f9ff; --input-bg: #fff; --select-bg: #fff;
+  --topbar-bg: rgba(255, 255, 255, .97); --dot-nen: transparent;
+  --note-bg: #fffbd6; --note-line: #e9d466; --note-ink: #5e4c00;
+  --info-bg: #e8efff; --info-line: #a9c0f2; --info-ink: #1d3c8f; --info-2: #d6e2ff;
+  --xong-tu: #fff; --xong-den: #f1f5ff; --drop-over: #f1f5ff; --drop-line: #8fa8e6;
+  --err-bg: #ffe9ed; --err-line: #f2a5b3; --err-ink: #9b1b3d;
+  --toast-bg: #1d3c8f; --toast-ink: #fff;
+}
+/* giấy kẻ ô li nhạt */
+[data-chu-de="so-tay"] body {
+  background-image: linear-gradient(rgba(70, 110, 220, .13) 1px, transparent 1px), linear-gradient(90deg, rgba(70, 110, 220, .13) 1px, transparent 1px),
+                    linear-gradient(rgba(70, 110, 220, .05) 1px, transparent 1px), linear-gradient(90deg, rgba(70, 110, 220, .05) 1px, transparent 1px);
+  background-size: 32px 32px, 32px 32px, 8px 8px, 8px 8px;
+}
+/* tiêu đề như nhãn vở dán tên */
+[data-chu-de="so-tay"] .panel-head h2, [data-chu-de="so-tay"] .dot-tieu-de h2, [data-chu-de="so-tay"] .drop-text h2 {
+  display: inline-block; background: #fff; border: 2px solid var(--brand); border-radius: 14px; padding: 2px 16px; box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 4px var(--line);
+  font-size: 24px; color: var(--ink);
+}
+[data-chu-de="so-tay"] .panel { border-left: 6px double #f08aa3; }
+/* highlight vàng cho số quan trọng */
+[data-chu-de="so-tay"] .card-so { display: inline-block; }
+[data-chu-de="so-tay"] .card-so, [data-chu-de="so-tay"] .tbl .so b {
+  background: linear-gradient(transparent 55%, rgba(255, 236, 80, .75) 55%); padding: 0 3px; border-radius: 2px;
+}
+[data-chu-de="so-tay"] .card { border: 2px solid var(--c-deep); }
+
+/* ---------- 📚 Thư viện cũ ---------- */
+:root[data-chu-de="thu-vien"] {
+  --lech-bg: #f8edc7; --chip-x-bg: #ece2cf; --dp-bg: #ece6f3; --tk-thanh: #eadfc8; --chuaten-bg: #f3dcc4; --nut-nho-hover: #ece6f3;
+  --bg: #efe6d2; --paper: #fbf6ea; --ink: #4a3220; --muted: #7c6248; --line: #cdb898;
+  --brand: #7a3e1d; --brand-ink: #fbf6ea; --brand-dark: #5a2b12; --focus: #2d5f6b;
+  --ha: #f4d9cf; --ha-ink: #7d2a19; --ha-deep: #c47a62;
+  --kv: #d8e9d9; --kv-ink: #22593a; --kv-deep: #7aa98a;
+  --ml: #f3e5b5; --ml-ink: #5f4700; --ml-deep: #c9a640;
+  --cr: #f3dcc4; --cr-ink: #7d3c0c; --cr-deep: #c9875a;
+  --cb: #e3dcef; --cb-ink: #49336f; --cb-deep: #9d88c2;
+  --bq: #e6dccb; --bq-ink: #5a4a36;
+  --warn: #f6e39a; --danger: #9b2c22;
+  --r-lg: 4px; --r-md: 3px; --r-sm: 2px;
+  --shadow: 0 1px 0 #cdb898, 0 4px 10px rgba(80, 50, 20, .12);
+  --font: "Lora", Georgia, serif; --font-head: "Lora", Georgia, serif;
+  --soft: #eadfc8; --soft-2: #ece2cf; --th-bg: #f1e7d3; --row-hover: #f6efe0; --input-bg: #fffcf3; --select-bg: #fffcf3;
+  --topbar-bg: #f4ecda; --dot-nen: rgba(120, 90, 50, .08);
+  --note-bg: #f8edc7; --note-line: #c9a85a; --note-ink: #5b4300;
+  --info-bg: #e3ecee; --info-line: #9fbcc4; --info-ink: #24525e; --info-2: #d3e2e6;
+  --xong-tu: #fbf6ea; --xong-den: #f1e5cd; --drop-over: #f6eddb; --drop-line: #a98a62;
+  --err-bg: #f6e0da; --err-line: #cf9283; --err-ink: #7d2216;
+  --toast-bg: #4a3220; --toast-ink: #fbf6ea;
+  --font-so: "Quicksand", "Segoe UI", Arial, sans-serif;
+}
+[data-chu-de="thu-vien"] body { font-weight: 500; }
+/* bảng như thẻ mượn sách: viền nâu, dòng kẻ */
+[data-chu-de="thu-vien"] .panel { border: 1.5px solid var(--brand); outline: 1px solid var(--line); outline-offset: 3px; }
+[data-chu-de="thu-vien"] .tbl td { border-bottom: 1px solid #e0cfb2; }
+[data-chu-de="thu-vien"] .tbl th { text-transform: uppercase; letter-spacing: 1px; font-size: 11px; border-bottom: 2px double var(--brand); }
+[data-chu-de="thu-vien"] .card { border: 1.5px solid var(--c-deep); box-shadow: inset 0 0 0 3px var(--c-bg), inset 0 0 0 4px var(--c-deep); }
+[data-chu-de="thu-vien"] .panel-head h2, [data-chu-de="thu-vien"] .dot-tieu-de h2 { font-style: italic; border-bottom: 1px solid var(--brand); padding-bottom: 2px; }
+[data-chu-de="thu-vien"] .tbl .so, [data-chu-de="thu-vien"] .card-so { font-family: var(--font-so); }
+[data-chu-de="thu-vien"] .btn, [data-chu-de="thu-vien"] .nav-btn, [data-chu-de="thu-vien"] .seg-btn { border-radius: 3px; }
+
+/* ---------- 🌙 Đêm đọc sách ---------- */
+:root[data-chu-de="dem"] {
+  color-scheme: dark;
+  --bg: #0f1a2e; --paper: #172540; --ink: #ece6d6; --muted: #a9b3c7; --line: #2c3d5f;
+  --brand: #f2b84b; --brand-ink: #1a1405; --brand-dark: #d99a26; --focus: #8fc4ff;
+  --ha: #4a2b2c; --ha-ink: #ffc9bc; --ha-deep: #d87d6a;
+  --kv: #1f4335; --kv-ink: #a9f0cc; --kv-deep: #4fbf8c;
+  --ml: #4a3f17; --ml-ink: #ffe28a; --ml-deep: #d6b23b;
+  --cr: #4a3020; --cr-ink: #ffcfa8; --cr-deep: #e0904f;
+  --cb: #322a52; --cb-ink: #d6caff; --cb-deep: #9c87ea;
+  --bq: #263248; --bq-ink: #c0c9da;
+  --warn: #5a4c12; --danger: #ff7a7a;
+  --shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  --soft: #1d2d4b; --soft-2: #22345a; --th-bg: #1b2a47; --row-hover: #1f3050; --input-bg: #101c33; --select-bg: #101c33;
+  --topbar-bg: rgba(15, 26, 46, .97); --dot-nen: rgba(242, 184, 75, .07);
+  --note-bg: #3a3214; --note-line: #8c7424; --note-ink: #ffe9a3;
+  --info-bg: #1b3050; --info-line: #3d6496; --info-ink: #b9d8ff; --info-2: #24406a;
+  --xong-tu: #172540; --xong-den: #2a2a32; --drop-over: #1d2f50; --drop-line: #4a5f88;
+  --err-bg: #3d1e26; --err-line: #a5505f; --err-ink: #ffc2cb;
+  --toast-bg: #f2e7c9; --toast-ink: #1a1405;
+  --lech-bg: #3a3214; --chip-x-bg: #2a3b5e; --dp-bg: #241f3d; --tk-thanh: #22345a; --chuaten-bg: #4a3020; --nut-nho-hover: #2b2550;
+}
+/* ánh đèn bàn ở góc trên */
+[data-chu-de="dem"] body {
+  background-image: radial-gradient(ellipse 60% 45% at 85% -5%, rgba(242, 184, 75, .16), transparent 70%),
+                    radial-gradient(circle at 12px 12px, var(--dot-nen) 1.5px, transparent 2px);
+  background-size: auto, 30px 30px; background-attachment: fixed, scroll;
+}
+[data-chu-de="dem"] .card.is-active { box-shadow: 0 0 0 3px rgba(242, 184, 75, .35), 0 8px 18px rgba(0, 0, 0, .4); }
+[data-chu-de="dem"] .tag-TikTok { background: #e8e8e8; color: #111; }
+[data-chu-de="dem"] .dlg::backdrop { background: rgba(0, 0, 0, .55); }
+[data-chu-de="dem"] code { color: var(--ink); }
+
+/* ---------- Con dấu "ĐÃ GỬI" / "ĐÃ ĐẶT" (chốt đợt / tải file xong) ---------- */
+.dong-dau {
+  position: fixed; left: 50%; top: 42%; z-index: 9999; pointer-events: none;
+  font: 800 54px/1 "Roboto Mono", "Courier New", monospace; letter-spacing: 6px; color: #b8402c;
+  border: 7px double #b8402c; border-radius: 10px; padding: 12px 28px; background: rgba(255, 250, 240, .25);
+  transform: translate(-50%, -50%) rotate(-12deg); opacity: .9; mix-blend-mode: multiply;
+  animation: dongDau 1.6s ease-out forwards;
+}
+[data-chu-de="thu-vien"] .dong-dau { font-family: "Lora", Georgia, serif; color: #6b2c14; border-color: #6b2c14; }
+@keyframes dongDau {
+  0% { transform: translate(-50%, -50%) rotate(-12deg) scale(2.4); opacity: 0; }
+  18% { transform: translate(-50%, -50%) rotate(-12deg) scale(.94); opacity: .95; }
+  26% { transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
+  80% { opacity: .9; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .dong-dau { animation: none; opacity: .9; } }
+
+/* Thẻ thống kê nền sáng (viết cứng ở style.css) – chủ đề tối dùng nền giấy */
+[data-chu-de="dem"] .tk-the-tang, [data-chu-de="dem"] .tk-the-ngu, [data-chu-de="dem"] .tk-the-thieu { background: var(--paper); }
+[data-chu-de="dem"] .tk-ds li { background: var(--soft); }

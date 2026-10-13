@@ -26,13 +26,61 @@
       '<rect x="' + (x + w - 16) + '" y="' + (y + 3) + '" width="5" height="11" rx="2" fill="#fff" opacity=".7"/>';
   }
 
-  /* mood: 'om' (ôm sách), 'ngu' (ngủ), 'vay' (vẫy tay, xong việc), 'buon' (lỗi) */
+  /* Phụ kiện theo chủ đề giao diện: sau = vẽ phía sau mèo, truoc = vẽ đè lên */
+  var PHU_KIEN = {
+    // 📦 ngồi trong thùng carton, đội nón giao hàng
+    'buu-kien': {
+      truoc: '<path d="M22 114 l18 16 h120 l18 -16 l-10 -4 l-14 18 h-108 l-14 -18z" fill="#d6a66c" stroke="' + VIEN + '" stroke-width="3" stroke-linejoin="round"/>' +
+        '<path d="M40 130 h120 l-6 64 h-108z" fill="#c9965c" stroke="' + VIEN + '" stroke-width="3" stroke-linejoin="round"/>' +
+        '<rect x="91" y="130" width="18" height="64" fill="#efdcae" opacity=".9"/>' +
+        '<rect x="52" y="148" width="30" height="20" rx="2" fill="#fffaf0" stroke="' + VIEN + '" stroke-width="2"/>' +
+        '<path d="M56 154 h22 M56 160 h16" stroke="#b8402c" stroke-width="2"/>' +
+        '<path d="M126 150 l14 0 M126 158 l20 0" stroke="#8a6438" stroke-width="2" stroke-dasharray="3 3"/>' +
+        '<ellipse cx="72" cy="130" rx="12" ry="8" fill="' + LONG + '" stroke="' + VIEN + '" stroke-width="3"/>' +
+        '<ellipse cx="128" cy="130" rx="12" ry="8" fill="' + LONG + '" stroke="' + VIEN + '" stroke-width="3"/>' +
+        '<path d="M64 62 q36 -40 72 0z" fill="#2f5aa8" stroke="' + VIEN + '" stroke-width="3" stroke-linejoin="round"/>' +
+        '<path d="M60 64 q40 -8 80 0 q14 2 22 8 q-14 6 -30 0 q-36 -6 -72 0z" fill="#244a8c" stroke="' + VIEN + '" stroke-width="3" stroke-linejoin="round"/>' +
+        '<circle cx="100" cy="47" r="7" fill="#ffd34d" stroke="' + VIEN + '" stroke-width="2"/>',
+      anTay: true
+    },
+    // 📒 đeo cặp sách, cầm bút chì
+    'so-tay': {
+      sau: '<rect x="40" y="112" width="36" height="54" rx="10" fill="#2f5bd3" stroke="' + VIEN + '" stroke-width="3" transform="rotate(-12 58 139)"/>',
+      truoc: '<path d="M76 116 q-10 30 0 62 M124 116 q10 30 0 62" stroke="#2f5bd3" stroke-width="7" fill="none" stroke-linecap="round"/>' +
+        '<g transform="rotate(32 150 120)"><rect x="144" y="70" width="11" height="58" rx="2" fill="#ffd34d" stroke="' + VIEN + '" stroke-width="2.5"/>' +
+        '<rect x="144" y="64" width="11" height="9" rx="2" fill="#f49ab0" stroke="' + VIEN + '" stroke-width="2.5"/>' +
+        '<path d="M144 128 l5.5 14 l5.5 -14z" fill="#f7dcb5" stroke="' + VIEN + '" stroke-width="2.5" stroke-linejoin="round"/><path d="M147.5 137 l2 5 l2 -5z" fill="' + VIEN + '"/></g>'
+    },
+    // 📚 đeo kính, ngồi trên kệ sách
+    'thu-vien': {
+      sau: '<rect x="6" y="56" width="22" height="130" rx="2" fill="#8b5a2b" opacity=".9"/><rect x="172" y="70" width="20" height="116" rx="2" fill="#6b4a3a" opacity=".85"/>' +
+        '<rect x="160" y="100" width="12" height="86" rx="2" fill="#a8743e"/><rect x="28" y="96" width="12" height="90" rx="2" fill="#c49a6c"/>',
+      truoc: '<circle cx="82" cy="90" r="13" fill="#fff" fill-opacity=".18" stroke="' + VIEN + '" stroke-width="3.5"/>' +
+        '<circle cx="118" cy="90" r="13" fill="#fff" fill-opacity=".18" stroke="' + VIEN + '" stroke-width="3.5"/>' +
+        '<path d="M95 89 q5 -4 10 0 M69 88 l-12 -4 M131 88 l12 -4" stroke="' + VIEN + '" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+        '<rect x="0" y="186" width="200" height="12" rx="2" fill="#7a4a22" stroke="' + VIEN + '" stroke-width="2"/>'
+    },
+    // 🌙 ngủ trên chồng sách dưới đèn bàn
+    'dem': {
+      sau: '<path d="M150 64 L112 196 L200 196 L196 64z" fill="#ffd77a" opacity=".16"/>',
+      truoc: '<path d="M186 196 v-6 h-26 v6z" fill="#3b4a6b" stroke="' + VIEN + '" stroke-width="2.5"/>' +
+        '<path d="M173 190 L182 110 L160 72" stroke="#3b4a6b" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="M140 76 L162 54 L186 78 Q166 92 140 76z" fill="#f2b84b" stroke="' + VIEN + '" stroke-width="2.5" stroke-linejoin="round"/>' +
+        '<ellipse cx="160" cy="84" rx="8" ry="4" fill="#fff6c8"/>',
+      ngu: true
+    }
+  };
+  function chuDe() { try { return document.documentElement.getAttribute('data-chu-de') || ''; } catch (e) { return ''; } }
+
+  /* mood: 'om' (ôm sách), 'ngu' (ngủ), 'vay' (vẫy tay, xong việc), 'buon' (lỗi) – phụ kiện theo chủ đề đang chọn */
   function meo(mood) {
     mood = mood || 'om';
+    var pk = PHU_KIEN[chuDe()] || {};
+    if (pk.ngu && mood === 'om') mood = 'ngu';
     var mat = MAT[mood] || MAT.om;
     var mieng = mood === 'buon' ? MIENG.buon : mood === 'vay' ? MIENG.cuoi : MIENG.vui;
     var vay = mood === 'vay';
-    var s = '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Chú mèo ôm sách">';
+    var s = '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Chú mèo ôm sách">' + (pk.sau || '');
     // bóng
     s += '<ellipse cx="100" cy="192" rx="66" ry="6" fill="#000" opacity=".07"/>';
     // đuôi
@@ -72,7 +120,20 @@
     if (vay) {
       s += '<g fill="#f6a77d"><path d="M30 60 l4 -9 l4 9 l9 4 l-9 4 l-4 9 l-4 -9 l-9 -4z"/></g><g fill="#b9a3e6"><path d="M172 150 l3 -6 l3 6 l6 3 l-6 3 l-3 6 l-3 -6 l-6 -3z"/></g>';
     }
-    return s + '</svg>';
+    return s + (pk.truoc || '') + '</svg>';
+  }
+
+  /* Hiệu ứng đóng dấu (chủ đề Bưu kiện: "ĐÃ GỬI", Thư viện cũ: "ĐÃ ĐẶT") – chủ đề khác không làm gì */
+  var CHU_DAU = { 'buu-kien': 'ĐÃ GỬI', 'thu-vien': 'ĐÃ ĐẶT' };
+  function dongDau(chu) {
+    var t = chu || CHU_DAU[chuDe()];
+    if (!t || !CHU_DAU[chuDe()]) return;
+    var el = document.createElement('div');
+    el.className = 'dong-dau';
+    el.setAttribute('aria-hidden', 'true');
+    el.textContent = t;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 1700);
   }
 
   var MAU_GIAY = ['#f9d5cc', '#cdefe0', '#fbebb5', '#e3d9f5', '#ffd8c2', '#e98a74', '#8fd3b5', '#b9a3e6'];
@@ -92,5 +153,5 @@
     setTimeout(function () { host.innerHTML = ''; }, 3500);
   }
 
-  root.LinhVat = { meo: meo, confetti: confetti };
+  root.LinhVat = { meo: meo, confetti: confetti, dongDau: dongDau };
 })(typeof self !== 'undefined' ? self : this);

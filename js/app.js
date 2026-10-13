@@ -757,6 +757,7 @@
       }, Promise.resolve())
         .then(function () {
           toast('📥 Đã tải ' + nhas.length + ' đơn đặt hàng: ' + nhas.map(function (n) { return PL.TEN_NHA[n]; }).join(', '), 'ok');
+          LV.dongDau();
           // Có Đợt đặt hàng: lịch sử thống kê chỉ ghi 1 lần khi "🔒 Chốt đợt", tải file không ghi nữa
           if (!DM.coDot()) ghiLichSu(nhas);
         })

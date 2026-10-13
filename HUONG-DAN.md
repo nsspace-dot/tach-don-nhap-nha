@@ -435,6 +435,9 @@ Combo trộn nhà (vd "COMBO HA + … (MEGA)"): chỉ cần khai phần HA/KV/ML
 
 ## Màn Cài đặt
 
+- **🎨 Chủ đề:** mỗi máy tự chọn, đổi ngay không cần tải lại: 🐱 Mèo pastel (mặc định), 📦 Bưu kiện, 📒 Sổ tay học trò, 📚 Thư viện cũ, 🌙 Đêm đọc sách.
+  Mèo đổi phụ kiện theo chủ đề; Bưu kiện / Thư viện cũ có hiệu ứng đóng dấu *ĐÃ GỬI* / *ĐÃ ĐẶT* khi tải file nhà hoặc chốt đợt.
+  (Người sửa code: thêm chủ đề = 1 khối biến trong `themes.css` + 1 dòng trong `js/chude.js`.)
 - **Tôi là:** tên người dùng máy này (xem *Nhiều người dùng cùng lúc*).
 - **URL Apps Script** (xem Phần D, F).
 - **Mã nhà khác:** các mã sẽ bị bỏ qua (mặc định `MEGA, VT, HH, NS, QB, TN, HT`). Có nhà mới thì thêm vào, cách nhau dấu phẩy.

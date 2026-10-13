@@ -11,6 +11,7 @@
     $('cd-toila').value = c.toiLa || '';
     veToiLa();
     veNguoiDung();
+    veChuDe();
     $('cd-makhac').value = (c.maKhac || []).join(', ');
     $('cd-tenshop').value = c.tenShop || '';
     $('cd-sdt').value = c.sdt || '';
@@ -36,6 +37,16 @@
       duPhongBat: $('cd-dp-bat').checked,
       soNgayDuPhong: Math.max(0, Math.min(30, Math.round(Number($('cd-dp-ngay').value) || 0))),
       tenShop: $('cd-tenshop').value.trim(), sdt: $('cd-sdt').value.trim(), diaChi: $('cd-diachi').value.trim(), ghiChu: $('cd-ghichu').value.trim() };
+  }
+
+  /* ---------- 🎨 Chủ đề (mỗi máy) ---------- */
+  function veChuDe() {
+    var CD = root.ChuDe, cur = CD.hienTai();
+    $('cd-chude').innerHTML = CD.DS.map(function (x) {
+      var on = x.id === cur;
+      return '<button type="button" class="cd-chude-o' + (on ? ' is-on' : '') + '" role="radio" aria-checked="' + on + '" data-chude="' + x.id + '">' +
+        '<b>' + A.esc(x.ten) + '</b><small>' + A.esc(x.mota) + '</small></button>';
+    }).join('');
   }
 
   /* ---------- Tôi là + danh sách người dùng (Apps Script có Đợt đặt hàng) ---------- */
@@ -151,6 +162,12 @@
       }
     });
     $('cd-kiemtra').addEventListener('click', kiemTra);
+    $('cd-chude').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-chude]');
+      if (!b) return;
+      root.ChuDe.doi(b.dataset.chude);
+      veChuDe();
+    });
     // Chọn "Tôi là" → lưu ngay trên máy này
     $('cd-toila-chon').addEventListener('change', function () {
       DM.luuCaiDat({ toiLa: $('cd-toila-chon').value });

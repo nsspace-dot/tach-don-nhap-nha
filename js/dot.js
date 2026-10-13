@@ -285,6 +285,7 @@
           var bh = DM.coBanHang() && root.BanHang ? root.BanHang.maHoa(A.S.files, T.gop.dot_id) : undefined;
           return DM.goi('chotDot', { dot_id: T.gop.dot_id, lich_su: bg, ban_hang: bh }).then(function (j) {
             if (j.banHang && root.ManDuBao) root.ManDuBao.taiLai();
+            if (!j.da_chot_truoc) root.LinhVat.dongDau();
             T.dot = j.dot;
             A.toast(j.da_chot_truoc ? '🔒 Đợt này đã được chốt trước đó.' : '🔒 Đã chốt đợt ' + DG.ngayNgan(T.gop.dot_id) +
               (j.lichSu ? ' – ghi lịch sử ' + A.so(j.lichSu.soDong) + ' đầu sách' : '') +
