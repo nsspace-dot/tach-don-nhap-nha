@@ -248,6 +248,7 @@
   /* ---------- Chờ khai báo ---------- */
   var TEN_LOAI = { combo_khac: '🎁 Combo nhà khác chưa khai báo', combo_thieu: '🧩 Combo trộn – thiếu phần nhà khác', de_sau: '⏭ Để sau (chưa rõ nhà)',
                    ten: '✏️ Chưa có tên khai báo', barcode: '🏷️ Thiếu barcode', barcode_sai: '🏷️ Barcode sai' };
+  var NHAN_LOAI = { combo_khac: '🎁 Combo', combo_thieu: '🧩 Thiếu phần', de_sau: '⏭ Để sau', ten: '✏️ Tên', barcode: '🏷️ Thiếu mã', barcode_sai: '🏷️ Mã sai' };
   var LOC_AN = '__an';
   var GHI_AN = 'Chỉ ẩn khỏi danh sách này, không thay đổi dữ liệu. Combo ẩn sẽ không được tách khi tính dự báo.';
   H.kbChon = {}; H.kbTen = {}; H.kbNha = {};
@@ -333,9 +334,9 @@
     if (x.loai === 'ten') h = n('✅ Xác nhận', 'xacnhan', ' btn-primary');
     else if (x.loai === 'combo_thieu') h = n('✏️ Sửa combo', 'suacombo');
     else if (x.loai === 'barcode' || x.loai === 'barcode_sai') h = n('🏷️ Sửa barcode', 'barcode');
-    if (laCombo(x)) h += n('🧩 Khai báo thành phần', 'khaibao') + n('🔗 Combo đã có', 'cosan') + n('📖 Là sách lẻ', 'le');
+    if (laCombo(x)) h += n('🧩 Khai báo thành phần', 'khaibao', ' btn-primary') + n('🔗 Combo đã có', 'cosan') + n('📖 Là sách lẻ', 'le');
     if (x.loai === 'de_sau') h += n('↩️ Đưa lại màn sáng', 'botdesau');
-    return h + A.nutGhi('🙈 Ẩn (không cần khai)', 'class="btn btn-sm btn-ghost" data-kb="an" data-i="' + i + '" title="' + GHI_AN + '"');
+    return h + A.nutGhi('🙈 Ẩn (không cần khai)', 'class="btn btn-sm btn-ghost kb-nut-an" data-kb="an" data-i="' + i + '" title="' + GHI_AN + '"');
   }
   function oNha(x, i, an) {
     if (x.loai === 'combo_thieu') return '<span class="muted" title="Combo đã khai báo – nhà theo từng thành phần">theo thành phần</span>';
@@ -372,24 +373,29 @@
       return;
     }
     var hien = ds.slice(0, 300);
-    $('kb-bang').innerHTML = '<table class="tbl tbl-ghim2 kb-bang"><thead><tr>' +
+    $('kb-bang').innerHTML = '<table class="tbl kb-bang' + (an ? ' kb-an' : '') + '"><colgroup>' + (an ? '' : '<col class="kb-c-chon">') +
+      '<col><col class="kb-c-nha"><col class="kb-c-so"><col class="kb-c-ngay"><col class="kb-c-nguon"><col class="kb-c-nut"></colgroup><thead><tr>' +
       (an ? '' : '<th><input type="checkbox" id="kb-tatca" aria-label="Chọn tất cả dòng đang hiện"' + (hien.every(function (x) { return H.kbChon[idMuc(x)]; }) ? ' checked' : '') + '></th>') +
-      '<th>Việc</th><th>Tên</th><th>Nhà</th><th class="so">Số lần</th><th>Lần cuối</th><th>Nguồn</th><th>Khai báo</th></tr></thead><tbody>' +
+      '<th>Sản phẩm</th><th>Nhà</th><th class="so">Số lần</th><th>Lần cuối</th><th>Nguồn</th><th>Khai báo</th></tr></thead><tbody>' +
       hien.map(function (x, i) {
         var g = x.g || {}, id = idMuc(x);
         var ten = x.loai === 'ten' && !an
-          ? '<input class="input kb-ten" data-kb-ten="' + i + '" value="' + esc(tenMuc(x)) + '" aria-label="Tên sách (sửa được)">' +
+          ? '<textarea class="input kb-ten" rows="1" data-kb-ten="' + i + '" aria-label="Tên sách (sửa được)">' + esc(tenMuc(x)) + '</textarea>' +
             '<div class="pl">Trên sàn: ' + esc(g.tenSan || g.ten || '') + (g.phanLoai ? ' – ' + esc(g.phanLoai) : '') + '</div>'
-          : esc(x.ten) + (g.phanLoai ? '<div class="pl">' + esc(g.phanLoai) + '</div>' : '');
-        return '<tr' + (H.kbChon[id] ? ' class="kb-chon"' : '') + '>' + (an ? '' : '<td><input type="checkbox" data-kb-chon="' + i + '"' + (H.kbChon[id] ? ' checked' : '') + ' aria-label="Chọn dòng"></td>') +
-          '<td class="kb-loai">' + TEN_LOAI[x.loai] + '</td><td class="ten">' + ten +
-          (g.sku && x.loai !== 'combo_thieu' ? '<div class="pl">' + esc(g.sku) + '</div>' : '') +
+          : '<div class="kb-ten-chu">' + esc(x.ten) + '</div>' + (g.phanLoai ? '<div class="pl">' + esc(g.phanLoai) + '</div>' : '');
+        return '<tr' + (H.kbChon[id] ? ' class="kb-chon"' : '') + '>' + (an ? '' : '<td class="kb-o-chon"><input type="checkbox" data-kb-chon="' + i + '"' + (H.kbChon[id] ? ' checked' : '') + ' aria-label="Chọn dòng"></td>') +
+          '<td class="kb-sp"><span class="kb-nhan kb-nhan-' + x.loai + '" title="' + TEN_LOAI[x.loai] + '">' + NHAN_LOAI[x.loai] + '</span>' + ten +
+          (g.sku && x.loai !== 'combo_thieu' ? '<div class="pl kb-sku">' + esc(g.sku) + '</div>' : '') +
           (x.ghiChu ? '<div class="ghi-chu">' + esc(x.ghiChu) + '</div>' : '') + '</td>' +
-          '<td>' + oNha(x, i, an) + '</td><td class="so"><b>' + A.so(x.soLan) + '</b></td><td class="pl">' + (x.lanCuoi ? DG.ngayNgan(x.lanCuoi) : '—') + '</td>' +
-          '<td>' + x.nguon.map(function (s) { return '<span class="nho">' + esc(s) + '</span>'; }).join('') + '</td>' +
-          '<td><div class="actions">' + nutMuc(x, i, an) + '</div></td></tr>';
+          '<td data-nhan="Nhà">' + oNha(x, i, an) + '</td><td class="so" data-nhan="Số lần"><b>' + A.so(x.soLan) + '</b></td>' +
+          '<td class="pl" data-nhan="Lần cuối">' + (x.lanCuoi ? DG.ngayNgan(x.lanCuoi) : '—') + '</td>' +
+          '<td class="kb-nguon" data-nhan="Nguồn">' + x.nguon.map(function (s) { return '<span class="nho">' + esc(s) + '</span>'; }).join('') + '</td>' +
+          '<td class="kb-o-nut"><div class="actions">' + nutMuc(x, i, an) + '</div></td></tr>';
       }).join('') + '</tbody></table>' + (ds.length > 300 ? '<p class="trong-bang">Đang hiện 300/' + ds.length + ' việc.</p>' : '');
+    $('kb-bang').querySelectorAll('.kb-ten').forEach(gianO);
   }
+  /* Ô tên tự cao lên theo nội dung */
+  function gianO(t) { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
   /* Thanh làm hàng loạt */
   function dsChon() { return (H.kbHien || []).filter(function (x) { return H.kbChon[idMuc(x)]; }); }
   function veLo() {
@@ -517,6 +523,7 @@
     $('db-ct').addEventListener('click', function (e) { if (e.target.id === 'db-ct-dong') { H.ctKhoa = null; veDuBao(); } });
     var henCo = null;
     window.addEventListener('resize', function () {
+      if (!$('man-chokb').hidden) $('kb-bang').querySelectorAll('.kb-ten').forEach(gianO);
       clearTimeout(henCo);
       henCo = setTimeout(function () { if (!$('man-dubao').hidden && H.db) { H.bdKhoa = null; veDuBao(); } }, 250);
     });
@@ -547,10 +554,11 @@
     });
     $('kb-bang').addEventListener('input', function (e) {
       var t = e.target;
-      if (t.dataset.kbTen) H.kbTen[idMuc(H.kbHien[+t.dataset.kbTen])] = t.value;
+      if (t.dataset.kbTen) { H.kbTen[idMuc(H.kbHien[+t.dataset.kbTen])] = t.value; gianO(t); }
     });
     $('kb-bang').addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' || !e.target.dataset.kbTen) return;
+      e.preventDefault(); // ô tên 1 dòng: Enter = Xác nhận
       var b = e.target.closest('tr').querySelector('[data-kb="xacnhan"]');
       if (b && !b.disabled) lamMuc(b);
     });
