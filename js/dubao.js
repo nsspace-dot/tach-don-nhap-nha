@@ -45,8 +45,9 @@
     }
     if (!H.db) { H.db = BH.duBao(H.th, DG.homNayVN(), soNgayTheoNha()); H.dbSo = (H.dbSo || 0) + 1; }
     if (!H.ck) {
-      var bo = DM.deSau;
-      H.ck = BH.choKhaiBao(H.th, bo).filter(function (x) { return !bo['bo:' + idMuc(x)]; });
+      var bo = DM.deSau, tatCa = BH.choKhaiBao(H.th, bo);
+      H.ck = tatCa.filter(function (x) { return !bo['bo:' + idMuc(x)]; });
+      H.ckAn = tatCa.filter(function (x) { return bo['bo:' + idMuc(x)]; });
     }
     return H.th;
   }
@@ -247,6 +248,9 @@
   /* ---------- Chờ khai báo ---------- */
   var TEN_LOAI = { combo_khac: '🎁 Combo nhà khác chưa khai báo', combo_thieu: '🧩 Combo trộn – thiếu phần nhà khác', de_sau: '⏭ Để sau (chưa rõ nhà)',
                    ten: '✏️ Chưa có tên khai báo', barcode: '🏷️ Thiếu barcode', barcode_sai: '🏷️ Barcode sai' };
+  var LOC_AN = '__an';
+  var GHI_AN = 'Chỉ ẩn khỏi danh sách này, không thay đổi dữ liệu. Combo ẩn sẽ không được tách khi tính dự báo.';
+  H.kbChon = {}; H.kbTen = {}; H.kbNha = {};
   function idMuc(x) {
     var g = x.g || {};
     if (x.loai === 'combo_thieu') return x.loai + '|' + g.combo_id;
@@ -254,21 +258,95 @@
     if (x.loai === 'barcode_sai') return x.loai + '|' + g.san + '|' + g.maCu + '|' + PL.norm(g.ten);
     return x.loai + '|' + g.key;
   }
-  function nutMuc(x, i) {
-    var n = function (html, attr) { return A.nutGhi(html, 'class="btn btn-sm" data-kb="' + attr + '" data-i="' + i + '"'); };
+  function laCombo(x) { return x.loai === 'combo_khac' || (x.loai === 'de_sau' && !!x.g.isCombo); }
+  /* Dòng sàn / web là SÁCH LẺ của mục (không tính cuốn tách từ combo) */
+  function dongLe(x) {
+    var g = x.g || {};
+    if (x.loai === 'barcode_sai') return H.th.rows.filter(function (r) { return r.san === g.san && PL.clean(r.sku).toUpperCase() === g.maCu && r.ten === g.ten; });
+    if (g.lines) return g.lines.map(function (l) { return l.row; }).filter(Boolean);
+    return (g.nguon || []).filter(function (s) { return s.row && !s.combo; }).map(function (s) { return s.row; });
+  }
+  /* Đổi nhà lưu ngay được: sách lẻ có dòng đơn. Combo: nhà chỉ là nhà dự kiến cho "📖 Là sách lẻ" (gán nhà cho combo sẽ biến nó thành 1 cuốn) */
+  function coDoiNha(x) { return x.loai !== 'combo_thieu' && !laCombo(x) && dongLe(x).length > 0; }
+  function nhaMuc(x) {
+    var id = idMuc(x);
+    if (H.kbNha[id] !== undefined) return H.kbNha[id];
+    if (x.loai === 'barcode_sai') { var r = dongLe(x)[0], e = r && DM.timSku(PL.rowKey(r, false)); if (e && PL.laNha(e.nha)) return e.nha; } // đã gán nhà trong danh mục
+    return x.nha || '';
+  }
+  function tenGoiY(x) {
+    var g = x.g || {};
+    return PL.tenGoiY(g.tenSan || g.ten || x.ten, g.phanLoai || '', DM.caiDat.maKhac, DM.caiDat.plVoNghia);
+  }
+  function tenMuc(x) { var id = idMuc(x); return H.kbTen[id] !== undefined ? H.kbTen[id] : tenGoiY(x); }
+
+  /* Việc gửi lên danh mục (khaiBaoLo) */
+  function viecNha(x, ma) {
+    var r = dongLe(x)[0], g = x.g;
+    return { viec: 'nha', key: (x.loai === 'ten' && g.khoaTen) || PL.rowKey(r, false), sku: r.sku, ten: r.ten, phan_loai: r.phanLoai || '', nha: ma, _ten: x.ten };
+  }
+  function viecTen(x, ten, ma) {
+    var g = x.g;
+    return { viec: 'ten', key: g.khoaTen, sku: PL.isBarcode(g.sku) ? g.sku : '', ten: g.tenSan || g.ten, phan_loai: g.phanLoai || '', nha: ma, ten_sach: ten, _ten: ten };
+  }
+  function viecLe(x, ten, ma) {
+    var da = {}, out = [];
+    dongLe(x).forEach(function (r) {
+      if (r.san === 'Web') return;
+      var kl = PL.khoaKhongCombo(r);
+      if (da[kl]) return;
+      da[kl] = 1;
+      out.push({ viec: 'le', key_le: kl, key: PL.rowKey(r, false), sku: r.sku, ten: r.ten, phan_loai: r.phanLoai || '', nha: ma, ten_sach: ten, _ten: ten });
+    });
+    return out;
+  }
+  /* Gửi nhiều việc 1 lần (Apps Script api ≥ 7); bản cũ: gửi lần lượt bằng thao tác có sẵn */
+  function goiLo(items) {
+    items = items.filter(function (it) { return it.key || it.key_le; });
+    if (!items.length) return Promise.reject(new Error('Không có dòng nào lưu được.'));
+    var sach = items.map(function (it) { var o = Object.assign({}, it); delete o._ten; return o; });
+    if (DM.coKhaiBaoLo()) {
+      return DM.goi('khaiBaoLo', { items: sach }).then(function (j) {
+        if (j.loi && j.loi.length) A.toast('⚠ ' + j.loi.length + ' dòng chưa lưu được: ' + j.loi[0], 'loi');
+        return j;
+      });
+    }
+    return sach.reduce(function (p, it) {
+      return p.then(function () {
+        var s = { key: it.key, sku: it.sku, ten: it.ten, nha: it.nha, nguon: 'tay', phan_loai: it.phan_loai };
+        if (it.viec !== 'nha' && it.ten_sach) s.ten_sach = it.ten_sach;
+        var dau = it.viec === 'le' ? DM.goi('khongPhaiCombo', { key: it.key_le, sku: it.sku, ten: it.ten, phan_loai: it.phan_loai, nha: it.nha }) : Promise.resolve();
+        return dau.then(function () { return it.viec !== 'le' || s.ten_sach || it.key !== it.key_le ? DM.goi('upsertSku', s) : null; });
+      });
+    }, Promise.resolve());
+  }
+  function luuLo(items, loiChao, nut) {
+    if (nut) nut.disabled = true;
+    return goiLo(items).then(function () { A.toast(loiChao, 'ok'); return true; })
+      .catch(function (e) { if (nut) nut.disabled = false; A.baoLoi('Không lưu được', e); return false; });
+  }
+
+  function nutMuc(x, i, an) {
+    var n = function (html, attr, them) { return A.nutGhi(html, 'class="btn btn-sm' + (them || '') + '" data-kb="' + attr + '" data-i="' + i + '"'); };
+    if (an) return n('👁 Bỏ ẩn', 'boan');
     var h = '';
-    if (x.loai === 'combo_khac') h = n('🧩 Khai báo thành phần', 'khaibao') + n('🔗 Combo đã có', 'cosan');
+    if (x.loai === 'ten') h = n('✅ Xác nhận', 'xacnhan', ' btn-primary');
     else if (x.loai === 'combo_thieu') h = n('✏️ Sửa combo', 'suacombo');
-    else if (x.loai === 'de_sau') h = PL.NHA.map(function (m) { return n(m, 'nha:' + m); }).join('') + n('Không nhập', 'nha:' + PL.KHONG_NHAP) +
-      (DM.coNha() ? A.chonNhaHtml('data-kb-sel="' + i + '" aria-label="Nhà khác / nhà mới"', '', { dau: 'Nhà khác…', khongNhap: false }) : '') +
-      (x.g.isCombo ? n('🧩 Khai báo combo', 'khaibao') : '') + n('↩️ Đưa lại màn sáng', 'botdesau');
-    else if (x.loai === 'ten') h = n('✏️ Đặt tên sách', 'ten');
-    else h = n('🏷️ Sửa barcode', 'barcode');
-    return h + A.nutGhi('🙈 Bỏ qua', 'class="btn btn-sm btn-ghost" data-kb="boqua" data-i="' + i + '" title="Không cần khai báo – ẩn khỏi danh sách"');
+    else if (x.loai === 'barcode' || x.loai === 'barcode_sai') h = n('🏷️ Sửa barcode', 'barcode');
+    if (laCombo(x)) h += n('🧩 Khai báo thành phần', 'khaibao') + n('🔗 Combo đã có', 'cosan') + n('📖 Là sách lẻ', 'le');
+    if (x.loai === 'de_sau') h += n('↩️ Đưa lại màn sáng', 'botdesau');
+    return h + A.nutGhi('🙈 Ẩn (không cần khai)', 'class="btn btn-sm btn-ghost" data-kb="an" data-i="' + i + '" title="' + GHI_AN + '"');
+  }
+  function oNha(x, i, an) {
+    if (x.loai === 'combo_thieu') return '<span class="muted" title="Combo đã khai báo – nhà theo từng thành phần">theo thành phần</span>';
+    var doi = coDoiNha(x), combo = laCombo(x), khoa = an || !DM.coTheGhi() || (!doi && !combo);
+    var tip = combo ? 'Nhà dự kiến – dùng khi bấm 📖 Là sách lẻ' : doi ? 'Đổi nhà là lưu ngay vào danh mục (gán tay)' : 'Sách tách từ combo – đổi nhà trong combo';
+    return '<select class="select select-sm kb-nha" data-kb-nha="' + i + '" title="' + tip + '" aria-label="Nhà"' + (khoa ? ' disabled' : '') + '>' +
+      A.nhaOptions(nhaMuc(x), { dau: '— chọn nhà —', moi: !khoa && DM.coNha() }) + '</select>';
   }
   function veChoKb() {
     veNav();
-    if (!DM.coBanHang()) { $('kb-bang').innerHTML = '<div class="trong-bang">Cần cập nhật Apps Script (bản có lịch sử bán) để dùng tab Chờ khai báo.</div>'; return; }
+    if (!DM.coBanHang()) { $('kb-bang').innerHTML = '<div class="trong-bang">Cần cập nhật Apps Script (bản có lịch sử bán) để dùng tab Chờ khai báo.</div>'; $('kb-lo').hidden = true; return; }
     if (!H.khoi) {
       $('kb-bang').innerHTML = '<div class="trong-bang">' + (H.loi ? '😿 ' + esc(H.loi) : 'Đang tải lịch sử bán…') + '</div>';
       if (!H.loi) taiLichSu().then(function () { veChoKb(); });
@@ -276,47 +354,126 @@
     }
     tinh();
     veNav();
-    var loc = $('kb-loc').value || '', dem = {};
+    var loc = $('kb-loc').value || '', dem = {}, an = loc === LOC_AN;
     H.ck.forEach(function (x) { dem[x.loai] = (dem[x.loai] || 0) + 1; });
     $('kb-loc').innerHTML = '<option value="">Tất cả (' + H.ck.length + ')</option>' + Object.keys(TEN_LOAI).filter(function (k) { return dem[k]; }).map(function (k) {
       return '<option value="' + k + '"' + (k === loc ? ' selected' : '') + '>' + TEN_LOAI[k] + ' (' + dem[k] + ')</option>';
-    }).join('');
-    var ds = H.ck.filter(function (x) { return !loc || x.loai === loc; });
-    H.kbHien = ds;
-    $('kb-tom').textContent = H.ck.length ? H.ck.length + ' việc' : '';
-    if (!ds.length) { $('kb-bang').innerHTML = '<div class="trong-bang"><div class="mini-cat">' + root.LinhVat.meo('ngu') + '</div>Không còn gì chờ khai báo 🎉</div>'; return; }
-    $('kb-bang').innerHTML = '<table class="tbl tbl-ghim2 kb-bang"><thead><tr><th>Việc</th><th>Tên</th><th>Nhà</th><th class="so">Số lần</th><th>Lần cuối</th><th>Nguồn</th><th>Khai báo</th></tr></thead><tbody>' +
-      ds.slice(0, 300).map(function (x, i) {
-        var g = x.g || {};
-        return '<tr><td class="kb-loai">' + TEN_LOAI[x.loai] + '</td><td class="ten">' + esc(x.ten) +
-          (g.phanLoai ? '<div class="pl">' + esc(g.phanLoai) + '</div>' : '') + (g.sku && x.loai !== 'combo_thieu' ? '<div class="pl">' + esc(g.sku) + '</div>' : '') +
+    }).join('') + '<option value="' + LOC_AN + '"' + (an ? ' selected' : '') + '>🙈 Đã ẩn (' + H.ckAn.length + ')</option>';
+    var ds = an ? H.ckAn : H.ck.filter(function (x) { return !loc || x.loai === loc; });
+    H.kbHien = ds; H.kbAn = an;
+    // Bỏ chọn dòng đã biến mất
+    var con = {};
+    ds.forEach(function (x) { con[idMuc(x)] = 1; });
+    Object.keys(H.kbChon).forEach(function (k) { if (!con[k]) delete H.kbChon[k]; });
+    $('kb-tom').textContent = H.ck.length ? H.ck.length + ' việc' + (H.ckAn.length ? ' · ' + H.ckAn.length + ' đã ẩn' : '') : '';
+    veLo();
+    if (!ds.length) {
+      $('kb-bang').innerHTML = '<div class="trong-bang"><div class="mini-cat">' + root.LinhVat.meo('ngu') + '</div>' + (an ? 'Chưa ẩn dòng nào.' : 'Không còn gì chờ khai báo 🎉') + '</div>';
+      return;
+    }
+    var hien = ds.slice(0, 300);
+    $('kb-bang').innerHTML = '<table class="tbl tbl-ghim2 kb-bang"><thead><tr>' +
+      (an ? '' : '<th><input type="checkbox" id="kb-tatca" aria-label="Chọn tất cả dòng đang hiện"' + (hien.every(function (x) { return H.kbChon[idMuc(x)]; }) ? ' checked' : '') + '></th>') +
+      '<th>Việc</th><th>Tên</th><th>Nhà</th><th class="so">Số lần</th><th>Lần cuối</th><th>Nguồn</th><th>Khai báo</th></tr></thead><tbody>' +
+      hien.map(function (x, i) {
+        var g = x.g || {}, id = idMuc(x);
+        var ten = x.loai === 'ten' && !an
+          ? '<input class="input kb-ten" data-kb-ten="' + i + '" value="' + esc(tenMuc(x)) + '" aria-label="Tên sách (sửa được)">' +
+            '<div class="pl">Trên sàn: ' + esc(g.tenSan || g.ten || '') + (g.phanLoai ? ' – ' + esc(g.phanLoai) : '') + '</div>'
+          : esc(x.ten) + (g.phanLoai ? '<div class="pl">' + esc(g.phanLoai) + '</div>' : '');
+        return '<tr' + (H.kbChon[id] ? ' class="kb-chon"' : '') + '>' + (an ? '' : '<td><input type="checkbox" data-kb-chon="' + i + '"' + (H.kbChon[id] ? ' checked' : '') + ' aria-label="Chọn dòng"></td>') +
+          '<td class="kb-loai">' + TEN_LOAI[x.loai] + '</td><td class="ten">' + ten +
+          (g.sku && x.loai !== 'combo_thieu' ? '<div class="pl">' + esc(g.sku) + '</div>' : '') +
           (x.ghiChu ? '<div class="ghi-chu">' + esc(x.ghiChu) + '</div>' : '') + '</td>' +
-          '<td>' + esc(x.nha || g.nha || '') + '</td><td class="so"><b>' + A.so(x.soLan) + '</b></td><td class="pl">' + (x.lanCuoi ? DG.ngayNgan(x.lanCuoi) : '—') + '</td>' +
+          '<td>' + oNha(x, i, an) + '</td><td class="so"><b>' + A.so(x.soLan) + '</b></td><td class="pl">' + (x.lanCuoi ? DG.ngayNgan(x.lanCuoi) : '—') + '</td>' +
           '<td>' + x.nguon.map(function (s) { return '<span class="nho">' + esc(s) + '</span>'; }).join('') + '</td>' +
-          '<td><div class="actions">' + nutMuc(x, i) + '</div></td></tr>';
+          '<td><div class="actions">' + nutMuc(x, i, an) + '</div></td></tr>';
       }).join('') + '</tbody></table>' + (ds.length > 300 ? '<p class="trong-bang">Đang hiện 300/' + ds.length + ' việc.</p>' : '');
   }
+  /* Thanh làm hàng loạt */
+  function dsChon() { return (H.kbHien || []).filter(function (x) { return H.kbChon[idMuc(x)]; }); }
+  function veLo() {
+    var el = $('kb-lo'), n = dsChon().length;
+    if (H.kbAn || !DM.coTheGhi() || !(H.kbHien || []).length) { el.hidden = true; return; }
+    el.hidden = false;
+    var giuNha = $('kb-lo-nha') ? $('kb-lo-nha').value : '';
+    el.innerHTML = '<span>Đã chọn <b>' + n + '</b> dòng</span>' +
+      '<button type="button" class="btn btn-sm btn-primary" data-kb-lo="ten"' + (n ? '' : ' disabled') + '>✅ Xác nhận tên gợi ý cho các dòng đã chọn</button>' +
+      '<span class="kb-lo-nha"><select class="select select-sm" id="kb-lo-nha" aria-label="Nhà để gán hàng loạt">' + A.nhaOptions(giuNha === '__moi__' ? '' : giuNha, { dau: '— chọn nhà —', moi: DM.coNha() }) + '</select>' +
+      '<button type="button" class="btn btn-sm" data-kb-lo="nha"' + (n ? '' : ' disabled') + '>🏠 Gán nhà cho các dòng đã chọn</button></span>';
+  }
+  function loTen(nut) {
+    var ds = dsChon(), ok = ds.filter(function (x) { return x.loai === 'ten' && nhaMuc(x) && PL.clean(tenMuc(x)); });
+    if (!ok.length) { A.toast('Trong các dòng đã chọn không có dòng "Chưa có tên khai báo" nào (có tên + nhà).', 'loi'); return; }
+    luuLo(ok.map(function (x) { return viecTen(x, PL.clean(tenMuc(x)), nhaMuc(x)); }), '✏️ Đã lưu tên ' + ok.length + ' sách' + (ds.length > ok.length ? ' (bỏ qua ' + (ds.length - ok.length) + ' dòng không phải "chưa có tên")' : '') + '.', nut)
+      .then(function (x) { if (x) ok.forEach(function (m) { delete H.kbChon[idMuc(m)]; }); });
+  }
+  function loNha(nut) {
+    var sel = $('kb-lo-nha');
+    A.chonNha(sel).then(function (ma) {
+      if (!ma) { if (!sel.value) A.toast('Chọn nhà trước nha.', 'loi'); return; }
+      var ds = dsChon(), ok = ds.filter(coDoiNha);
+      if (!ok.length) { A.toast('Các dòng đã chọn là combo / sách tách từ combo – dùng 📖 Là sách lẻ hoặc Khai báo thành phần.', 'loi'); return; }
+      luuLo(ok.map(function (x) { return viecNha(x, ma); }), '🏠 Đã gán ' + ok.length + ' dòng → ' + (PL.TEN_NHA[ma] || ma) + (ds.length > ok.length ? ' (bỏ qua ' + (ds.length - ok.length) + ' combo)' : '') + '.', nut);
+    });
+  }
+
+  /* 📖 Là sách lẻ: hỏi nhà + tên */
+  var dangLe = null;
+  function moLe(x) {
+    dangLe = x;
+    var g = x.g || {};
+    $('le-goc').textContent = 'Trên sàn: ' + (g.ten || x.ten) + (g.phanLoai ? ' – ' + g.phanLoai : '') + (g.sku ? ' · ' + g.sku : '');
+    $('le-ten').value = tenMuc(x).replace(/^\s*(combo|bộ)\s+/iu, ''); // sách lẻ: bỏ chữ "Combo" / "Bộ" ở đầu
+    $('le-nha').innerHTML = A.nhaOptions(nhaMuc(x), { dau: '— chọn nhà —', moi: DM.coNha() });
+    $('le-loi').textContent = '';
+    $('dlg-le').showModal();
+    $('le-ten').select();
+  }
+  function luuLe() {
+    var x = dangLe, ten = PL.clean($('le-ten').value);
+    A.chonNha($('le-nha')).then(function (ma) {
+      if (!ma) { $('le-loi').textContent = 'Chọn nhà cho sách lẻ này.'; return; }
+      if (!ten) { $('le-loi').textContent = 'Tên sách không được để trống.'; return; }
+      var it = viecLe(x, ten, ma);
+      if (!it.length) { $('le-loi').textContent = 'Dòng này chỉ có đơn web – không cần ghi nhớ.'; return; }
+      $('le-luu').disabled = true;
+      goiLo(it).then(function () { $('dlg-le').close(); A.toast('📖 Đã lưu: "' + ten + '" là sách lẻ ' + (PL.TEN_NHA[ma] || ma) + '.', 'ok'); })
+        .catch(function (e) { $('le-loi').textContent = e.message; })
+        .then(function () { $('le-luu').disabled = false; });
+    });
+  }
+
   function lamMuc(b) {
-    var x = H.kbHien[+b.dataset.i], g = x.g, v = b.dataset.kb;
-    var dongSan = function () { return (g.lines ? g.lines.map(function (l) { return l.row; }) : (g.nguon || []).map(function (s) { return s.row; })).filter(function (r) { return r && r.san !== 'Web'; }); };
+    var x = H.kbHien[+b.dataset.i], g = x.g, v = b.dataset.kb, id = idMuc(x);
+    var dongSan = function () { return dongLe(x).filter(function (r) { return r.san !== 'Web'; }); };
     if (v === 'khaibao') root.KhaiBao.moKhaiBao(g);
     else if (v === 'cosan') root.KhaiBao.moCoSan(g);
     else if (v === 'suacombo') root.KhaiBao.moSua(DM.timCombo(g.combo_id) || g);
-    else if (v.indexOf('nha:') === 0) { b.disabled = true; A.ganNha(g, v.slice(4)); }
-    else if (v === 'botdesau') {
+    else if (v === 'le') moLe(x);
+    else if (v === 'xacnhan') {
+      var ten = PL.clean(tenMuc(x)), ma = nhaMuc(x);
+      if (!ten) { A.toast('Tên sách không được để trống.', 'loi'); return; }
+      if (!ma) { A.toast('Chọn nhà trước nha.', 'loi'); return; }
+      luuLo([viecTen(x, ten, ma)], '✏️ Đã lưu: ' + ten + ' (' + (PL.TEN_NHA[ma] || ma) + ').', b);
+    } else if (v === 'botdesau') {
       b.disabled = true;
-      DM.goi('deSau', { khoa: g.key, bo: true }).then(function (j) { DM.nhanDeSau(j.de_sau); A.toast('↩️ Dòng này lại hiện ở màn Tách đơn.', 'ok'); })
+      DM.goi('deSau', { khoa: g.key, ten: x.ten, bo: true }).then(function (j) { DM.nhanDeSau(j.de_sau); A.toast('↩️ Dòng này lại hiện ở màn Tách đơn.', 'ok'); })
         .catch(function (e) { b.disabled = false; A.baoLoi('Không lưu được', e); });
-    } else if (v === 'ten') A.moSuaTen(g, PL.KHONG_NHAP);
-    else if (v === 'barcode') {
-      var rs = x.loai === 'barcode_sai'
-        ? H.th.rows.filter(function (r) { return r.san === g.san && PL.clean(r.sku).toUpperCase() === g.maCu && r.ten === g.ten; })
-        : dongSan();
+    } else if (v === 'barcode') {
+      var rs = dongSan();
       if (!rs.length) { A.toast('Không còn dòng sàn nào để sửa barcode.', 'loi'); return; }
       A.moBarcodeDong(rs, PL.KHONG_NHAP, x.ten);
-    } else if (v === 'boqua') {
+    } else if (v === 'an') {
+      A.hoi('Ẩn "' + x.ten.slice(0, 80) + '" khỏi Chờ khai báo?\n\n' + GHI_AN + '\nXem lại / bỏ ẩn ở bộ lọc "🙈 Đã ẩn".', '🙈 Ẩn', { nhe: true, tieuDe: 'Ẩn dòng này?' }).then(function (ok) {
+        if (!ok) return;
+        b.disabled = true;
+        DM.goi('deSau', { khoa: 'bo:' + id, ten: x.ten }).then(function (j) { DM.nhanDeSau(j.de_sau); A.toast('🙈 Đã ẩn: ' + x.ten.slice(0, 40), 'ok'); })
+          .catch(function (e) { b.disabled = false; A.baoLoi('Không lưu được', e); });
+      });
+    } else if (v === 'boan') {
       b.disabled = true;
-      DM.goi('deSau', { khoa: 'bo:' + idMuc(x), ten: x.ten }).then(function (j) { DM.nhanDeSau(j.de_sau); A.toast('🙈 Đã ẩn: ' + x.ten.slice(0, 40), 'ok'); })
+      DM.goi('deSau', { khoa: 'bo:' + id, ten: x.ten, bo: true }).then(function (j) { DM.nhanDeSau(j.de_sau); A.toast('👁 Đã bỏ ẩn: ' + x.ten.slice(0, 40), 'ok'); })
         .catch(function (e) { b.disabled = false; A.baoLoi('Không lưu được', e); });
     }
   }
@@ -371,15 +528,42 @@
       ghiLuu(); veTong();
     });
     $('kb-bang').addEventListener('change', function (e) {
-      var s = e.target.closest('[data-kb-sel]');
-      if (!s || !s.value) return;
-      var x = H.kbHien[+s.dataset.kbSel];
-      A.chonNha(s).then(function (ma) { if (ma) { s.disabled = true; A.ganNha(x.g, ma); } });
+      var t = e.target;
+      if (t.id === 'kb-tatca') { H.kbHien.slice(0, 300).forEach(function (x) { if (t.checked) H.kbChon[idMuc(x)] = 1; else delete H.kbChon[idMuc(x)]; }); veChoKb(); return; }
+      if (t.dataset.kbChon) {
+        var xc = H.kbHien[+t.dataset.kbChon];
+        if (t.checked) H.kbChon[idMuc(xc)] = 1; else delete H.kbChon[idMuc(xc)];
+        t.closest('tr').classList.toggle('kb-chon', t.checked); veLo(); return;
+      }
+      if (!t.dataset.kbNha) return;
+      var x = H.kbHien[+t.dataset.kbNha];
+      A.chonNha(t).then(function (ma) {
+        if (!ma) { t.value = nhaMuc(x); return; }
+        H.kbNha[idMuc(x)] = ma;
+        if (!coDoiNha(x)) return; // combo: chỉ là nhà dự kiến
+        t.disabled = true;
+        luuLo([viecNha(x, ma)], '🏠 Đã lưu: ' + x.ten.slice(0, 40) + ' → ' + (PL.TEN_NHA[ma] || ma) + '.').then(function () { t.disabled = false; });
+      });
+    });
+    $('kb-bang').addEventListener('input', function (e) {
+      var t = e.target;
+      if (t.dataset.kbTen) H.kbTen[idMuc(H.kbHien[+t.dataset.kbTen])] = t.value;
+    });
+    $('kb-bang').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || !e.target.dataset.kbTen) return;
+      var b = e.target.closest('tr').querySelector('[data-kb="xacnhan"]');
+      if (b && !b.disabled) lamMuc(b);
     });
     $('kb-bang').addEventListener('click', function (e) {
       var b = e.target.closest('[data-kb]');
       if (b && !b.disabled) lamMuc(b);
     });
+    $('kb-lo').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-kb-lo]');
+      if (!b || b.disabled) return;
+      if (b.dataset.kbLo === 'ten') loTen(b); else loNha(b);
+    });
+    $('le-luu').addEventListener('click', luuLe);
     DM.nghe(function (loai) {
       if (loai === 'catalog' || loai === 'desau' || loai === 'caidat') danhDau();
       if (loai === 'api' || loai === 'nguoidung') { veNav(); if (DM.coBanHang() && !H.khoi) taiLichSu().then(function () { tinh(); veNav(); }); }

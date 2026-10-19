@@ -64,7 +64,7 @@
     doiKhoaCombo: '🔑 Đổi khóa combo (mã vạch)', capNhatGia: '💲 Cập nhật giá', capNhatGiaCombo: '💸 Cập nhật giá combo',
     thayMaTaiBan: '🔁 Thay mã tái bản', hoanTacTaiBan: '↩️ Hoàn tác thay mã', boQuaTaiBan: '🙅 Không phải tái bản',
     soMaChuan: '🌐 Sổ mã chuẩn', xoaHangLoat: '🗑 Xóa hàng loạt', luuNguoiDung: '👥 Sửa người dùng', luuCaiDatChung: '⚙️ Cài đặt chung',
-    chotDot: '🔒 Chốt đợt', moLaiDot: '🔓 Mở lại đợt', xoaDot: '🗑 Xóa đợt', xoaPhan: '🗑 Xóa phần gửi', suaPhan: '✂️ Sửa phần gửi', moLaiPhan: '↩️ Mở lại phần gửi', khoaAdmin: '⛔ Khóa Admin (sai mã)', luuTenSach: '✏️ Khai báo tên sách', suaSku: '✏️ Sửa dòng danh mục', ganBarcode: '🏷️ Gán / sửa barcode', boGanBarcode: '🗑 Bỏ barcode gán tay', khongPhaiCombo: '📖 Không phải combo – sách lẻ', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn'
+    chotDot: '🔒 Chốt đợt', moLaiDot: '🔓 Mở lại đợt', xoaDot: '🗑 Xóa đợt', xoaPhan: '🗑 Xóa phần gửi', suaPhan: '✂️ Sửa phần gửi', moLaiPhan: '↩️ Mở lại phần gửi', khoaAdmin: '⛔ Khóa Admin (sai mã)', luuTenSach: '✏️ Khai báo tên sách', suaSku: '✏️ Sửa dòng danh mục', ganBarcode: '🏷️ Gán / sửa barcode', boGanBarcode: '🗑 Bỏ barcode gán tay', khongPhaiCombo: '📖 Không phải combo – sách lẻ', luuMaPhu: '🔗 Quy về mã web', boQuaCungCuon: '🙅 Không phải cùng cuốn', anChoKhaiBao: '🙈 Ẩn khỏi Chờ khai báo', boAnChoKhaiBao: '👁 Bỏ ẩn (Chờ khai báo)', deSau: '⏭ Để sau', boDeSau: '↩️ Đưa lại màn sáng'
   };
   function taiLichSu() {
     if (dangTaiLs) return;

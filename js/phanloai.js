@@ -340,6 +340,20 @@
     var gon = tenGon(ten, maKhac), p = plCoNghia(pl, gon, dsVoNghia);
     return p ? gon + ' – ' + p : gon;
   }
+  /* Tên GỢI Ý khi khai báo (tab Chờ khai báo) – gọn hơn tên tạm: bỏ "(1 cuốn)", "LẺ", "Mặc định", "Not Specified"…;
+   * phân loại trùng tên thì bỏ, phân loại chứa trọn tên thì lấy phân loại. Không đổi tên tạm / tên xuất file. */
+  var RE_RAC_NGOAC = /\(\s*(?:1\s*cuốn|lẻ|mặc định|not specified|default)\s*\)/giu;
+  var RE_RAC_PL = /(^|[\s,;\-–_])(?:1\s*cuốn|lẻ|mặc định|not specified|default)(?=$|[\s,;\-–_])/giu;
+  function boRac(s, laPl) {
+    s = clean(s).replace(RE_RAC_NGOAC, ' ');
+    s = laPl ? s.replace(RE_RAC_PL, '$1') : s.replace(/[\s\-–_,]+(?:LẺ|1\s*cuốn)\s*$/u, '');
+    return s.replace(RE_DAU_THUA, '').replace(/\s+/g, ' ').trim();
+  }
+  function tenGoiY(ten, pl, maKhac, dsVoNghia) {
+    var gon = boRac(tenGon(ten, maKhac), false) || tenGon(ten, maKhac), p = plCoNghia(boRac(pl, true), gon, dsVoNghia);
+    if (p && boDau(p).indexOf(boDau(gon)) >= 0) return p;
+    return p ? gon + ' – ' + p : gon;
+  }
   /* Tên để so với sổ mã chuẩn web: TÊN SÀN + PHÂN LOẠI (có nghĩa), bỏ dấu, chữ thường */
   function tenSoSanhDayDu(ten, pl, maKhac, dsVoNghia) {
     var gon = tenGon(ten, maKhac), p = plCoNghia(pl, gon, dsVoNghia);
@@ -851,7 +865,7 @@
     comboReason: comboReason, isNotBook: isNotBook, isBarcode: isBarcode,
     findCodes: findCodes, codeRegex: codeRegex,
     maMoiNhat: maMoiNhat, nhaTheoNcc: nhaTheoNcc, giongTen: giongTen, ean13HopLe: ean13HopLe, homNayISO: homNayISO, giaThanhPhan: giaThanhPhan, lechGiaCombo: lechGiaCombo, tenSoSanh: tenSoSanh,
-    plCoNghia: plCoNghia, tenTam: tenTam, lyDoComboCong: lyDoComboCong, nghiComboTheoGia: nghiComboTheoGia, thanhPhanGoiY: thanhPhanGoiY, barcodeHopLe: barcodeHopLe, tenSoSanhDayDu: tenSoSanhDayDu, PL_VO_NGHIA_MAC_DINH: PL_VO_NGHIA_MAC_DINH,
+    plCoNghia: plCoNghia, tenTam: tenTam, tenGoiY: tenGoiY, lyDoComboCong: lyDoComboCong, nghiComboTheoGia: nghiComboTheoGia, thanhPhanGoiY: thanhPhanGoiY, barcodeHopLe: barcodeHopLe, tenSoSanhDayDu: tenSoSanhDayDu, PL_VO_NGHIA_MAC_DINH: PL_VO_NGHIA_MAC_DINH,
     khoaKhongCombo: khoaKhongCombo, khoaBarcode: khoaBarcode, skuKey: skuKey, skuPlKey: skuPlKey, tenKey: tenKey, rowKey: rowKey, rowKeys: rowKeys, tenGon: tenGon,
     clean: clean, norm: norm, tong: tong
   };

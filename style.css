@@ -602,3 +602,10 @@ tr.bd-dang-xem td { background: var(--soft); }
   background: var(--toast-bg); color: var(--toast-ink); padding: 7px 10px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.45;
   box-shadow: var(--shadow); font-variant-numeric: tabular-nums; }
 @media (max-width: 980px) { .bd-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bd-luoi2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* ============ Chờ khai báo: tên gợi ý sửa tại chỗ, ô nhà, làm hàng loạt ============ */
+.kb-ten { width: 100%; min-width: 220px; font-weight: 700; }
+.kb-nha { max-width: 190px; }
+.kb-lo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; position: sticky; top: var(--cao-dau); z-index: 3; }
+.kb-lo-nha { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+tr.kb-chon td { background: var(--soft); }

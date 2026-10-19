@@ -422,7 +422,14 @@ Sửa số / tick cuốn cần đặt → **⬇️ Xuất Excel nhà này** (4 c
 
 **📝 Chờ khai báo** (mọi người): việc không ảnh hưởng đơn đặt hôm nay của HA/KV/ML – combo nhà khác chưa khai, combo trộn còn thiếu phần nhà khác,
 dòng **⏭ Để sau**, sách nhà khác chưa có tên khai báo, barcode thiếu / sai. Có số lần xuất hiện, lần cuối gặp, nguồn; sắp theo số lần giảm dần;
-khai báo ngay tại tab (hoặc **🙈 Bỏ qua**). Khai báo xong thì tự biến mất, dự báo tự tính lại. Số việc hiện trên menu: *📝 Chờ khai báo (23)*.
+khai báo ngay tại tab. Khai báo xong thì tự biến mất, dự báo tự tính lại. Số việc hiện trên menu: *📝 Chờ khai báo (23)*.
+- **Ô Nhà** ở mọi dòng, điền sẵn nhà app đoán được (mã nhà trong tên, vd combo "… (HH)" → HH). Đổi nhà = lưu ngay vào danh mục (gán tay).
+  Dòng combo: ô Nhà là nhà dự kiến cho **📖 Là sách lẻ** (gán nhà thẳng cho combo sẽ biến nó thành 1 cuốn nên không lưu ngay).
+- **Combo:** 🧩 Khai báo thành phần · 🔗 Combo đã có · **📖 Là sách lẻ** (hỏi nhà + tên, điền sẵn tên gợi ý → ghi nhớ "không phải combo", thành sách lẻ).
+- **Chưa có tên khai báo:** ô tên **điền sẵn tên gợi ý** (đã bỏ "(1 cuốn)", "LẺ", "Mặc định", "Not Specified", phân loại trùng tên), sửa tại chỗ → **✅ Xác nhận** (lưu tên + nhà 1 lần; Enter cũng được).
+- **Hàng loạt:** tick các dòng (ô đầu bảng = chọn hết) → **✅ Xác nhận tên gợi ý cho các dòng đã chọn** hoặc chọn nhà → **🏠 Gán nhà cho các dòng đã chọn**.
+- **🙈 Ẩn (không cần khai):** chỉ ẩn khỏi danh sách, không đổi dữ liệu (combo ẩn sẽ không được tách khi tính dự báo); có hỏi lại. Xem lại ở bộ lọc **🙈 Đã ẩn (n)** → **👁 Bỏ ẩn**.
+- Mọi thao tác ghi sheet `LICH_SU`. Lưu nhiều dòng 1 lần cần `Code.gs` bản api 7 (bản cũ vẫn chạy, chỉ chậm hơn vì gửi từng dòng).
 
 **Màn Tách đơn buổi sáng** chỉ còn việc ảnh hưởng đơn hôm nay: dòng chưa rõ nhà có nút **⏭ Để sau**; nhắc tái bản / cùng cuốn / listing cần sửa barcode của sách nhà khác chuyển sang tab Chờ khai báo.
 Combo trộn nhà (vd "COMBO HA + … (MEGA)"): chỉ cần khai phần HA/KV/ML là lưu được – phần nhà khác không bắt buộc.
@@ -505,5 +512,6 @@ node test/kiemtra-dot.js            # đợt đặt hàng: báo xong, đơn trù
 node test/kiemtra-admin.js          # Admin: mã ở Script Properties, khóa sau 5 lần sai, thao tác chỉ Admin, hoàn tác của người khác
 node test/kiemtra-dubao.js          # lịch sử bán (đơn treo, web, khai báo muộn, nạp file cũ, gom tháng), dự báo, chờ khai báo
 node test/kiemtra-nha.js            # sổ nhà: mặc định, nhận diện (mã/NCC/tiền tố barcode), nhà mới, nhà hằng ngày thứ 4, xóa + chuyển sách
+node test/kiemtra-chokb.js          # Chờ khai báo: nhà đoán được, tên gợi ý gọn, xác nhận tên + nhà, là sách lẻ, gán nhà hàng loạt, ẩn có ghi lịch sử
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.

@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261013e">
-  <link rel="stylesheet" href="themes.css?v=20261013e">
-  <script src="js/chude.js?v=20261013e"></script>
+  <link rel="stylesheet" href="style.css?v=20261019a">
+  <link rel="stylesheet" href="themes.css?v=20261019a">
+  <script src="js/chude.js?v=20261019a"></script>
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -150,6 +150,7 @@
         </div>
       </div>
       <p class="legend db-ghichu">Việc khai báo không ảnh hưởng đơn đặt hôm nay của HA/KV/ML – làm lúc rảnh. Lấy từ lịch sử bán đã lưu (60 ngày) + file đang mở trên máy, sắp theo số lần xuất hiện. Khai báo xong thì tự biến mất và dự báo tự tính lại.</p>
+      <div class="panel kb-lo" id="kb-lo" hidden></div>
       <div class="panel"><div class="table-wrap" id="kb-bang"></div></div>
     </section>
 
@@ -475,6 +476,21 @@
     </form>
   </dialog>
 
+  <dialog class="dlg" id="dlg-le" aria-labelledby="dlg-le-title">
+    <form method="dialog">
+      <h2 id="dlg-le-title">📖 Là sách lẻ</h2>
+      <p class="muted" id="le-goc"></p>
+      <label class="field"><span>Tên sách</span><input class="input" id="le-ten" autocomplete="off"></label>
+      <label class="field"><span>Nhà</span><select class="input" id="le-nha"></select></label>
+      <small class="muted">Mèo ghi nhớ “không phải combo”: lần sau dòng này là 1 cuốn sách lẻ của nhà đã chọn.</small>
+      <p class="err" id="le-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" type="button" id="le-luu">💾 Lưu sách lẻ</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="dlg-nha-moi" aria-labelledby="dlg-nha-moi-title">
     <form method="dialog">
       <h2 id="dlg-nha-moi-title">🏠 Nhà mới</h2>
@@ -537,23 +553,23 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261013e"></script>
-  <script src="js/phanloai.js?v=20261013e"></script>
-  <script src="js/thongke.js?v=20261013e"></script>
-  <script src="js/xuatfile.js?v=20261013e"></script>
-  <script src="js/danhmuc.js?v=20261013e"></script>
-  <script src="js/danhmuc-excel.js?v=20261013e"></script>
-  <script src="js/linhvat.js?v=20261013e"></script>
-  <script src="js/app.js?v=20261013e"></script>
-  <script src="js/khaibao.js?v=20261013e"></script>
-  <script src="js/barcode.js?v=20261013e"></script>
-  <script src="js/mandanhmuc.js?v=20261013e"></script>
-  <script src="js/caidat.js?v=20261013e"></script>
-  <script src="js/manthongke.js?v=20261013e"></script>
-  <script src="js/dot-gop.js?v=20261013e"></script>
-  <script src="js/dot.js?v=20261013e"></script>
-  <script src="js/banhang.js?v=20261013e"></script>
-  <script src="js/bieudo.js?v=20261013e"></script>
-  <script src="js/dubao.js?v=20261013e"></script>
+  <script src="js/docfile.js?v=20261019a"></script>
+  <script src="js/phanloai.js?v=20261019a"></script>
+  <script src="js/thongke.js?v=20261019a"></script>
+  <script src="js/xuatfile.js?v=20261019a"></script>
+  <script src="js/danhmuc.js?v=20261019a"></script>
+  <script src="js/danhmuc-excel.js?v=20261019a"></script>
+  <script src="js/linhvat.js?v=20261019a"></script>
+  <script src="js/app.js?v=20261019a"></script>
+  <script src="js/khaibao.js?v=20261019a"></script>
+  <script src="js/barcode.js?v=20261019a"></script>
+  <script src="js/mandanhmuc.js?v=20261019a"></script>
+  <script src="js/caidat.js?v=20261019a"></script>
+  <script src="js/manthongke.js?v=20261019a"></script>
+  <script src="js/dot-gop.js?v=20261019a"></script>
+  <script src="js/dot.js?v=20261019a"></script>
+  <script src="js/banhang.js?v=20261019a"></script>
+  <script src="js/bieudo.js?v=20261019a"></script>
+  <script src="js/dubao.js?v=20261019a"></script>
 </body>
 </html>

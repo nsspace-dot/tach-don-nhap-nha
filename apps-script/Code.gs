@@ -67,6 +67,11 @@
  *        ma_ten (mã trong tên sản phẩm, cách nhau dấu phẩy) | ncc (tên nhà cung cấp trên file web, cách nhau ";") | tien_to (tiền tố barcode) | thu_tu | cap_nhat
  *        Sheet trống → mặc định HA/KV/ML (Đặt hằng ngày) + "Mã nhà khác" cũ (Nhập kho). Nhà hợp lệ ở mọi chỗ = theo sổ này.
  *   POST luuNha { ds } (Admin), themNha { nha } (mọi người – chỉ thêm), xoaNha { ma, chuyen_sang } (Admin – chuyển sách sang nhà khác)
+ *
+ * Tab Chờ khai báo (từ bản api 7):
+ *   POST khaiBaoLo { items: [{ viec, key, sku, ten, phan_loai, nha, ten_sach, key_le }] } – nhiều việc trong 1 lần ghi, mỗi việc 1 dòng LICH_SU:
+ *        viec "nha" = gán nhà (nguồn tay) ; "ten" = tên sách + nhà ; "le" = "không phải combo – là sách lẻ" (key_le) + tên + nhà (key)
+ *   deSau ghi thêm LICH_SU (deSau / boDeSau / anChoKhaiBao / boAnChoKhaiBao)
  *   POST luuNguoiDung { ds }, baoXong { dot_id, cot, dong, nguon, so_don, con_combo, con_chua_ro }, moLaiPhan { dot_id },
  *        chotDot { dot_id, lich_su }, moLaiDot { dot_id }
  *   GET  <url>?action=lichSuDatHang&tu=yyyy-MM-dd → { ok, cot, dong }
@@ -82,7 +87,7 @@
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
-var API = 6; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo)
+var API = 7; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo)
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA',
            ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG', BH: 'BAN_HANG', DS: 'DE_SAU', NHA: 'NHA' };
 var BH_TRUNG_NGAY = 60;      // chống trùng khi chốt: so với lịch sử bán 60 ngày gần nhất (đơn treo nhiều ngày)
@@ -265,6 +270,9 @@ function xuLy_(action, data, nguoi) {
     case 'khongPhaiCombo':
       khongPhaiCombo_(cat, data, ctx);
       break;
+    case 'khaiBaoLo':
+      Object.assign(extra, khaiBaoLo_(cat, data, ctx));
+      break;
     case 'upsertMaChuan':
       extra.soMaChuan = ghiSoMaChuan_(cat, data.items || [], ctx);
       break;
@@ -421,6 +429,32 @@ function luuTenSach_(cat, d, ctx) {
   ctx.doiSku = true;
   ghiLog_(ctx, 'luuTenSach', key, cu, Object.assign({ ghi_chu: 'Tên sách: ' + (chuoi_(cu && cu.ten_sach) || '(chưa có)') + ' → ' + (ten || '(bỏ khai báo)') }, moi));
   return true;
+}
+
+/* Tab Chờ khai báo: nhiều việc trong 1 lần ghi (gán nhà / tên sách / là sách lẻ). Việc lỗi bỏ qua, báo lại; mỗi việc ghi LICH_SU
+ * dưới tên thao tác quen thuộc (upsertSku / luuTenSach / khongPhaiCombo) để xem & hoàn tác như cũ. */
+function khaiBaoLo_(cat, d, ctx) {
+  var goc = ctx.action, so = 0, loi = [];
+  (d.items || []).forEach(function (it) {
+    try {
+      var viec = chuoi_(it.viec), nha = chuoi_(it.nha).toUpperCase();
+      var sach = { key: it.key, sku: it.sku, ten: it.ten, nha: nha, nguon: 'tay', phan_loai: it.phan_loai };
+      if (['nha', 'ten', 'le'].indexOf(viec) < 0) throw new Error('Việc không hợp lệ: ' + viec);
+      if (viec === 'le') {
+        ctx.action = 'khongPhaiCombo';
+        if (khongPhaiCombo_(cat, { key: it.key_le, sku: it.sku, ten: it.ten, phan_loai: it.phan_loai, nha: nha }, ctx)) so++;
+      }
+      if (viec !== 'nha' && chuoi_(it.ten_sach)) sach.ten_sach = chuoi_(it.ten_sach);
+      else if (viec === 'ten') throw new Error('Thiếu tên sách.');
+      // "le": khóa sách lẻ (barcode trơn) khác khóa ghi nhớ (barcode + phân loại) → gán nhà cả khóa sách lẻ
+      if (viec !== 'le' || sach.ten_sach !== undefined || chuoi_(it.key) !== chuoi_(it.key_le)) {
+        ctx.action = sach.ten_sach !== undefined ? 'luuTenSach' : 'upsertSku';
+        if (upsertSku_(cat, sach, ctx, true)) so++;
+      }
+    } catch (e) { loi.push(chuoi_(it.key) + ': ' + e.message); }
+  });
+  ctx.action = goc;
+  return { soThayDoi: so, loi: loi };
 }
 
 /* Dòng bị nghi combo (dạng "A+B" / theo giá) mà bạn bảo "Không phải combo" → ghi nhớ trên khóa sách lẻ của dòng.
@@ -1722,8 +1756,15 @@ function deSau_(d, nguoi) {
   var khoa = chuoi_(d.khoa);
   if (!khoa) throw new Error('Thiếu khóa dòng.');
   var ds = docBang_(SH.DS).filter(function (x) { return x.khoa && x.khoa !== khoa; });
+  var co = docBang_(SH.DS).some(function (x) { return x.khoa === khoa; });
   if (!d.bo) ds.push({ khoa: khoa, ten: chuoi_(d.ten).slice(0, 200), luc: bayGio_(), nguoi: nguoi || '' });
   ghiBang_(SH.DS, ds);
+  if (co === !!d.bo) { // có đổi → ghi LICH_SU
+    var an = khoa.indexOf('bo:') === 0;
+    ghiLichSu_([[bayGio_(), (d.bo ? 'bo' : '') + (an ? (d.bo ? 'AnChoKhaiBao' : 'anChoKhaiBao') : (d.bo ? 'DeSau' : 'deSau')), khoa, '',
+                 JSON.stringify({ ten: chuoi_(d.ten).slice(0, 200), ghi_chu: (d.bo ? (an ? 'Bỏ ẩn' : 'Đưa lại màn sáng') : (an ? 'Ẩn khỏi Chờ khai báo' : 'Để sau')) + ': ' + chuoi_(d.ten).slice(0, 120) }),
+                 nguoi || '', '']]);
+  }
   return { ok: true, de_sau: ds.map(function (x) { return x.khoa; }) };
 }
 /* Số ngày muốn đủ bán (gợi ý đặt) của từng nhà – người đặt hàng chỉnh, dùng chung */

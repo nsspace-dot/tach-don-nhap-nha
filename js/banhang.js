@@ -164,13 +164,22 @@
     });
     return { soLan: soLan, lanCuoi: ngay, nguon: san };
   }
+  /* Nhà đoán được cho 1 dòng (mã nhà trong tên / phân loại, kể cả bí danh; hoặc tiền tố barcode) – '' nếu không đoán được */
+  function doanNha(r) {
+    if (!r) return '';
+    var ma = PL.DS_NHA.reduce(function (a, x) { return a.concat(x.ma_ten || [], [x.ma]); }, []);
+    var c = PL.maTrong((r.ten || '') + ' ' + (r.phanLoai || ''), PL.codeRegex(ma));
+    return c.length === 1 ? c[0] : PL.nhaTheoTienTo(r.sku) || '';
+  }
   function choKhaiBao(th, deSau) {
     var kq = th.kq, out = [];
     deSau = deSau || {};
     function them(loai, ten, g, rows, extra) { out.push(Object.assign({ loai: loai, ten: ten, g: g }, thongTin(rows), extra || {})); }
     // 1. Combo nhà khác chưa khai báo
     kq.boQua.forEach(function (g) {
-      if (g.isCombo && /^Nhà khác/.test(g.lyDo)) them('combo_khac', g.tenGon || g.ten, g, g.lines.map(function (l) { return l.row; }), { ghiChu: g.lyDo });
+      if (!(g.isCombo && /^Nhà khác/.test(g.lyDo))) return;
+      var nk = g.lines.map(function (l) { return l.nhaKhac; }).filter(PL.laNha)[0] || (/\(([^)]+)\)\s*$/.exec(g.lyDo) || [])[1] || '';
+      them('combo_khac', g.tenGon || g.ten, g, g.lines.map(function (l) { return l.row; }), { ghiChu: g.lyDo, nha: PL.laNha(nk) ? nk : doanNha(g.lines[0].row) });
     });
     // 2. Combo trộn nhà đã khai báo nhưng còn thiếu phần nhà khác
     var tron = {};
@@ -184,7 +193,7 @@
     });
     // 3. Dòng "để sau"
     kq.chuaRo.forEach(function (g) {
-      if (deSau[g.key]) them('de_sau', g.tenGon || g.ten, g, g.lines.map(function (l) { return l.row; }), { ghiChu: 'để sau – chưa rõ nhà' });
+      if (deSau[g.key]) them('de_sau', g.tenGon || g.ten, g, g.lines.map(function (l) { return l.row; }), { ghiChu: 'để sau – chưa rõ nhà', nha: doanNha(g.lines[0].row) });
     });
     // 4–5. Sách nhà khác chưa có tên khai báo / barcode thiếu
     Object.keys(kq.nhaKhac || {}).forEach(function (ma) {
@@ -199,7 +208,7 @@
     (kq.listingCanSua || []).forEach(function (l) {
       if (l.lyDo !== 'mã sai số kiểm tra') return;
       var rows = th.rows.filter(function (r) { return r.san === l.san && PL.clean(r.sku).toUpperCase() === l.maCu && r.ten === l.ten; }); // dòng đại diện
-      them('barcode_sai', PL.tenGon(l.ten, kq.maKhac), l, rows, { ghiChu: 'barcode ' + l.maCu + ' sai số kiểm tra' });
+      them('barcode_sai', PL.tenGon(l.ten, kq.maKhac), l, rows, { ghiChu: 'barcode ' + l.maCu + ' sai số kiểm tra', nha: doanNha(rows[0] || l) });
     });
     return out.sort(function (a, b) { return b.soLan - a.soLan || (b.lanCuoi < a.lanCuoi ? -1 : 1); });
   }
