@@ -108,6 +108,13 @@
   /* ---------- Tôi là + danh sách người dùng (Apps Script có Đợt đặt hàng) ---------- */
   var TEN_VT = { san: 'Nhân viên sàn', dat_hang: 'Người đặt hàng', admin: 'Admin' };
   var DS_VT = ['san', 'dat_hang', 'admin'];
+  /* Tên mẫu vai trò của 1 người (bảng quyền mới) hoặc vai trò cũ */
+  function tenMau(n) {
+    var q = DM.coBangQuyen() ? DM.bangQuyen.nguoi.filter(function (x) { return x.ten === n.ten; })[0] : null;
+    if (!q) return TEN_VT[n.vai_tro] || '';
+    var khop = root.Quyen.mauKhop(DM.bangQuyen.mau, q.quyen);
+    return (khop || (q.mau ? q.mau + ' (đã chỉnh)' : 'Quyền riêng')) + (q.khoa ? ' · 🔒 tạm khóa' : '');
+  }
   function veToiLa() {
     var ds = DM.nguoiDung, toi = DM.caiDat.toiLa || '', chon = $('cd-toila-chon');
     var coDs = DM.coDot() && ds.length > 0;
@@ -116,17 +123,11 @@
     if (!coDs) return;
     var co = ds.some(function (n) { return n.ten === toi; });
     chon.innerHTML = (co ? '' : '<option value="' + A.esc(toi) + '" selected>' + (toi ? A.esc(toi) + ' (không có trong danh sách)' : '— chọn tên của bạn —') + '</option>') +
-      ds.map(function (n) { return '<option value="' + A.esc(n.ten) + '"' + (n.ten === toi ? ' selected' : '') + '>' + A.esc(n.ten) + ' · ' + TEN_VT[n.vai_tro] + '</option>'; }).join('');
-  }
-  var dsSua = null; // danh sách đang sửa (chưa lưu)
-  /* Danh sách người dùng: Apps Script có Admin → chỉ Admin sửa (chưa ai là Admin thì hiện cho mọi người để tạo Admin đầu tiên – vẫn cần mã) */
-  function suaDuocNguoiDung() {
-    if (!DM.coAdmin()) return true;
-    return A.laAdmin() || !DM.nguoiDung.some(function (n) { return n.vai_tro === 'admin'; });
+      ds.map(function (n) { return '<option value="' + A.esc(n.ten) + '"' + (n.ten === toi ? ' selected' : '') + '>' + A.esc(n.ten) + ' · ' + A.esc(tenMau(n)) + '</option>'; }).join('');
   }
   function veAdmin() {
     var el = $('cd-admin');
-    el.hidden = !(DM.coAdmin() && (A.laAdmin() || !DM.nguoiDung.some(function (n) { return n.vai_tro === 'admin'; })));
+    el.hidden = !(DM.coAdmin() && (['qt_caidat', 'qt_khoiphuc', 'qt_napbu', 'qt_nguoidung', 'dot_molai'].some(A.coQuyen) || DM.chuaCoAdmin()));
     if (el.hidden) return;
     var tt = DM.adminDaDatMa === false
       ? '⚠️ <b>Chưa đặt mã Admin.</b> Mở Google Sheets → Tiện ích mở rộng → Apps Script → sửa dòng <code>var MA_ADMIN_MOI = \'\';</code> (gõ mã giữa 2 dấu nháy) → 💾 Lưu → chọn hàm <code>datMaAdmin</code> → ▶ Chạy → rồi xóa mã khỏi dòng đó và Lưu lại. Các chức năng thường vẫn chạy bình thường.'
@@ -143,37 +144,33 @@
   function veNguoiDung() {
     veAdmin();
     veCaiDatChung();
-    $('cd-nd').hidden = !DM.coDot();
-    if (!DM.coDot()) return;
-    var sua = suaDuocNguoiDung();
-    $('cd-nd-them').hidden = !sua; $('cd-nd-luu').hidden = !sua;
-    $('cd-nd-chi-admin').hidden = !DM.coAdmin();
-    if (!sua) {
-      dsSua = null;
-      $('cd-nd-ds').innerHTML = DM.nguoiDung.map(function (n) { return '<tr><td>' + A.esc(n.ten) + '</td><td>' + TEN_VT[n.vai_tro] + '</td><td></td></tr>'; }).join('');
-      return;
-    }
-    if (!dsSua) dsSua = DM.nguoiDung.map(function (n) { return { ten: n.ten, vai_tro: n.vai_tro }; });
-    $('cd-nd-ds').innerHTML = dsSua.map(function (n, i) {
-      return '<tr><td><input class="input" data-nd-ten="' + i + '" value="' + A.esc(n.ten) + '" maxlength="40" aria-label="Tên"></td>' +
-        '<td><select class="input" data-nd-vt="' + i + '" aria-label="Vai trò">' + (DM.coAdmin() ? DS_VT : ['san', 'dat_hang']).map(function (v) {
-          return '<option value="' + v + '"' + (n.vai_tro === v ? ' selected' : '') + '>' + TEN_VT[v] + '</option>';
-        }).join('') + '</select></td><td><button type="button" class="btn btn-icon btn-ghost" data-nd-xoa="' + i + '" aria-label="Xóa ' + A.esc(n.ten) + '">🗑</button></td></tr>';
-    }).join('') || '<tr><td colspan="3" class="muted">Chưa có ai – bấm “＋ Thêm người”.</td></tr>';
+    veKhoiPhuc();
   }
-  function luuNguoiDung() {
-    var ds = dsSua.map(function (n) { return { ten: n.ten.replace(/\s+/g, ' ').trim(), vai_tro: n.vai_tro }; }).filter(function (n) { return n.ten; });
-    var trung = ds.filter(function (n, i) { return ds.some(function (m, j) { return j < i && m.ten.toLowerCase() === n.ten.toLowerCase(); }); });
-    if (trung.length) { A.toast('Tên bị trùng: ' + trung[0].ten, 'loi'); return; }
-    if (!ds.some(function (n) { return n.vai_tro === 'dat_hang' || n.vai_tro === 'admin'; }) && !confirmKhongNguoiDat()) return;
-    if (DM.coAdmin() && !ds.some(function (n) { return n.vai_tro === 'admin'; })) { A.toast('Cần ít nhất 1 người là Admin.', 'loi'); return; }
-    $('cd-nd-luu').disabled = true;
-    DM.goi('luuNguoiDung', { ds: ds })
-      .then(function (j) { DM.nhanNguoiDung(j.nguoi_dung || ds); dsSua = null; veToiLa(); veNguoiDung(); A.toast('👥 Đã lưu danh sách ' + ds.length + ' người dùng (mọi máy dùng chung).', 'ok'); })
-      .catch(function (e) { A.baoLoi('Không lưu được', e); })
-      .then(function () { $('cd-nd-luu').disabled = false; });
+  /* ♻️ Khôi phục sao lưu (quyền "Khôi phục sao lưu" + mã Admin) */
+  function veKhoiPhuc() { $('cd-kp').hidden = !(DM.coBangQuyen() && A.coQuyen('qt_khoiphuc')); }
+  function xemSaoLuu() {
+    $('cd-kp-xem').disabled = true;
+    DM.docGet('action=saoLuu').then(function (j) {
+      var ds = j.ngay || [];
+      $('cd-kp-ngay').innerHTML = ds.length ? ds.map(function (n) { return '<option value="' + n + '">' + n.split('-').reverse().join('/') + '</option>'; }).join('')
+        : '<option value="">Chưa có bản sao lưu nào (xem HUONG-DAN.md, Phần C)</option>';
+      $('cd-kp-lam').disabled = !ds.length;
+    }).catch(function (e) { A.toast('Không xem được bản sao lưu: ' + e.message, 'loi'); })
+      .then(function () { $('cd-kp-xem').disabled = false; });
   }
-  function confirmKhongNguoiDat() { A.toast('Chưa có ai là “Người đặt hàng” – sẽ không ai thấy nút Tổng hợp đợt.', 'loi'); return true; }
+  function khoiPhuc() {
+    var ngay = $('cd-kp-ngay').value;
+    if (!ngay) return;
+    A.hoi('Khôi phục danh mục (SKU → nhà, combo) về bản sao lưu ngày ' + ngay.split('-').reverse().join('/') + '?\n\nMọi thay đổi danh mục sau ngày đó sẽ mất (bản hiện tại được lưu thêm 1 bản “trước khôi phục” trong file sao lưu).',
+      '♻️ Khôi phục', { tieuDe: 'Khôi phục sao lưu' }).then(function (ok) {
+      if (!ok) return;
+      $('cd-kp-lam').disabled = true;
+      return DM.goi('khoiPhucSaoLuu', { ngay: ngay })
+        .then(function () { A.toast('♻️ Đã khôi phục danh mục về ngày ' + ngay.split('-').reverse().join('/') + '.', 'ok'); DM.taiLai(); })
+        .catch(function (e) { A.baoLoi('Không khôi phục được', e); })
+        .then(function () { $('cd-kp-lam').disabled = false; });
+    });
+  }
 
   function ketQua(msg, ok) {
     var el = $('cd-ketqua');
@@ -253,24 +250,8 @@
       veToiLa();
       A.toast('👤 Máy này: ' + DM.caiDat.toiLa, 'ok');
     });
-    $('cd-nd').addEventListener('input', function (e) {
-      var t = e.target.closest('[data-nd-ten]');
-      if (t) dsSua[+t.dataset.ndTen].ten = t.value;
-    });
-    $('cd-nd').addEventListener('change', function (e) {
-      var v = e.target.closest('[data-nd-vt]');
-      if (v) dsSua[+v.dataset.ndVt].vai_tro = v.value;
-    });
-    $('cd-nd').addEventListener('click', function (e) {
-      var x = e.target.closest('[data-nd-xoa]');
-      if (x) { dsSua.splice(+x.dataset.ndXoa, 1); veNguoiDung(); return; }
-      if (e.target.id === 'cd-nd-them') {
-        dsSua.push({ ten: '', vai_tro: 'san' });
-        veNguoiDung();
-        var o = $('cd-nd-ds').querySelector('[data-nd-ten="' + (dsSua.length - 1) + '"]');
-        if (o) o.focus();
-      } else if (e.target.id === 'cd-nd-luu') luuNguoiDung();
-    });
+    $('cd-kp-xem').addEventListener('click', xemSaoLuu);
+    $('cd-kp-lam').addEventListener('click', khoiPhuc);
     $('cd-admin-vao').addEventListener('click', function () {
       var ma = $('cd-admin-ma').value.trim();
       if (!ma) { A.toast('Nhập mã Admin.', 'loi'); return; }
@@ -285,9 +266,9 @@
     DM.nghe(function (loai) {
       if (loai === 'admin' && !$('man-caidat').hidden) { veAdmin(); veNha(); }
       if ((loai === 'nha' || loai === 'api' || loai === 'nguoidung') && !$('man-caidat').hidden && !$('cd-nha').contains(document.activeElement)) { nhaSua = null; veNha(); }
-      if ((loai === 'nguoidung' || loai === 'api') && !$('man-caidat').hidden) { if (loai === 'api') dsSua = null; veToiLa(); if (!dsSua || !$('cd-nd').contains(document.activeElement)) { dsSua = null; veNguoiDung(); } }
+      if ((loai === 'nguoidung' || loai === 'api' || loai === 'quyen') && !$('man-caidat').hidden) { veToiLa(); veNguoiDung(); veNha(); }
     });
   });
 
-  root.CaiDat = { ve: ve };
+  root.CaiDat = { ve: ve, tenMau: tenMau };
 })(typeof self !== 'undefined' ? self : this);

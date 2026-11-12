@@ -168,7 +168,7 @@
         : 'Danh mục SKU còn trống. Mèo sẽ tự học dần khi bạn tách đơn 🐾');
       return;
     }
-    var ghi = DM.coTheGhi(), idxDmNho = null;
+    var ghi = DM.coTheGhi() && A.coQuyen('dm_sua'), idxDmNho = null;
     var idxDm = function () { return idxDmNho || (idxDmNho = PL.buildIndex(DM.catalog)); }; // chỉ dựng khi có mã phụ cần hiện
     dsDangHien = ds.slice(0, TOI_DA);
     var soGoiY = dsDangHien.filter(function (e) { return canTen(e) && !e.ten_sach; }).length;
@@ -283,7 +283,7 @@
       $('dm-bang').innerHTML = rong(q ? 'Không tìm thấy.' : 'Chưa có barcode gán tay. Bấm 🏷️ ở dòng sách trên màn Tách đơn để gán / sửa barcode.');
       return;
     }
-    var ghi = DM.coTheGhi();
+    var ghi = DM.coTheGhi() && A.coQuyen('dm_sua');
     var tenMa = function (ma) {
       var e = list.filter(function (x) { return x.key === PL.skuKey(ma); })[0];
       var w = (DM.catalog.ma_chuan || []).filter(function (x) { return x.barcode === ma; })[0];
@@ -311,7 +311,7 @@
     ds.sort(function (a, b) { return a.ten_combo.localeCompare(b.ten_combo, 'vi'); });
     dangLoc.combos = ds;
     if (!ds.length) { $('dm-bang').innerHTML = rong(list.length ? 'Không tìm thấy.' : 'Chưa có combo nào. Khai báo ở tab Combo của màn Tách đơn nha.'); return; }
-    var ghi = DM.coTheGhi();
+    var ghi = DM.coTheGhi() && A.coQuyen('dm_sua');
     lechDm = PL.lechGiaCombo(DM.catalog, A.S.kq ? A.S.kq.giaFile : {});
     var lechTheoId = {};
     lechDm.forEach(function (l) { lechTheoId[l.combo_id] = l; });

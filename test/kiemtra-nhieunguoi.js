@@ -39,7 +39,7 @@ function taoMay(server, ten, traLoi) {
   };
   ctx.self = ctx;
   vm.createContext(ctx);
-  ['docfile.js', 'phanloai.js', 'danhmuc.js'].forEach(function (f) {
+  ['docfile.js', 'phanloai.js', 'quyen.js', 'danhmuc.js'].forEach(function (f) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
   });
   ctx.hoiDaHoi = [];

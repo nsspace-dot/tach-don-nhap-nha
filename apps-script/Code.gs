@@ -89,6 +89,19 @@
  *   POST chotDot { …, thong_ke: { sp, d } } ; napThongKe { ngay, dl: { sp, d } } (Admin) ; thongKeTam { ngay, dl } (xem đợt đang mở, không ghi)
  *        sp: [[sàn, gian, khoa_sp, tên, phân loại, barcode, ngành, nhà, nhóm, combo]] ; d: [[chỉ số sp, dấu dòng, SL, doanh thu | null, chỉ số đơn | -1, ngày]]
  *
+ * Phân quyền theo từng người (từ bản api 9) – thay 3 vai trò cố định bằng bảng quyền:
+ *   QUYEN  loai (nguoi | mau) | ten | mau | quyen | khoa | cap_nhat | nguoi_sua
+ *          loai "nguoi": ten = tên người dùng, mau = mẫu vai trò đã áp, quyen = các quyền (cách nhau dấu phẩy), khoa = 1 khi tạm khóa
+ *          loai "mau":   ten = tên mẫu vai trò tự tạo / mẫu gốc đã sửa, quyen = các quyền của mẫu
+ *          Mã quyền: xem DS_QUYEN bên dưới (tab_… xem tab ; tai_… tải đơn sàn nào ; dot_… đợt ; dm_… danh mục ; qt_… quản trị).
+ *          CHUYỂN ĐỔI TỰ ĐỘNG: người có trong NGUOI_DUNG mà chưa có dòng QUYEN → quyền theo vai trò cũ (san → mẫu "Nhân viên sàn",
+ *          dat_hang → "Người đặt hàng", admin → "Admin"). Không cần chạy hàm nào. NGUOI_DUNG vẫn được ghi (vai_tro suy ra từ quyền) cho máy bản cũ.
+ *   GET (danh mục) và ?action=thayDoi trả thêm quyen: { ds: [mã quyền], mau: [{ ten, quyen, goc }], nguoi: [{ ten, mau, quyen, khoa }] }
+ *   POST luuQuyen { nguoi: [{ ten, mau, quyen, khoa }], mau: [{ ten, quyen }] } (cần mã Admin; luôn còn ≥ 1 người có quyền "Quản lý người dùng" không bị khóa)
+ *        → ghi LICH_SU từng người đổi quyền, tăng mốc đồng bộ để máy khác nhận ở lần đồng bộ 30 giây.
+ *   Nhóm Quản trị (qt_…) + mở lại / xóa đợt vẫn kiểm tra MÃ ADMIN ở đây như trước. Người bị tạm khóa: mọi thao tác ghi bị từ chối.
+ *   GET ?action=saoLuu → { ngay: [các ngày có bản sao lưu] } ; POST khoiPhucSaoLuu { ngay } (cần mã Admin) – như chạy tay hàm khoiPhucSaoLuu
+ *
  * API:
  *   GET  <url>                  → { ok, skus, combos }
  *   GET  <url>?action=lichSu    → { ok, lich_su }   (100 thay đổi gần nhất, mới nhất trước)
@@ -99,14 +112,14 @@
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
-var API = 8; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo, 6: sổ nhà, 7: khai báo lô, 8: thống kê bán theo ngày)
+var API = 9; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo, 6: sổ nhà, 7: khai báo lô, 8: thống kê bán theo ngày, 9: phân quyền theo từng người)
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA',
-           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG', BH: 'BAN_HANG', DS: 'DE_SAU', NHA: 'NHA', TK: 'THONG_KE', TKK: 'THONG_KE_KHOA' };
+           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG', BH: 'BAN_HANG', DS: 'DE_SAU', NHA: 'NHA', TK: 'THONG_KE', TKK: 'THONG_KE_KHOA', Q: 'QUYEN' };
 var BH_TRUNG_NGAY = 60;      // chống trùng khi chốt: so với lịch sử bán 60 ngày gần nhất (đơn treo nhiều ngày)
 var BH_GOM_SAU_NGAY = 120;   // gom các ngày cũ hơn 120 ngày thành 1 khối / tháng
 var BH_NGUONG_GOM = 3000;    // … khi sheet BAN_HANG quá số dòng này
 var VAI_TRO = ['san', 'dat_hang', 'admin'];
-var HD_ADMIN = ['kiemTraMaAdmin', 'luuNha', 'xoaNha', 'luuNguoiDung', 'moLaiDot', 'xoaDot', 'xoaPhan', 'suaPhan', 'luuCaiDatChung', 'importBatch', 'upsertMaChuan', 'xoaHangLoat', 'napThongKe'];
+var HD_ADMIN = ['kiemTraMaAdmin', 'luuNha', 'xoaNha', 'luuNguoiDung', 'moLaiDot', 'xoaDot', 'xoaPhan', 'suaPhan', 'luuCaiDatChung', 'importBatch', 'upsertMaChuan', 'xoaHangLoat', 'napThongKe', 'luuQuyen', 'khoiPhucSaoLuu'];
 var ADMIN_SAI_TOI_DA = 5, ADMIN_KHOA_PHUT = 10;
 var KHOA_CAI_DAT_CHUNG = ['maKhac', 'trangThaiShopee', 'plVoNghia', 'gian']; // gian: "Tên gian = từ khóa trong tên file, …"
 var DOT_DL = 'DOT_DL_';   // + yyyy-MM-dd : dữ liệu dòng đơn của 1 đợt
@@ -137,8 +150,25 @@ var COT = {
   NHA: ['ma', 'ten', 'loai', 'mau', 'ma_ten', 'ncc', 'tien_to', 'thu_tu', 'cap_nhat'],
   // Thống kê bán theo ngày (tab "Sàn bán gì") – xem mô tả đầu file
   THONG_KE: ['ngay', 'san', 'gian', 'khoa_sp', 'ten_sp', 'phan_loai', 'barcode', 'nganh', 'nha', 'so_luong', 'so_don', 'doanh_thu', 'nguon', 'nhom', 'combo', 'cap_nhat'],
-  THONG_KE_KHOA: ['ngay', 'nguon', 'thu_tu', 'du_lieu', 'cap_nhat']
+  THONG_KE_KHOA: ['ngay', 'nguon', 'thu_tu', 'du_lieu', 'cap_nhat'],
+  // Bảng quyền theo từng người + mẫu vai trò – xem mô tả đầu file
+  QUYEN: ['loai', 'ten', 'mau', 'quyen', 'khoa', 'cap_nhat', 'nguoi_sua']
 };
+/* Mã quyền (thứ tự = thứ tự cột trong tab "👥 Người dùng"). PHẢI khớp js/quyen.js */
+var DS_QUYEN = ['tab_tachdon', 'tab_dot', 'tab_dubao', 'tab_chokb', 'tab_thongke', 'tab_sanban', 'tab_danhmuc', 'tab_lichsu', 'tab_caidat', 'tab_nguoidung',
+                'tai_shopee', 'tai_tiktok', 'tai_web',
+                'dot_baoxong', 'dot_chot', 'dot_molai', 'dot_xuat',
+                'dm_khaibao', 'dm_sua', 'dm_xoa', 'dm_themnha',
+                'qt_caidat', 'qt_khoiphuc', 'qt_napbu', 'qt_nguoidung'];
+var Q_SAN = ['tab_tachdon', 'tab_chokb', 'tab_thongke', 'tab_danhmuc', 'tab_lichsu', 'tab_caidat', 'tai_shopee', 'tai_tiktok', 'tai_web',
+             'dot_baoxong', 'dot_xuat', 'dm_khaibao', 'dm_sua', 'dm_xoa', 'dm_themnha'];
+/* Mẫu vai trò gốc. 3 mẫu đầu = đúng quyền của 3 vai trò cũ (không ai mất quyền khi cập nhật). */
+var MAU_GOC = [
+  { ten: 'Nhân viên sàn', vai_tro: 'san', quyen: Q_SAN },
+  { ten: 'Người đặt hàng', vai_tro: 'dat_hang', quyen: Q_SAN.concat(['tab_dot', 'tab_dubao', 'tab_sanban', 'dot_chot']) },
+  { ten: 'Chỉ xem', vai_tro: 'san', quyen: ['tab_dot', 'tab_dubao', 'tab_thongke', 'tab_sanban', 'tab_danhmuc', 'tab_lichsu'] },
+  { ten: 'Admin', vai_tro: 'admin', quyen: DS_QUYEN }
+];
 var TK_GIU_NGAY = 183;     // THONG_KE giữ 183 ngày (6 tháng)
 var TK_TRUNG_NGAY = 60;    // chốt đợt: so dấu dòng với 60 ngày trước (đơn treo)
 var TK_KHOA_MOI_O = 3000;  // số dấu dòng mỗi ô
@@ -178,12 +208,13 @@ function doGet(e) {
     if (action === 'dot') return traVe_(docDot_(e.parameter.id, e.parameter.duLieu === '1'));
     if (action === 'dsDot') return traVe_(dsDot_());
     if (action === 'thongKe') return traVe_(tkTongHop_(e.parameter));
+    if (action === 'saoLuu') return traVe_({ ok: true, api: API, ngay: dsNgaySaoLuu_() });
     if (action === 'banHang') return traVe_({ ok: true, api: API, khoi: docBanHang_(e.parameter.tu) });
     if (action === 'admin') return traVe_({ ok: true, api: API, da_dat_ma: !!maAdmin_(), khoa_con_phut: khoaAdminConPhut_() });
     var rev = revHienTai_(); // đọc mốc TRƯỚC dữ liệu: có ai ghi chen giữa thì lần đồng bộ sau tải lại phần đó
     var cat = docCatalog_();
     return traVe_({ ok: true, api: API, rev: rev, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_(), nha: soNha_(),
-                    cai_dat_chung: docCaiDatChung_(), admin_da_dat_ma: !!maAdmin_(), de_sau: docDeSau_() });
+                    cai_dat_chung: docCaiDatChung_(), admin_da_dat_ma: !!maAdmin_(), de_sau: docDeSau_(), quyen: docQuyen_() });
   } catch (err) {
     return traVe_({ ok: false, error: String(err && err.message || err) });
   }
@@ -223,6 +254,10 @@ function xuLy_(action, data, nguoi) {
   }
   var nguoiLog = admin ? (nguoi || '?') + ' (Admin)' : nguoi;
   if (action === 'kiemTraMaAdmin') return { ok: true, admin: true };
+  // Người bị tạm khóa (tab "👥 Người dùng"): không ghi được gì (trừ khi gửi kèm đúng mã Admin)
+  if (!admin && nguoi && biKhoa_(nguoi)) throw new Error('TAM_KHOA: Tài khoản "' + nguoi + '" đang bị tạm khóa – nhờ Admin mở lại ở tab 👥 Người dùng.');
+  if (action === 'luuQuyen') return luuQuyen_(data, nguoi, nguoiLog);
+  if (action === 'khoiPhucSaoLuu') return khoiPhucTuApp_(data, nguoiLog);
   if (action === 'luuCaiDatChung') return luuCaiDatChung_(data, nguoiLog);
   if (action === 'luuNha') return luuNha_(data, nguoiLog);
   if (action === 'themNha') return themNha_(data, nguoiLog);
@@ -1221,13 +1256,13 @@ function docThayDoi_(tu) {
     var catBo = Number(PropertiesService.getScriptProperties().getProperty('DM_XOA_CAT')) || 0;
     if (tu <= 0 || tu < catBo || tu > rev) {
       return { ok: true, api: API, rev: rev, toanBo: true, skus: cat.skus, combos: cat.combos, ma_chuan: cat.ma_chuan, nguoi_dung: docNguoiDung_(),
-               cai_dat_chung: docCaiDatChung_() };
+               cai_dat_chung: docCaiDatChung_(), quyen: docQuyen_() };
     }
     var moi = function (r) { return soPb_(r.dong_bo) > tu; };
     var xoa = docBang_(SH.XOA).filter(function (x) { return soPb_(x.phien_ban) > tu; })
       .map(function (x) { return { loai: x.loai, khoa: x.khoa }; });
     return { ok: true, api: API, rev: rev, skus: cat.skus.filter(moi), combos: cat.combos.filter(moi), ma_chuan: cat.ma_chuan.filter(moi),
-             xoa: xoa, log: docLogSau_(tu), nguoi_dung: docNguoiDung_(), cai_dat_chung: docCaiDatChung_(), de_sau: docDeSau_(), nha: soNha_() };
+             xoa: xoa, log: docLogSau_(tu), nguoi_dung: docNguoiDung_(), cai_dat_chung: docCaiDatChung_(), de_sau: docDeSau_(), nha: soNha_(), quyen: docQuyen_() };
   } finally {
     if (coKhoa) lock.releaseLock();
   }
@@ -1260,9 +1295,99 @@ function luuNguoiDung_(d, nguoi) {
     ds.push({ ten: ten, vai_tro: VAI_TRO.indexOf(x.vai_tro) >= 0 ? x.vai_tro : 'san', cap_nhat: now });
   });
   var cu = docNguoiDung_();
+  dongBoQuyenTheoVaiTro_(cu, ds, now, nguoi); // máy bản cũ đổi vai trò / xóa người → bảng quyền đi theo
   ghiBang_(SH.ND, ds);
   ghiLichSu_([[now, 'luuNguoiDung', ds.length + ' người', JSON.stringify(cu), JSON.stringify(ds), nguoi || '', '']]);
-  return { ok: true, nguoi_dung: docNguoiDung_() };
+  datRev_(revHienTai_() + 1); // máy khác nhận danh sách mới ở lần đồng bộ 30 giây
+  return { ok: true, nguoi_dung: docNguoiDung_(), quyen: docQuyen_() };
+}
+
+/* ===================== Phân quyền theo từng người (api 9) ===================== */
+
+function chuanQuyen_(v) {
+  var ds = Array.isArray(v) ? v : String(v || '').split(/[,\s]+/), co = {};
+  ds.forEach(function (k) { k = chuoi_(k); if (DS_QUYEN.indexOf(k) >= 0) co[k] = 1; });
+  return DS_QUYEN.filter(function (k) { return co[k]; });
+}
+function mauGoc_(ten) { return MAU_GOC.filter(function (m) { return m.ten === ten; })[0] || null; }
+function mauTheoVaiTro_(vt) { return vt === 'admin' ? 'Admin' : vt === 'dat_hang' ? 'Người đặt hàng' : 'Nhân viên sàn'; }
+/* Vai trò cũ suy ra từ quyền – ghi vào NGUOI_DUNG cho máy chạy bản app cũ */
+function vaiTroTuQuyen_(q) { return q.indexOf('qt_nguoidung') >= 0 ? 'admin' : q.indexOf('dot_chot') >= 0 ? 'dat_hang' : 'san'; }
+/* Bảng quyền hiện tại: mẫu vai trò (gốc + tự tạo) + quyền từng người. Người chưa có dòng QUYEN → theo vai trò cũ (chuyển đổi tự động). */
+function docQuyen_() {
+  var bang = docBang_(SH.Q), mau = MAU_GOC.map(function (m) { return { ten: m.ten, quyen: chuanQuyen_(m.quyen), goc: true }; }), rieng = {};
+  bang.forEach(function (x) {
+    if (!x.ten) return;
+    if (x.loai === 'mau') {
+      var m = mau.filter(function (y) { return y.ten === x.ten; })[0];
+      if (m && m.ten === 'Admin') return; // mẫu Admin luôn đủ quyền
+      if (m) m.quyen = chuanQuyen_(x.quyen); else mau.push({ ten: x.ten, quyen: chuanQuyen_(x.quyen), goc: false });
+    } else if (x.loai === 'nguoi') rieng[x.ten] = x;
+  });
+  var nguoi = docBang_(SH.ND).filter(function (x) { return x.ten; }).map(function (n) {
+    var r = rieng[n.ten];
+    if (r) return { ten: n.ten, mau: r.mau, quyen: chuanQuyen_(r.quyen), khoa: String(r.khoa) === '1' };
+    var tm = mauTheoVaiTro_(n.vai_tro);
+    return { ten: n.ten, mau: tm, quyen: chuanQuyen_(mauGoc_(tm).quyen), khoa: false, tu_vai_tro: true };
+  });
+  return { ds: DS_QUYEN, mau: mau, nguoi: nguoi };
+}
+function biKhoa_(ten) {
+  return docBang_(SH.Q).some(function (x) { return x.loai === 'nguoi' && x.ten === ten && String(x.khoa) === '1'; });
+}
+/* Lưu cả bảng quyền (thay danh sách người + mẫu tự tạo). Luôn còn ≥ 1 người quản lý được người dùng và không bị khóa. */
+function luuQuyen_(d, nguoi, nguoiLog) {
+  var now = bayGio_(), cu = docQuyen_(), da = {}, dsNguoi = [], dsMau = [], daMau = {};
+  (d.mau || []).forEach(function (m) {
+    var ten = chuoi_(m.ten).slice(0, 40);
+    if (!ten || daMau[ten.toLowerCase()] || ten === 'Admin') return;
+    daMau[ten.toLowerCase()] = 1;
+    var goc = mauGoc_(ten), q = chuanQuyen_(m.quyen);
+    if (goc && q.join() === chuanQuyen_(goc.quyen).join()) return; // mẫu gốc chưa sửa → không cần lưu
+    dsMau.push({ loai: 'mau', ten: ten, mau: '', quyen: q.join(','), khoa: '', cap_nhat: now, nguoi_sua: nguoiLog || '' });
+  });
+  (d.nguoi || []).forEach(function (x) {
+    var ten = chuoi_(x.ten).slice(0, 40);
+    if (!ten || da[ten.toLowerCase()]) return;
+    da[ten.toLowerCase()] = 1;
+    dsNguoi.push({ ten: ten, mau: chuoi_(x.mau).slice(0, 40), quyen: chuanQuyen_(x.quyen), khoa: !!x.khoa });
+  });
+  if (!dsNguoi.some(function (x) { return !x.khoa && x.quyen.indexOf('qt_nguoidung') >= 0; }))
+    throw new Error('Phải còn ít nhất 1 Admin (người có quyền "Quản lý người dùng" và không bị tạm khóa).');
+  // Lịch sử: mỗi người đổi quyền 1 dòng (thêm / bớt quyền nào, khóa / mở khóa)
+  var cuTheo = {}, log = [];
+  cu.nguoi.forEach(function (x) { cuTheo[x.ten] = x; });
+  dsNguoi.forEach(function (x) {
+    var c = cuTheo[x.ten];
+    delete cuTheo[x.ten];
+    var them = x.quyen.filter(function (k) { return !c || c.quyen.indexOf(k) < 0; }), bot = c ? c.quyen.filter(function (k) { return x.quyen.indexOf(k) < 0; }) : [];
+    var doiKhoa = c ? c.khoa !== x.khoa : x.khoa;
+    if (c && !them.length && !bot.length && !doiKhoa && c.mau === x.mau) return;
+    var ghiChu = (c ? 'Đổi quyền ' : 'Thêm người ') + x.ten + (x.mau ? ' (mẫu ' + x.mau + ')' : '') + (them.length ? ' · thêm: ' + them.join(', ') : '') +
+      (bot.length ? ' · bớt: ' + bot.join(', ') : '') + (doiKhoa ? (x.khoa ? ' · TẠM KHÓA' : ' · mở khóa') : '');
+    log.push([now, c ? 'doiQuyen' : 'themNguoiDung', x.ten, c ? JSON.stringify({ mau: c.mau, quyen: c.quyen.join(','), khoa: c.khoa }) : '',
+              JSON.stringify({ mau: x.mau, quyen: x.quyen.join(','), khoa: x.khoa, ghi_chu: ghiChu.slice(0, 900) }), nguoiLog || '', '']);
+  });
+  Object.keys(cuTheo).forEach(function (ten) {
+    log.push([now, 'xoaNguoiDung', ten, JSON.stringify({ mau: cuTheo[ten].mau, quyen: cuTheo[ten].quyen.join(',') }), JSON.stringify({ ghi_chu: 'Xóa người dùng ' + ten }), nguoiLog || '', '']);
+  });
+  ghiBang_(SH.Q, dsMau.concat(dsNguoi.map(function (x) {
+    return { loai: 'nguoi', ten: x.ten, mau: x.mau, quyen: x.quyen.join(','), khoa: x.khoa ? '1' : '', cap_nhat: now, nguoi_sua: nguoiLog || '' };
+  })));
+  ghiBang_(SH.ND, dsNguoi.map(function (x) { return { ten: x.ten, vai_tro: vaiTroTuQuyen_(x.quyen), cap_nhat: now }; }));
+  ghiLichSu_(log);
+  datRev_(revHienTai_() + 1); // máy khác nhận quyền mới ở lần đồng bộ 30 giây
+  return { ok: true, nguoi_dung: docNguoiDung_(), quyen: docQuyen_(), soDoi: log.length };
+}
+/* Máy chạy app bản cũ lưu danh sách (tên + vai trò): người đổi vai trò → quyền theo mẫu của vai trò mới ; người bị xóa → bỏ dòng quyền */
+function dongBoQuyenTheoVaiTro_(cu, moi, now, nguoi) {
+  var bang = docBang_(SH.Q);
+  if (!bang.length) return;
+  var vtCu = {}, vtMoi = {};
+  cu.forEach(function (x) { vtCu[x.ten] = x.vai_tro; });
+  moi.forEach(function (x) { vtMoi[x.ten] = x.vai_tro; });
+  var giu = bang.filter(function (x) { return x.loai !== 'nguoi' || (vtMoi[x.ten] && vtMoi[x.ten] === (vtCu[x.ten] || vtMoi[x.ten])); });
+  if (giu.length !== bang.length) ghiBang_(SH.Q, giu);
 }
 
 /* ===================== Đợt đặt hàng ===================== */
@@ -2129,12 +2254,12 @@ function bayGio_() { return dinhDang_(new Date()); }
 
 /** Chạy 1 lần: tạo đủ 4 sheet có dòng tiêu đề. */
 function khoiTao() {
-  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN, SH.CDC, SH.BH, SH.DS, SH.NHA, SH.TK, SH.TKK].forEach(sheet_);
+  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN, SH.CDC, SH.BH, SH.DS, SH.NHA, SH.TK, SH.TKK, SH.Q].forEach(sheet_);
   var ss = bangTinh_();
   ss.getSheets().forEach(function (s) {
     if (/^(Sheet1|Trang tính1)$/.test(s.getName()) && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
-  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN, CAI_DAT_CHUNG, BAN_HANG, DE_SAU, NHA, THONG_KE, THONG_KE_KHOA.');
+  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN, CAI_DAT_CHUNG, BAN_HANG, DE_SAU, NHA, THONG_KE, THONG_KE_KHOA, QUYEN.');
 }
 
 /** Sao lưu 3 sheet danh mục sang file "Sao lưu danh mục – Tách đơn nhập nhà", giữ 30 bản gần nhất. */
@@ -2195,10 +2320,34 @@ function caiDatSaoLuuTuDong() {
  * Trước khi khôi phục, danh mục hiện tại được sao lưu thêm 1 bản (tên có chữ "truoc-khoi-phuc").
  */
 var NGAY_KHOI_PHUC = '2026-10-03';
+/* Các ngày có bản sao lưu đủ 3 sheet (mới nhất trước) – cho nút "♻️ Khôi phục sao lưu" trong app */
+function dsNgaySaoLuu_() {
+  var id = PropertiesService.getScriptProperties().getProperty('SAO_LUU_ID'), dem = {};
+  if (!id) return [];
+  var bk;
+  try { bk = SpreadsheetApp.openById(id); } catch (e) { return []; }
+  bk.getSheets().forEach(function (s) { var m = /^(\d{4}-\d{2}-\d{2}) /.exec(s.getName()); if (m) dem[m[1]] = (dem[m[1]] || 0) + 1; });
+  return Object.keys(dem).filter(function (n) { return dem[n] >= 3; }).sort().reverse();
+}
+/* Người có quyền "Khôi phục sao lưu" bấm trong app (đã kiểm tra mã Admin; doPost đang giữ khóa) */
+function khoiPhucTuApp_(d, nguoiLog) {
+  var ngay = chuoi_(d.ngay);
+  if (!laNgay_(ngay)) throw new Error('Thiếu ngày bản sao lưu.');
+  khoiPhuc_(ngay, nguoiLog || '(khôi phục sao lưu)');
+  return { ok: true, catalog: docCatalog_(), ngay: ngay };
+}
 function khoiPhucSaoLuu() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    khoiPhuc_(NGAY_KHOI_PHUC, '(khôi phục sao lưu)');
+    Logger.log('Đã khôi phục danh mục từ bản sao lưu ngày ' + NGAY_KHOI_PHUC + '.');
+  } finally {
+    lock.releaseLock();
+  }
+}
+function khoiPhuc_(NGAY_KHOI_PHUC, nguoiKp) {
+  {
     var bk = fileSaoLuu_();
     var tenBang = [SH.SKU, SH.COMBO, SH.TP];
     tenBang.forEach(function (ten) {
@@ -2207,7 +2356,7 @@ function khoiPhucSaoLuu() {
     var gio = dinhDang_(new Date(), 'HHmmss');
     var ss = bangTinh_();
     var revKp = revHienTai_() + 1;
-    var ctx = { now: bayGio_(), log: [], nguoi: '(khôi phục sao lưu)', rev: revKp };
+    var ctx = { now: bayGio_(), log: [], nguoi: nguoiKp, rev: revKp };
     tenBang.forEach(function (ten) {
       var hienTai = sheet_(ten);
       hienTai.copyTo(bk).setName('truoc-khoi-phuc ' + gio + ' ' + ten);
@@ -2225,8 +2374,5 @@ function khoiPhucSaoLuu() {
     // Mọi máy tải lại toàn bộ danh mục ở lần đồng bộ tới
     datRev_(revKp);
     PropertiesService.getScriptProperties().setProperty('DM_XOA_CAT', String(revKp));
-    Logger.log('Đã khôi phục danh mục từ bản sao lưu ngày ' + NGAY_KHOI_PHUC + '.');
-  } finally {
-    lock.releaseLock();
   }
 }

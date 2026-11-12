@@ -131,7 +131,7 @@ var ctx = { console: console, JSON: JSON, Math: Math, Date: Date, String: String
     return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve(JSON.parse(body)); } });
   } };
 ctx.self = ctx; vm.createContext(ctx);
-['docfile.js', 'phanloai.js', 'danhmuc.js'].forEach(function (f) { vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx); });
+['docfile.js', 'phanloai.js', 'quyen.js', 'danhmuc.js'].forEach(function (f) { vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx); });
 var traLoiMa = [];
 ctx.App = { hoiMaAdmin: function (loiTruoc) { hoi.push(loiTruoc); return Promise.resolve(traLoiMa.shift() || null); } };
 var DM = ctx.DanhMuc;

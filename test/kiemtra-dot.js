@@ -182,7 +182,7 @@ function mayVoi(server) {
       return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve(JSON.parse(body)); } });
     } };
   ctx.self = ctx; vm.createContext(ctx);
-  ['docfile.js', 'phanloai.js', 'danhmuc.js'].forEach(function (f) { vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx); });
+  ['docfile.js', 'phanloai.js', 'quyen.js', 'danhmuc.js'].forEach(function (f) { vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx); });
   ctx.DanhMuc.luuCaiDat({ url: 'https://script.google.com/macros/s/x/exec', toiLa: 'Lan' });
   return ctx;
 }

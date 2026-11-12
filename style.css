@@ -708,3 +708,36 @@ main:has(> #man-sanban:not([hidden])) { max-width: none; padding: 16px 16px 40px
 @media (max-width: 1099px) { #man-sanban .table-wrap { overflow-x: auto; } .sb-bang { min-width: 900px; } .sb-the { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .sb-the { grid-template-columns: minmax(0, 1fr); } }
 .sb-cohoi-luoi .tk-ten { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* ---------- Phân quyền: tab "👥 Người dùng" + ẩn hẳn nút không có quyền ---------- */
+main:has(> #man-nguoidung:not([hidden])) { max-width: none; padding: 16px 16px 40px; }
+.nd-tbl { font-size: 13px; }
+.nd-tbl th, .nd-tbl td { padding: 6px 6px; vertical-align: middle; }
+.nd-tbl thead th { position: sticky; top: 0; z-index: 2; background: var(--th-bg); }
+.nd-tbl thead tr:nth-child(2) th { top: 30px; }
+.nd-nhom { text-align: center; border-left: 2px solid var(--line); white-space: nowrap; height: 30px; }
+.nd-q { font-weight: 600; text-align: center; min-width: 46px; max-width: 64px; line-height: 1.15; white-space: normal; font-size: 11.5px; text-transform: none; letter-spacing: 0; }
+.nd-o { text-align: center; }
+.nd-o input, .nd-c-khoa input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--brand); }
+.nd-o input:disabled, .nd-c-khoa input:disabled { cursor: default; }
+.nd-dau-nhom { border-left: 2px solid var(--line); }
+.nd-tbl .nd-c-ten { min-width: 150px; position: sticky; left: 0; z-index: 1; background: var(--paper); box-shadow: inset -2px 0 0 var(--line); }
+.nd-tbl thead .nd-c-ten { z-index: 3; background: var(--th-bg); }
+.nd-tbl .nd-c-ten .input { min-width: 130px; padding: 6px 9px; }
+.nd-c-mau { min-width: 150px; white-space: nowrap; }
+.nd-c-khoa { text-align: center; }
+.nd-c-nut { white-space: nowrap; }
+.nd-chep { max-width: 150px; }
+tr.nd-bi-khoa td { opacity: .55; }
+tr.nd-bi-khoa td.nd-c-ten, tr.nd-bi-khoa td.nd-c-khoa, tr.nd-bi-khoa td.nd-c-nut { opacity: 1; }
+.nd-td-mau { font: 700 18px/1.2 var(--font-head); margin: 4px 6px -6px; }
+.drop.an-quyen { display: none; }
+/* Nút vẽ động: thiếu quyền thì ẩn hẳn (lớp k0-<quyền> do App.veQuyen đặt trên <body>) */
+.k0-dm_khaibao [data-sua-ten], .k0-dm_khaibao [data-bc-nha], .k0-dm_khaibao [data-bc-cr], .k0-dm_khaibao [data-bc-bq], .k0-dm_khaibao [data-la-combo],
+.k0-dm_khaibao [data-la-combo-bq], .k0-dm_khaibao [data-gan-bq], .k0-dm_khaibao [data-gan-sel], .k0-dm_khaibao #kb-lo, .k0-dm_khaibao #man-chokb [data-kb-chon],
+.k0-dm_xoa [data-xoa-sku], .k0-dm_xoa [data-xoa-combo],
+.k0-dot_xuat [data-tai-nha], .k0-dot_xuat [data-gb="tai"],
+.k0-tab_lichsu [data-dm="lichsu"] { display: none !important; }
+.k0-dm_khaibao #man-chokb select, .k0-dm_khaibao #man-chokb textarea { pointer-events: none; }
+.nd-ghichu { margin: 0 6px; font-size: 13px; }
+.nd-tbl .nd-c-mau .select { max-width: 170px; }

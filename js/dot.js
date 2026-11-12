@@ -61,20 +61,20 @@
     var el = $('dot-nhan'), co = DM.coDot();
     el.hidden = !co;
     var nav = $('nav-dot');
-    nav.hidden = !(co && A.laDatHang());
+    nav.hidden = !(co && A.coQuyen('tab_dot'));
     if (!co) return;
     var homNay = DG.homNayVN();
     if (dotHienTai.id !== homNay) dotHienTai = { id: homNay, trangThai: '' };
     el.innerHTML = '🗓️ Đợt ' + DG.ngayNgan(homNay) + (dotHienTai.trangThai === 'da_chot' ? ' <span class="dot-chot">🔒 đã chốt</span>' : '') +
       ' · Bạn: <b>' + esc(DM.caiDat.toiLa || '(chưa chọn)') + '</b>';
-    el.title = DM.caiDat.toiLa ? 'Đổi "Tôi là" ở Cài đặt' : 'Chọn "Tôi là" ở Cài đặt';
+    el.title = 'Bấm để chọn / đổi "Tôi là"';
   }
 
   /* ---------- Báo xong (màn Tách đơn) ---------- */
   var gui = { dang: false, loi: '' };
   function veBaoXong() {
     var el = $('bao-xong');
-    if (!DM.coDot() || A.S.gop || !A.S.kq) { el.hidden = true; return; }
+    if (!DM.coDot() || A.S.gop || !A.S.kq || !A.coQuyen('dot_baoxong')) { el.hidden = true; return; }
     el.hidden = false;
     var dg = nhap.daGui, h;
     if (!DM.caiDat.toiLa) {
@@ -198,13 +198,13 @@
     $('dot-tt').className = 'dot-tt ' + (chot ? 'da-chot' : 'dang-nhan');
     $('dot-tt').textContent = !T.dot ? '…' : chot ? '🔒 Đã chốt ' + (DM.gioPhut(T.dot.chot_luc) || '') + (T.dot.chot_boi ? ' · ' + T.dot.chot_boi : '') : '🟢 Đang nhận';
     // Mở lại đợt đã chốt / xóa đợt: chỉ Admin (Apps Script cũ chưa có Admin → người đặt hàng mở lại như trước)
-    var quanLy = DM.coAdmin() ? A.laAdmin() : true;
-    $('dot-chot').hidden = chot;
+    var quanLy = A.coQuyen('dot_molai');
+    $('dot-chot').hidden = chot || !A.coQuyen('dot_chot');
     $('dot-mo-lai').hidden = !chot || !quanLy;
-    $('dot-xoa').hidden = !(DM.coAdmin() && A.laAdmin()) || !T.dot || T.dot.chua_tao;
+    $('dot-xoa').hidden = !(DM.coAdmin() && quanLy) || !T.dot || T.dot.chua_tao;
     if (T.loi) { el.innerHTML = '<div class="trong-bang">😿 ' + esc(T.loi) + '</div>'; return; }
     if (!T.dot) { el.innerHTML = '<div class="trong-bang">Đang tải…</div>'; return; }
-    var laQl = DM.coAdmin() && A.laAdmin();
+    var laQl = DM.coAdmin() && quanLy;
     var hang = T.phan.slice().sort(function (a, b) { return String(a.gui_luc) < String(b.gui_luc) ? -1 : 1; }).map(function (p) {
       var sot = (p.con_combo ? p.con_combo + ' combo' : '') + (p.con_combo && p.con_chua_ro ? ' / ' : '') + (p.con_chua_ro ? p.con_chua_ro + ' chưa rõ' : '');
       return '<tr><td><b>' + esc(p.nguoi) + '</b></td><td>' + esc(p.nguon || '—') + '</td><td class="' + (p.trang_thai === 'mo_lai' ? 'dot-canh' : 'dot-xong') + '">' + tenTrangThai(p) +
@@ -215,7 +215,7 @@
     var daCo = {};
     T.phan.forEach(function (p) { daCo[p.nguoi] = 1; });
     T.nguoiDung.filter(function (n) { return !daCo[n.ten]; }).forEach(function (n) {
-      hang.push('<tr class="dot-chua"><td><b>' + esc(n.ten) + '</b> <span class="pl">' + ({ dat_hang: 'người đặt hàng', admin: 'admin' }[n.vai_tro] || 'nhân viên sàn') + '</span></td><td>—</td><td>⏳ Chưa gửi</td><td class="so">—</td><td>—</td>' + (laQl ? '<td></td>' : '') + '</tr>');
+      hang.push('<tr class="dot-chua"><td><b>' + esc(n.ten) + '</b> <span class="pl">' + esc(root.CaiDat ? root.CaiDat.tenMau(n) : '') + '</span></td><td>—</td><td>⏳ Chưa gửi</td><td class="so">—</td><td>—</td>' + (laQl ? '<td></td>' : '') + '</tr>');
     });
     var tongDong = T.phan.reduce(function (s, p) { return s + (Number(p.so_dong) || 0); }, 0);
     el.innerHTML = '<table class="tbl"><thead><tr><th>Người</th><th>Nguồn</th><th>Trạng thái</th><th class="so">Số dòng</th><th>Còn sót (combo / chưa rõ)</th>' + (laQl ? '<th><span class="sr">Quản lý</span></th>' : '') + '</tr></thead><tbody>' +
@@ -257,8 +257,8 @@
       (T.gop.choXong.length ? '<div class="dot-canh">⚠️ Chưa báo xong: ' + esc(T.gop.choXong.join(', ')) + '</div>' : '') + '</div>' +
       '<div class="actions">' +
       A.nutGhi('🔄 Tính lại', 'class="btn btn-sm" data-gb="lai"') +
-      '<button type="button" class="btn btn-sm btn-primary" data-gb="tai">⬇️ Tải 3 file nhà</button>' +
-      (chot ? (DM.coAdmin() && !A.laAdmin() ? '' : A.nutGhi('🔓 Mở lại đợt', 'class="btn btn-sm" data-gb="molai"')) : A.nutGhi('🔒 Chốt đợt', 'class="btn btn-sm btn-danger" data-gb="chot"')) +
+      (A.coQuyen('dot_xuat') ? '<button type="button" class="btn btn-sm btn-primary" data-gb="tai">⬇️ Tải 3 file nhà</button>' : '') +
+      (chot ? (A.nutGhi('🔓 Mở lại đợt', 'class="btn btn-sm" data-gb="molai"')) : A.nutGhi('🔒 Chốt đợt', 'class="btn btn-sm btn-danger" data-gb="chot"')) +
       '<button type="button" class="btn btn-sm" data-gb="ve">↩️ Về phần của tôi</button></div>';
   }
   function veTuGop() { A.thoatGop(); T.gop = null; veGopBar(); }
@@ -410,9 +410,25 @@
           .catch(function (e) { if (!e.daHuy) $('phan-loi').textContent = e.message; });
       });
     });
-    $('dot-nhan').addEventListener('click', function () { A.diToi(A.laDatHang() ? 'dot' : 'caidat'); });
+    // Ô "Bạn: …" trên thanh đầu: chọn / đổi "Tôi là" (dùng được cả khi không có quyền vào Cài đặt)
+    $('dot-nhan').addEventListener('click', function () {
+      var ds = DM.nguoiDung, toi = DM.caiDat.toiLa || '';
+      if (!ds.length) { A.diToi('caidat'); return; }
+      $('toila-chon').innerHTML = (ds.some(function (n) { return n.ten === toi; }) ? '' : '<option value="" selected>— chọn tên của bạn —</option>') +
+        ds.map(function (n) { return '<option value="' + esc(n.ten) + '"' + (n.ten === toi ? ' selected' : '') + '>' + esc(n.ten) + (root.CaiDat ? ' · ' + esc(root.CaiDat.tenMau(n)) : '') + '</option>'; }).join('');
+      var d = $('dlg-toila');
+      d.returnValue = '';
+      d.addEventListener('close', function f() {
+        d.removeEventListener('close', f);
+        var v = $('toila-chon').value;
+        if (d.returnValue !== 'ok' || !v || v === DM.caiDat.toiLa) return;
+        DM.luuCaiDat({ toiLa: v });
+        A.toast('👤 Máy này: ' + v, 'ok');
+      });
+      d.showModal();
+    });
     DM.nghe(function (loai) {
-      if (loai === 'api' || loai === 'caidat' || loai === 'nguoidung' || loai === 'admin') { veNhan(); veBaoXong(); A.veBanner(); if (!$('man-dot').hidden) veBangTongHop(); }
+      if (loai === 'api' || loai === 'caidat' || loai === 'nguoidung' || loai === 'admin' || loai === 'quyen') { veNhan(); veBaoXong(); veGopBar(); A.veBanner(); if (!$('man-dot').hidden) veBangTongHop(); }
     });
     veNhan();
   });

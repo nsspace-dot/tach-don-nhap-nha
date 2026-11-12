@@ -67,8 +67,8 @@
 
   function veNav() {
     var co = DM.coBanHang();
-    $('nav-dubao').hidden = !(co && A.laDatHang());
-    $('nav-chokb').hidden = !co;
+    $('nav-dubao').hidden = !(co && A.coQuyen('tab_dubao'));
+    $('nav-chokb').hidden = !(co && A.coQuyen('tab_chokb'));
     $('dem-chokb').textContent = co && H.ck ? '(' + H.ck.length + ')' : '';
   }
 
@@ -340,7 +340,7 @@
   }
   function oNha(x, i, an) {
     if (x.loai === 'combo_thieu') return '<span class="muted" title="Combo đã khai báo – nhà theo từng thành phần">theo thành phần</span>';
-    var doi = coDoiNha(x), combo = laCombo(x), khoa = an || !DM.coTheGhi() || (!doi && !combo);
+    var doi = coDoiNha(x), combo = laCombo(x), khoa = an || !DM.coTheGhi() || !A.coQuyen('dm_khaibao') || (!doi && !combo);
     var tip = combo ? 'Nhà dự kiến – dùng khi bấm 📖 Là sách lẻ' : doi ? 'Đổi nhà là lưu ngay vào danh mục (gán tay)' : 'Sách tách từ combo – đổi nhà trong combo';
     return '<select class="select select-sm kb-nha" data-kb-nha="' + i + '" title="' + tip + '" aria-label="Nhà"' + (khoa ? ' disabled' : '') + '>' +
       A.nhaOptions(nhaMuc(x), { dau: '— chọn nhà —', moi: !khoa && DM.coNha() }) + '</select>';
@@ -400,7 +400,7 @@
   function dsChon() { return (H.kbHien || []).filter(function (x) { return H.kbChon[idMuc(x)]; }); }
   function veLo() {
     var el = $('kb-lo'), n = dsChon().length;
-    if (H.kbAn || !DM.coTheGhi() || !(H.kbHien || []).length) { el.hidden = true; return; }
+    if (H.kbAn || !DM.coTheGhi() || !A.coQuyen('dm_khaibao') || !(H.kbHien || []).length) { el.hidden = true; return; }
     el.hidden = false;
     var giuNha = $('kb-lo-nha') ? $('kb-lo-nha').value : '';
     el.innerHTML = '<span>Đã chọn <b>' + n + '</b> dòng</span>' +

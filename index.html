@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261112b">
-  <link rel="stylesheet" href="themes.css?v=20261112b">
-  <script src="js/chude.js?v=20261112b"></script>
+  <link rel="stylesheet" href="style.css?v=20261112c">
+  <link rel="stylesheet" href="themes.css?v=20261112c">
+  <script src="js/chude.js?v=20261112c"></script>
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -33,6 +33,7 @@
       <button class="nav-btn" data-man="sanban" id="nav-sanban" hidden>🛒 Sàn bán gì</button>
       <button class="nav-btn" data-man="danhmuc">📚 Danh mục</button>
       <button class="nav-btn" data-man="caidat">⚙️ Cài đặt</button>
+      <button class="nav-btn" data-man="nguoidung" id="nav-nguoidung" hidden>👥 Người dùng</button>
     </nav>
     <button class="dot-nhan" id="dot-nhan" type="button" hidden></button>
     <button class="sync" id="sync" type="button" title="Bấm để tải lại danh mục">
@@ -69,7 +70,7 @@
         <div class="xong" id="xong">
           <div class="xong-cat" id="xong-cat" aria-hidden="true"></div>
           <div class="xong-text" id="xong-text"></div>
-          <button class="btn btn-big" id="btn-tai" type="button" title="Tải đơn đặt hàng của các nhà có hàng (bỏ qua nhà 0 cuốn)">⬇️ Tải cả 3 nhà</button>
+          <button class="btn btn-big" id="btn-tai" type="button" data-quyen="dot_xuat" title="Tải đơn đặt hàng của các nhà có hàng (bỏ qua nhà 0 cuốn)">⬇️ Tải cả 3 nhà</button>
         </div>
 
         <div class="tai-ban" id="tai-ban" hidden></div>
@@ -106,8 +107,8 @@
         <div class="actions">
           <button class="btn" id="dot-lam-moi" type="button">🔄 Làm mới</button>
           <button class="btn btn-primary" id="dot-xem" type="button" title="Lấy mọi phần đã báo xong, tính lại theo danh mục mới nhất, bỏ đơn trùng giữa các người">👀 Xem trước gộp</button>
-          <button class="btn" id="dot-tai" type="button">⬇️ Tải 3 file nhà</button>
-          <button class="btn btn-danger" id="dot-chot" type="button">🔒 Chốt đợt</button>
+          <button class="btn" id="dot-tai" type="button" data-quyen="dot_xuat">⬇️ Tải 3 file nhà</button>
+          <button class="btn btn-danger" id="dot-chot" type="button" data-quyen="dot_chot">🔒 Chốt đợt</button>
           <button class="btn" id="dot-mo-lai" type="button" hidden>🔓 Mở lại đợt</button>
           <button class="btn btn-ghost" id="dot-xoa" type="button" hidden title="Chỉ Admin">🗑 Xóa đợt</button>
         </div>
@@ -192,7 +193,7 @@
         <div class="tk-loc-hang tk-nut">
           <button class="btn" id="tk-tailai" type="button">🔄 Tải lại</button>
           <button class="btn" id="tk-xuat" type="button">📤 Xuất Excel các bảng</button>
-          <button class="btn can-write" id="tk-nap" type="button" title="Chọn nhiều file Order_all Shopee / TikTok / Danh sách lấy hàng web cũ">📥 Nạp lịch sử từ file đơn cũ</button>
+          <button class="btn can-write" id="tk-nap" type="button" data-quyen="dm_khaibao dm_sua qt_napbu" title="Chọn nhiều file Order_all Shopee / TikTok / Danh sách lấy hàng web cũ">📥 Nạp lịch sử từ file đơn cũ</button>
           <input type="file" id="tk-nap-input" accept=".xlsx,.xls" multiple hidden>
         </div>
       </div>
@@ -259,7 +260,7 @@
           <button class="seg-btn is-active" data-dm="sku" role="tab" aria-selected="true">SKU → nhà <span id="dm-dem-sku" class="dem"></span></button>
           <button class="seg-btn" data-dm="combo" role="tab" aria-selected="false">Combo <span id="dm-dem-combo" class="dem"></span></button>
           <button class="seg-btn" data-dm="gantay" role="tab" aria-selected="false">🏷️ Barcode gán tay <span id="dm-dem-gantay" class="dem"></span></button>
-          <button class="seg-btn" data-dm="lichsu" role="tab" aria-selected="false">🕘 Lịch sử</button>
+          <button class="seg-btn" data-dm="lichsu" data-quyen="tab_lichsu" role="tab" aria-selected="false">🕘 Lịch sử</button>
         </div>
         <input type="search" class="input search" id="dm-tim" placeholder="🔎 Tìm theo SKU, tên sách…" aria-label="Tìm trong danh mục">
         <label class="radio loc-ten" id="dm-loc-ten-o"><input type="checkbox" id="dm-loc-ten"> Chưa có tên khai báo <span id="dm-dem-chuaten" class="dem"></span></label>
@@ -278,6 +279,29 @@
       </div>
     </section>
 
+    <!-- ============ MÀN NGƯỜI DÙNG (bảng quyền theo từng người) ============ -->
+    <section class="man" id="man-nguoidung" aria-label="Người dùng" hidden>
+      <div class="panel dot-head">
+        <div class="dot-tieu-de"><h2>👥 Người dùng</h2><span class="muted" id="nd-tom"></span></div>
+        <div class="actions" id="nd-nut">
+          <button class="btn btn-ghost" id="nd-them" type="button">＋ Thêm người</button>
+          <button class="btn btn-ghost" id="nd-them-mau" type="button">＋ Tạo mẫu vai trò</button>
+          <button class="btn" id="nd-huy" type="button" hidden>↩️ Bỏ thay đổi</button>
+          <button class="btn btn-primary" id="nd-luu" type="button">💾 Lưu quyền</button>
+        </div>
+      </div>
+      <p class="muted nd-ghichu" id="nd-ghichu">Tick từng ô để bật / tắt quyền. Chọn <b>mẫu vai trò</b> để áp nhanh rồi chỉnh từng ô. Tab / nút không có quyền sẽ ẩn hẳn trên máy người đó;
+        máy khác nhận quyền mới ở lần đồng bộ 30 giây. Mọi người vẫn chọn tên để vào như cũ (không có mã cá nhân); nhóm <b>Quản trị</b> và mở lại / xóa đợt vẫn hỏi <b>mã Admin</b>.</p>
+      <div class="panel"><div class="table-wrap" id="nd-bang"></div></div>
+      <h3 class="nd-td-mau">🎭 Mẫu vai trò</h3>
+      <div class="panel"><div class="table-wrap" id="nd-bang-mau"></div></div>
+    </section>
+
+    <!-- ============ KHÔNG CÓ TAB NÀO (bị tạm khóa / chưa được bật quyền) ============ -->
+    <section class="man" id="man-khong" aria-label="Chưa có quyền" hidden>
+      <div class="panel"><div class="trong-bang" id="man-khong-nd"></div></div>
+    </section>
+
     <!-- ============ MÀN CÀI ĐẶT ============ -->
     <section class="man" id="man-caidat" aria-label="Cài đặt" hidden>
       <form class="panel form" id="form-caidat" autocomplete="off">
@@ -286,7 +310,8 @@
           <span>Người dùng máy này</span>
           <select class="input" style="max-width:260px" id="cd-toila-chon" hidden></select>
           <input class="input" style="max-width:260px" id="cd-toila" type="text" maxlength="40" placeholder="Ví dụ: Lan">
-          <small>Chọn 1 lần trên mỗi máy (lưu trên máy này, đổi lúc nào cũng được). Tên hiện trong lịch sử danh mục, thông báo cho người khác và phần “Báo xong”.</small>
+          <small>Chọn 1 lần trên mỗi máy (lưu trên máy này, đổi lúc nào cũng được). Tên hiện trong lịch sử danh mục, thông báo cho người khác và phần “Báo xong”.
+            Quyền của từng người do Admin đặt ở tab <b>👥 Người dùng</b>.</small>
         </label>
         <div class="nd-khung" id="cd-admin" hidden>
           <h2 class="h-phu">🔑 Admin</h2>
@@ -295,16 +320,6 @@
             <input class="input" style="max-width:220px" id="cd-admin-ma" type="password" autocomplete="off" placeholder="Mã Admin" aria-label="Mã Admin">
             <button class="btn" type="button" id="cd-admin-vao">🔑 Đăng nhập Admin</button>
             <button class="btn btn-ghost" type="button" id="cd-admin-ra">🚪 Đăng xuất Admin</button>
-          </div>
-        </div>
-        <div class="nd-khung" id="cd-nd" hidden>
-          <h2 class="h-phu">👥 Người dùng</h2>
-          <p class="muted" style="margin:0 0 8px">Danh sách dùng chung cho mọi máy. Vai trò: <b>Nhân viên sàn</b> &lt; <b>Người đặt hàng</b> (thêm “📦 Tổng hợp đợt”: gộp, tải 3 file nhà, chốt đợt) &lt; <b>Admin</b> (toàn quyền).
-            <span id="cd-nd-chi-admin">Chỉ Admin sửa được danh sách này (cần mã Admin).</span></p>
-          <table class="tbl nd-bang"><thead><tr><th>Tên</th><th>Vai trò</th><th><span class="sr">Xóa</span></th></tr></thead><tbody id="cd-nd-ds"></tbody></table>
-          <div class="actions" style="margin-top:8px">
-            <button class="btn btn-ghost" type="button" id="cd-nd-them">＋ Thêm người</button>
-            <button class="btn" type="button" id="cd-nd-luu">💾 Lưu danh sách người dùng</button>
           </div>
         </div>
         <h2 class="h-phu">🎨 Chủ đề</h2>
@@ -327,6 +342,15 @@
           <div class="actions" style="margin-top:8px">
             <button class="btn btn-ghost" type="button" id="cd-nha-them">＋ Thêm nhà</button>
             <button class="btn" type="button" id="cd-nha-luu">💾 Lưu sổ nhà</button>
+          </div>
+        </div>
+        <div class="nd-khung" id="cd-kp" hidden>
+          <h2 class="h-phu">♻️ Khôi phục sao lưu</h2>
+          <p class="muted" style="margin:0 0 8px">Lấy lại danh mục (SKU → nhà, combo) từ bản sao lưu tự động mỗi tối. Danh mục hiện tại được lưu thêm 1 bản “trước khôi phục” – chọn nhầm ngày vẫn lấy lại được. Cần mã Admin.</p>
+          <div class="actions">
+            <select class="select" id="cd-kp-ngay" aria-label="Ngày bản sao lưu"><option value="">— bấm “Xem các bản sao lưu” —</option></select>
+            <button class="btn" type="button" id="cd-kp-xem">🔎 Xem các bản sao lưu</button>
+            <button class="btn btn-danger" type="button" id="cd-kp-lam" disabled>♻️ Khôi phục về ngày đã chọn</button>
           </div>
         </div>
         <label class="field" id="cd-makhac-o">
@@ -570,6 +594,18 @@
     </form>
   </dialog>
 
+  <dialog class="dlg" id="dlg-toila" aria-labelledby="dlg-toila-title">
+    <form method="dialog">
+      <h2 id="dlg-toila-title">👤 Tôi là</h2>
+      <p class="muted">Chọn tên của bạn trên máy này. Quyền (tab, nút) theo tên đã chọn.</p>
+      <label class="field"><span>Người dùng máy này</span><select class="input" id="toila-chon"></select></label>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Hủy</button>
+        <button class="btn btn-primary" value="ok">✅ Chọn</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="dlg-admin" aria-labelledby="dlg-admin-title">
     <form method="dialog" id="form-admin">
       <h2 id="dlg-admin-title">🔑 Mã Admin</h2>
@@ -632,26 +668,28 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261112b"></script>
-  <script src="js/phanloai.js?v=20261112b"></script>
-  <script src="js/thongke.js?v=20261112b"></script>
-  <script src="js/xuatfile.js?v=20261112b"></script>
-  <script src="js/danhmuc.js?v=20261112b"></script>
-  <script src="js/danhmuc-excel.js?v=20261112b"></script>
-  <script src="js/linhvat.js?v=20261112b"></script>
-  <script src="js/app.js?v=20261112b"></script>
-  <script src="js/khaibao.js?v=20261112b"></script>
-  <script src="js/barcode.js?v=20261112b"></script>
-  <script src="js/mandanhmuc.js?v=20261112b"></script>
-  <script src="js/caidat.js?v=20261112b"></script>
-  <script src="js/manthongke.js?v=20261112b"></script>
-  <script src="js/dot-gop.js?v=20261112b"></script>
-  <script src="js/dot.js?v=20261112b"></script>
-  <script src="js/banhang.js?v=20261112b"></script>
-  <script src="js/bieudo.js?v=20261112b"></script>
-  <script src="js/dubao.js?v=20261112b"></script>
-  <script src="js/sanban.js?v=20261112b"></script>
-  <script src="js/napbu.js?v=20261112b"></script>
-  <script src="js/mansanban.js?v=20261112b"></script>
+  <script src="js/docfile.js?v=20261112c"></script>
+  <script src="js/phanloai.js?v=20261112c"></script>
+  <script src="js/thongke.js?v=20261112c"></script>
+  <script src="js/xuatfile.js?v=20261112c"></script>
+  <script src="js/quyen.js?v=20261112c"></script>
+  <script src="js/danhmuc.js?v=20261112c"></script>
+  <script src="js/danhmuc-excel.js?v=20261112c"></script>
+  <script src="js/linhvat.js?v=20261112c"></script>
+  <script src="js/app.js?v=20261112c"></script>
+  <script src="js/khaibao.js?v=20261112c"></script>
+  <script src="js/barcode.js?v=20261112c"></script>
+  <script src="js/mandanhmuc.js?v=20261112c"></script>
+  <script src="js/caidat.js?v=20261112c"></script>
+  <script src="js/manthongke.js?v=20261112c"></script>
+  <script src="js/dot-gop.js?v=20261112c"></script>
+  <script src="js/dot.js?v=20261112c"></script>
+  <script src="js/banhang.js?v=20261112c"></script>
+  <script src="js/bieudo.js?v=20261112c"></script>
+  <script src="js/dubao.js?v=20261112c"></script>
+  <script src="js/sanban.js?v=20261112c"></script>
+  <script src="js/napbu.js?v=20261112c"></script>
+  <script src="js/mansanban.js?v=20261112c"></script>
+  <script src="js/mannguoidung.js?v=20261112c"></script>
 </body>
 </html>

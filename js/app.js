@@ -45,12 +45,38 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
   /* ---------- Vai trò: Nhân viên sàn < Người đặt hàng < Admin ---------- */
-  function laAdmin() { return DM.coAdmin() && DM.vaiTro() === 'admin'; }
-  function laDatHang() { var v = DM.vaiTro(); return v === 'dat_hang' || v === 'admin'; }
-  /* Nút / ô chỉ Admin: ẩn với người khác (Apps Script cũ chưa có Admin → hiện như trước) */
+  /* ---------- Quyền: bảng quyền theo từng người (Apps Script api ≥ 9); bản cũ suy từ vai trò Nhân viên sàn < Người đặt hàng < Admin ---------- */
+  function coQuyen(k) { return DM.quyen(k); }
+  function laAdmin() { return DM.coAdmin() && coQuyen('qt_caidat'); }      // nhóm Quản trị: cài đặt chung, sổ nhà, thao tác hàng loạt
+  function laDatHang() { return coQuyen('tab_dot'); }
+  function duocKB() { return DM.coTheGhi() && coQuyen('dm_khaibao'); }   // được khai báo combo / tên / nhà / barcode
+  var Q = root.Quyen;
+  function duocVao(man) { return man === 'khong' || (man === 'caidat' && !DM.caiDat.url) || coQuyen(Q.MAN[man]); }
+  /* Màn có tính năng trên Apps Script đang chạy không */
+  function coMan(man) {
+    return man === 'dot' ? DM.coDot() : man === 'dubao' || man === 'chokb' ? DM.coBanHang() : man === 'sanban' ? DM.coThongKe() : man === 'nguoidung' ? DM.coDot() : true;
+  }
+  function manDau() {
+    return ['chinh', 'dot', 'sanban', 'thongke', 'dubao', 'chokb', 'danhmuc', 'nguoidung', 'caidat'].filter(function (m) { return coMan(m) && duocVao(m); })[0] || 'khong';
+  }
+  /* Tab / nút không có quyền thì ẩn hẳn: menu, nút tĩnh (data-quyen, .chi-admin) và lớp "k0-<quyền>" trên <body> (CSS ẩn nút vẽ động) */
   function veQuyen() {
     var an = DM.coAdmin() && !laAdmin();
     document.querySelectorAll('.chi-admin').forEach(function (el) { el.hidden = an; });
+    Q.DS.forEach(function (k) { document.body.classList.toggle('k0-' + k, !coQuyen(k)); });
+    document.querySelectorAll('[data-quyen]').forEach(function (el) { el.hidden = !el.dataset.quyen.split(' ').some(coQuyen); });
+    var hien = 'chinh';
+    document.querySelectorAll('.nav-btn').forEach(function (b) {
+      b.hidden = !(coMan(b.dataset.man) && duocVao(b.dataset.man));
+      if (b.classList.contains('is-active')) hien = b.dataset.man;
+    });
+    var duocTai = coQuyen('tai_shopee') || coQuyen('tai_tiktok') || coQuyen('tai_web');
+    if ($('drop')) $('drop').classList.toggle('an-quyen', !duocTai);
+    $('man-khong-nd').textContent = DM.biKhoa() ? '🔒 Tài khoản “' + DM.caiDat.toiLa + '” đang bị tạm khóa. Nhờ Admin mở lại ở tab 👥 Người dùng, hoặc bấm vào ô “Bạn: …” phía trên để đổi tên.'
+      : 'Bạn chưa được bật tab nào. Nhờ Admin bật quyền ở tab 👥 Người dùng, hoặc bấm vào ô “Bạn: …” phía trên để đổi tên.';
+    var dangO = document.querySelector('.man:not([hidden])');
+    dangO = dangO ? dangO.id.replace('man-', '') : hien;
+    if (!(coMan(dangO) && duocVao(dangO)) || (dangO === 'khong' && manDau() !== 'khong')) diToi(manDau());
   }
   /* Hỏi mã Admin → Promise<mã | null> */
   function hoiMaAdmin(loi) {
@@ -73,6 +99,10 @@
   }
   function nutGhi(html, attrs) {
     var khoa = !DM.coTheGhi();
+    // Không có quyền → ẩn hẳn nút. Quyền suy từ loại nút (xóa / sửa danh mục / đợt), mặc định là "Khai báo".
+    var a = attrs || '', can = /data-(xoa-sku|xoa-combo|bo-gantay)=/.test(a) ? ['dm_xoa'] : /data-(sua-dong|sua-combo|tai-ban)=/.test(a) ? ['dm_sua']
+      : /data-hoan-tac=/.test(a) ? ['dm_khaibao', 'dm_sua', 'dm_xoa'] : /data-gb="chot"/.test(a) ? ['dot_chot'] : /data-gb="molai"/.test(a) ? ['dot_molai'] : /data-gb="lai"/.test(a) ? [] : ['dm_khaibao'];
+    if (can.length && !can.some(coQuyen)) return '';
     return '<button type="button" ' + (attrs || '') + (khoa ? ' disabled title="Dán URL Apps Script ở màn Cài đặt để dùng nút này"' : '') + '>' + html + '</button>';
   }
 
@@ -143,7 +173,7 @@
       nhom('hang_ngay', 'Đặt hằng ngày') + (opt.chiNgay ? '' : nhom('nhap_kho', 'Nhập kho')) +
       (opt.khongNhap === false ? '' : '<option value="' + PL.KHONG_NHAP + '"' + (chon === PL.KHONG_NHAP ? ' selected' : '') + '>Không nhập</option>') +
       (opt.khac ? '<option value="KHAC"' + (chon === 'KHAC' ? ' selected' : '') + '>Khác (không rõ nhà)</option>' : '') +
-      (opt.moi === false || !DM.coNha() ? '' : '<option value="__moi__">➕ Nhà mới…</option>');
+      (opt.moi === false || !DM.coNha() || !coQuyen('dm_themnha') ? '' : '<option value="__moi__">➕ Nhà mới…</option>');
   }
   function chonNhaHtml(attrs, chon, opt) {
     return '<select class="select" ' + attrs + '>' + nhaOptions(chon, Object.assign({ dau: '— chọn nhà —' }, opt || {})) + '</select>';
@@ -190,6 +220,7 @@
         var wb = root.XLSX.read(buf, { type: 'array' });
         var p = root.DocFile.parseWorkbook(wb, root.XLSX, f.name);
         p.file = f.name;
+        if (!p.error && !coQuyen('tai_' + p.san.toLowerCase())) return { file: f.name, error: 'Bạn chưa được bật quyền tải đơn ' + p.san + ' (tab 👥 Người dùng).' };
         if (!p.error && !p.rows.length) p.error = 'File ' + p.san + ' này không có dòng sản phẩm nào.';
         return p;
       }).catch(function () {
@@ -501,10 +532,10 @@
     var h = '<span title="Tên trên sàn: ' + esc(g.ten) + '">' + esc(g.tenGon) + '</span>';
     if (g.chuaCoTen) h += ' <span class="nho nho-chuaten" title="Đang dùng tên tạm = tên sàn + phân loại. Bấm ✏️ để khai báo tên sách.">chưa có tên khai báo</span>';
     else if (g.nguonTen === 'web') h += ' <span class="nho nguon-web" title="Tên lấy theo sổ mã chuẩn web">🌐 tên web</span>';
-    if (g.khoaTen && DM.coTheGhi()) h += ' <button type="button" class="btn-sua-ten" data-sua-ten="' + i + '" title="Sửa tên sách (lưu vào danh mục)" aria-label="Sửa tên sách">✏️</button>';
-    if (DM.coTheGhi() && (g.nguon || []).some(function (s) { return s.row && s.row.san !== 'Web' && !s.nguyen; })) h += nutBarcode('data-bc-nha', i);
+    if (g.khoaTen && duocKB()) h += ' <button type="button" class="btn-sua-ten" data-sua-ten="' + i + '" title="Sửa tên sách (lưu vào danh mục)" aria-label="Sửa tên sách">✏️</button>';
+    if (duocKB() && (g.nguon || []).some(function (s) { return s.row && s.row.san !== 'Web' && !s.nguyen; })) h += nutBarcode('data-bc-nha', i);
     // 🎁 cạnh cây bút: mọi dòng sách lẻ có đơn sàn (không phải đơn web, không phải cuốn tách từ combo)
-    if (DM.coTheGhi() && dongSanCua(g).length) {
+    if (duocKB() && dongSanCua(g).length) {
       h += ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' +
         (g.key && !coTrongDanhMuc(g.key) ? ' <button type="button" class="nut-nho" data-luu-dm="' + i + '" title="Sách này đang nhận diện tại chỗ (chưa có trong danh mục) – lưu để sửa tên / đổi nhà ở màn Danh mục">💾 Lưu vào danh mục</button>' : '');
     }
@@ -620,7 +651,7 @@
           '<td><div class="actions">' +
           nutGhi('🧩 Khai báo thành phần', 'class="btn btn-sm btn-primary" data-khai-bao="' + i + '"') +
           nutGhi('🔗 Đây là combo đã có', 'class="btn btn-sm" data-co-san="' + i + '"') +
-          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; })
+          (duocKB() && g.lines.some(function (l) { return l.row.san !== 'Web'; })
             ? '<select class="select select-sm" data-khong-combo="' + i + '" aria-label="Không phải combo – là sách lẻ của nhà" title="Trả về sách lẻ – mèo ghi nhớ, lần sau không coi là combo nữa">' +
               '<option value="">📖 Không phải combo – là sách lẻ của…</option>' +
               PL.NHA.map(function (n) { return '<option value="' + n + '"' + '>' + n + ' · ' + PL.TEN_NHA[n] + (g.nha === n ? ' (đoán)' : '') + '</option>'; }).join('') + '</select>' : '') +
@@ -637,7 +668,7 @@
         return nutGhi(n, 'class="pick pick-' + n + '" data-gan="' + n + '" data-nguon="' + nguon + '" data-i="' + i + '" title="' + PL.TEN_NHA[n] + '"');
       }).join('') +
       nutGhi('Không nhập', 'class="pick pick-KHONG" data-gan="' + PL.KHONG_NHAP + '" data-nguon="' + nguon + '" data-i="' + i + '"') +
-      (DM.coTheGhi() && DM.coNha() ? chonNhaHtml('data-gan-sel="' + i + '" aria-label="Nhà khác / nhà mới"', '', { dau: 'Nhà khác…', khongNhap: false }) : '') +
+      (duocKB() && DM.coNha() ? chonNhaHtml('data-gan-sel="' + i + '" aria-label="Nhà khác / nhà mới"', '', { dau: 'Nhà khác…', khongNhap: false }) : '') +
       '</div>';
   }
 
@@ -645,7 +676,7 @@
     return '<table class="tbl tbl-ghim2 c1-sku"><thead><tr><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">Giá gốc</th><th class="so">SL</th><th>Chọn nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td class="sku">' + oSku(g) + '</td><td class="ten">' + tenHien(g) +
-          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-cr', i) : '') +
+          (duocKB() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-cr', i) : '') +
           (g.ghiChu ? '<div class="ghi-chu">⚠ ' + esc(g.ghiChu) + '</div>' : '') +
           '<div>' + g.san.map(function (s) { return '<span class="nho">' + s + '</span>'; }).join('') + '</div></td>' +
           '<td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.gia) + '</td><td class="so"><b>' + so(g.sl) + '</b></td>' +
@@ -676,9 +707,9 @@
       '<table class="tbl tbl-ghim3 c1-lydo"><thead><tr><th>Lý do</th><th>SKU</th><th>Tên sản phẩm</th><th>Phân loại</th><th class="so">SL</th><th>Gán lại nhà</th></tr></thead><tbody>' +
       list.map(function (g, i) {
         return '<tr><td><span class="ly-do">' + esc(g.lyDo) + '</span></td><td class="sku">' + esc(g.sku) + '</td><td class="ten">' + tenHien(g) +
-          (DM.coTheGhi() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-bq', i) + ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo-bq="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' : '') +
+          (duocKB() && g.lines.some(function (l) { return l.row.san !== 'Web'; }) ? nutBarcode('data-bc-bq', i) + ' ' + '<button type="button" class="nut-nho nut-combo" data-la-combo-bq="' + i + '" title="Dòng này thật ra là combo nhiều cuốn → khai báo thành phần (tách từng cuốn hoặc xuất nguyên)">🎁 Chuyển thành combo</button>' : '') +
           '</td><td class="pl">' + esc(g.phanLoai) + '</td><td class="so">' + so(g.sl) + '</td><td>' +
-          (DM.coTheGhi()
+          (duocKB()
             ? (DM.coNha() ? chonNhaHtml('data-gan-bq="' + i + '" aria-label="Gán lại nhà"', '', { dau: '— chọn —' })
               : '<select class="select" data-gan-bq="' + i + '" aria-label="Gán lại nhà"><option value="">— chọn —</option>' +
               PL.NHA.map(function (n) { return '<option value="' + n + '">' + n + ' · ' + PL.TEN_NHA[n] + '</option>'; }).join('') + '</select>')
@@ -795,6 +826,7 @@
 
   function taiNha(nhas, btn) {
     if (!S.kq) return;
+    if (!coQuyen('dot_xuat')) { toast('Bạn chưa được bật quyền “Xuất file nhà”.', 'loi'); return; }
     if (!root.ExcelJS) { toast('Thư viện Excel chưa tải xong, thử lại sau 1 giây nha.', 'loi'); return; }
     var kqXuat = dpBat() ? TK.apDungDuPhong(S.kq, S.duPhong) : S.kq; // chỉ cộng số dự phòng đã bấm "Thêm"
     var coHang = XF().nhaCoHang(kqXuat);
@@ -874,7 +906,7 @@
         (DM.nhieuNguoi() ? '(chưa có Người dùng, Đợt đặt hàng, Báo xong). ' : '(chưa tự đồng bộ danh mục, chưa chống ghi đè, chưa có Đợt đặt hàng). ') +
         'Cập nhật theo HUONG-DAN.md, Phần D (Phiên bản mới, không tạo triển khai mới).';
       b.hidden = false;
-    } else if (laAdmin() && DM.adminDaDatMa === false) {
+    } else if (DM.coAdmin() && Q.DS.some(function (k) { return /^qt_/.test(k) && coQuyen(k); }) && DM.adminDaDatMa === false) {
       b.innerHTML = '🔑 <b>Chưa đặt mã Admin</b> – các chức năng thường vẫn chạy, riêng thao tác Admin (sửa người dùng, mở lại / xóa đợt, cài đặt chung…) chưa dùng được. ' +
         'Đặt mã: mở Apps Script, sửa dòng <code>MA_ADMIN_MOI</code> rồi chạy hàm <code>datMaAdmin</code> (HUONG-DAN.md, mục “Mã Admin”).';
       b.hidden = false;
@@ -885,7 +917,8 @@
   }
 
   function diToi(man) {
-    ['chinh', 'dot', 'dubao', 'chokb', 'thongke', 'sanban', 'danhmuc', 'caidat'].forEach(function (m) {
+    if (!(coMan(man) && duocVao(man))) man = manDau(); // tab không có quyền → về tab đầu tiên được xem
+    ['chinh', 'dot', 'dubao', 'chokb', 'thongke', 'sanban', 'danhmuc', 'caidat', 'nguoidung', 'khong'].forEach(function (m) {
       $('man-' + m).hidden = m !== man;
     });
     document.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -897,6 +930,7 @@
     if (man === 'caidat' && root.CaiDat) root.CaiDat.ve();
     if (man === 'thongke' && root.ManThongKe) root.ManThongKe.ve();
     if (man === 'sanban' && root.ManSanBan) root.ManSanBan.ve();
+    if (man === 'nguoidung' && root.ManNguoiDung) root.ManNguoiDung.ve();
     if (man === 'dot' && root.ManDot) root.ManDot.veTongHop(true);
     if ((man === 'dubao' || man === 'chokb') && root.ManDuBao) root.ManDuBao.ve(man);
     DM.dongBo();
@@ -1183,7 +1217,8 @@
       if (loai === 'catalog' || loai === 'caidat') veLai(loai === 'catalog' ? info : null);
       if (loai === 'desau' && S.files.length) giuViTri(veLaiNgay);
       if (loai === 'caidat') { veTrangThai(); taiLichSu(); }
-      if (loai === 'api' || loai === 'admin' || loai === 'nguoidung' || loai === 'caidat') { veBanner(); veQuyen(); }
+      if (loai === 'api' || loai === 'admin' || loai === 'nguoidung' || loai === 'caidat' || loai === 'quyen') { veBanner(); veQuyen(); }
+      if (loai === 'quyen') giuViTri(veLaiNgay); // quyền đổi → vẽ lại để ẩn / hiện nút
     });
     // Người dùng sửa xong (rời ô / đóng hộp thoại) → mới vẽ lại phần thay đổi từ máy khác
     document.addEventListener('focusout', function () { setTimeout(function () { xaChoVe(false); }, 60); });
@@ -1209,7 +1244,7 @@
     S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge, baoLoi: baoLoi,
     rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
     LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon,
-    laAdmin: laAdmin, laDatHang: laDatHang, veQuyen: veQuyen, hoiMaAdmin: hoiMaAdmin,
+    laAdmin: laAdmin, laDatHang: laDatHang, coQuyen: coQuyen, veQuyen: veQuyen, hoiMaAdmin: hoiMaAdmin,
     nhaOptions: nhaOptions, chonNhaHtml: chonNhaHtml, chonNha: chonNha, moiNha: moiNha, mauNha: mauNha,
     ganNha: ganNha, moSuaTen: moSuaTen, moBarcodeDong: moBarcodeDong, nhomCombo: nhomCombo,
     gop: gop, xuLy: xuLy, taiNha: taiNha, vaoGop: vaoGop, thoatGop: thoatGop, soDongCho: soDongCho, veBanner: veBanner

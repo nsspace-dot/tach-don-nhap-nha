@@ -16,8 +16,8 @@
   var LS_DANHMUC = 'tdn.danhmuc.v1';
   var LS_ADMIN = 'tdn.admin.v1'; // mã Admin của máy này (nhập 1 lần, "Đăng xuất Admin" để xóa)
   // Thao tác chỉ Admin (Apps Script api ≥ 4 kiểm tra mã)
-  var HD_ADMIN = { kiemTraMaAdmin: 1, luuNha: 1, xoaNha: 1, luuNguoiDung: 1, moLaiDot: 1, xoaDot: 1, xoaPhan: 1, suaPhan: 1, luuCaiDatChung: 1, importBatch: 1, upsertMaChuan: 1, xoaHangLoat: 1, napThongKe: 1 };
-  var RE_LOI_ADMIN = /^(SAI_MA_ADMIN|KHOA_ADMIN|CHUA_DAT_MA_ADMIN|CAN_MA_ADMIN):\s*/;
+  var HD_ADMIN = { kiemTraMaAdmin: 1, luuNha: 1, xoaNha: 1, luuNguoiDung: 1, moLaiDot: 1, xoaDot: 1, xoaPhan: 1, suaPhan: 1, luuCaiDatChung: 1, importBatch: 1, upsertMaChuan: 1, xoaHangLoat: 1, napThongKe: 1, luuQuyen: 1, khoiPhucSaoLuu: 1 };
+  var RE_LOI_ADMIN = /^(SAI_MA_ADMIN|KHOA_ADMIN|CHUA_DAT_MA_ADMIN|CAN_MA_ADMIN|TAM_KHOA):\s*/;
 
   function docLS(k, macDinh) {
     try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : macDinh; } catch (e) { return macDinh; }
@@ -69,6 +69,38 @@
     luuCache();
     phat('nguoidung');
   }
+  /* ---------- Bảng quyền theo từng người (Apps Script api ≥ 9); bản cũ hơn → suy từ vai trò như trước ---------- */
+  var Q = root.Quyen || (typeof require === 'function' ? require('./quyen.js') : null);
+  var bangQuyen = (cache && cache.quyen) || null; // { mau: [{ ten, quyen, goc }], nguoi: [{ ten, mau, quyen, khoa }] }
+  function nhanQuyen(q) {
+    if (!q || !Array.isArray(q.nguoi)) return;
+    var moi = { mau: (q.mau || []).map(function (m) { return { ten: String(m.ten || ''), quyen: Q.chuan(m.quyen), goc: !!m.goc }; }),
+                nguoi: q.nguoi.map(function (n) { return { ten: String(n.ten || ''), mau: String(n.mau || ''), quyen: Q.chuan(n.quyen), khoa: !!n.khoa }; }) };
+    if (JSON.stringify(moi) === JSON.stringify(bangQuyen)) return;
+    bangQuyen = moi;
+    luuCache();
+    phat('quyen');
+  }
+  function coBangQuyen() { return !!(caiDat.url && may.api >= 9 && bangQuyen); }
+  function nguoiQuyen() { return coBangQuyen() ? bangQuyen.nguoi.filter(function (n) { return n.ten === caiDat.toiLa; })[0] || null : null; }
+  function biKhoa() { var n = nguoiQuyen(); return !!(n && n.khoa); }
+  /* Chưa ai quản lý được người dùng (mới cài) → ai cũng mở được tab Người dùng để tạo Admin đầu tiên (vẫn cần mã Admin) */
+  function chuaCoAdmin() {
+    if (coBangQuyen()) return !bangQuyen.nguoi.some(function (n) { return !n.khoa && n.quyen.indexOf('qt_nguoidung') >= 0; });
+    return !nguoiDung.some(function (n) { return n.vai_tro === 'admin'; });
+  }
+  /* "Tôi là" trên máy này có quyền k không */
+  function quyen(k) {
+    if (!caiDat.url || may.api === null || may.api < 3) return true; // chưa kết nối / chế độ 1 người: như trước
+    if ((k === 'qt_nguoidung' || k === 'tab_nguoidung') && chuaCoAdmin()) return true;
+    if (coBangQuyen()) {
+      var n = nguoiQuyen();
+      if (n) return !n.khoa && n.quyen.indexOf(k) >= 0;
+      return Q.theoVaiTro('san').indexOf(k) >= 0; // tên không có trong danh sách: như nhân viên sàn (giống trước)
+    }
+    if (may.api < 4 && (/^qt_/.test(k) || k === 'dot_molai')) return true; // bản chưa có Admin
+    return Q.theoVaiTro(vaiTro()).indexOf(k) >= 0;
+  }
   var DONG_BO_MS = 30000, TOAN_BO_MS = 10 * 60000;
 
   function chuanHoa(c) {
@@ -109,7 +141,7 @@
     if (state === 'ok') trangThai.luc = new Date().toISOString();
     phat('trangthai');
   }
-  function luuCache() { ghiLS(LS_DANHMUC, { catalog: catalog, luc: new Date().toISOString(), nguoiDung: nguoiDung, nha: soNhaMay }); }
+  function luuCache() { ghiLS(LS_DANHMUC, { catalog: catalog, luc: new Date().toISOString(), nguoiDung: nguoiDung, nha: soNhaMay, quyen: bangQuyen }); }
 
   /* ---------- Sổ nhà dùng chung (Apps Script api ≥ 6). Chưa có → HA/KV/ML + "Mã nhà khác" trên máy (như cũ) ---------- */
   var soNhaMay = (cache && cache.nha) || null;
@@ -140,6 +172,7 @@
     var apiMoi = Number(j.api) || 0;
     if (may.api !== apiMoi) { may.api = apiMoi; phat('api'); }
     if (j.nguoi_dung) nhanNguoiDung(j.nguoi_dung);
+    if (j.quyen) nhanQuyen(j.quyen);
     if (j.nha) nhanNha(j.nha);
     if (j.admin_da_dat_ma !== undefined && may.adminDaDatMa !== !!j.admin_da_dat_ma) { may.adminDaDatMa = !!j.admin_da_dat_ma; phat('admin'); }
     if (j.cai_dat_chung) nhanCaiDatChung(j.cai_dat_chung);
@@ -259,6 +292,13 @@
     if (!caiDat.url) return Promise.reject(new Error('Chưa dán URL Apps Script ở màn Cài đặt.'));
     opt = opt || {};
     data = data || {};
+    // Phân quyền: thao tác cần 1 trong các quyền của "Tôi là" (nút đã ẩn – đây là chốt chặn cuối)
+    var canQ = Q.HD[action];
+    if (canQ && !(action === 'moLaiPhan') && !canQ.some(quyen)) {
+      var eq = new Error(biKhoa() ? 'Tài khoản "' + caiDat.toiLa + '" đang bị tạm khóa.' : 'Bạn không có quyền làm thao tác này (' + canQ.map(function (k) { return Q.TEN[k]; }).join(' / ') + ') – nhờ Admin bật ở tab 👥 Người dùng.');
+      eq.khongQuyen = true;
+      return Promise.reject(eq);
+    }
     // Thao tác Admin: kèm mã Admin của máy này (chưa có thì hỏi)
     if (coAdmin() && (HD_ADMIN[action] || opt.admin) && data._maAdmin === undefined) {
       if (!maAdmin) return hoiMaAdmin('').then(function (ma) { return goi(action, Object.assign({}, data, { _maAdmin: ma }), opt); });
@@ -421,10 +461,16 @@
     get api() { return may.api; },
     get rev() { return may.rev; },
     nhieuNguoi: nhieuNguoi,
-    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 8; },
+    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 9; },
     coAdmin: coAdmin,
     coBanHang: coBanHang,
     coThongKe: coThongKe,
+    coBangQuyen: coBangQuyen,
+    get bangQuyen() { return bangQuyen; },
+    nhanQuyen: nhanQuyen,
+    quyen: quyen,
+    biKhoa: biKhoa,
+    chuaCoAdmin: chuaCoAdmin,
     coNha: function () { return !!(caiDat.url && may.api >= 6); },
     coKhaiBaoLo: function () { return !!(caiDat.url && may.api >= 7); },
     get soNha() { return root.PhanLoai.DS_NHA; },
