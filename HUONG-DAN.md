@@ -86,6 +86,15 @@ dán code mới → 💾 Lưu → **Triển khai → Quản lý các bản tri�
 
 > 🆕 **Bản nhiều người dùng + Đợt đặt hàng + Admin:** cần `Code.gs` mới – làm theo mục **"Cập nhật Apps Script bản nhiều người dùng (làm 1 lần)"** ngay dưới đây.
 
+### 🆕 Cập nhật Apps Script bản api 9 (Sàn bán gì + Phân quyền)
+
+1. Google Sheets danh mục → **Tiện ích mở rộng → Apps Script** → mở `Code.gs` → **xóa hết** → dán **toàn bộ** [`apps-script/Code.gs`](apps-script/Code.gs) (nhánh `claude/compassionate-ride-gv8h03`) → 💾 **Lưu**.
+2. **Triển khai → Quản lý các bản triển khai** → ✏️ **Chỉnh sửa** → *Phiên bản*: **Phiên bản mới** → **Triển khai**. **KHÔNG** tạo *Triển khai mới* (giữ nguyên URL).
+3. **Không cần chạy hàm nào.** Sheet mới `THONG_KE`, `THONG_KE_KHOA`, `QUYEN` tự tạo lần đầu dùng; việc xóa số liệu cũ hơn 183 ngày chạy chung trigger sao lưu 23h đã có.
+   (Nếu **chưa từng** bật sao lưu tự động thì chạy `caiDatSaoLuuTuDong` 1 lần – Phần C. Muốn tạo sẵn sheet thì chạy `khoiTao` – không bắt buộc, không mất dữ liệu.)
+4. Người dùng cũ **tự chuyển** sang bảng quyền đúng vai trò cũ – không ai mất quyền. Mở app → tải lại trang.
+5. (Tùy chọn) Admin vào **⚙️ Cài đặt → Tên gian** khai báo gian theo tên file (xem mục *Sàn bán gì*).
+
 ### Cập nhật Apps Script bản nhiều người dùng (làm 1 lần)
 
 Gộp cả 3 phần: danh mục đồng bộ + chống ghi đè, Người dùng + Đợt đặt hàng, Admin.
@@ -363,7 +372,7 @@ Cần `Code.gs` bản mới (xem cuối Phần D).
 
 Cần `Code.gs` mới (cuối Phần D). Mỗi ngày (giờ Việt Nam) là **1 đợt**, app tự tạo. Thanh trên cùng hiện *"🗓️ Đợt 12/10 · Bạn: Lan"*.
 
-**Người dùng:** ⚙️ Cài đặt → 👥 Người dùng: tên + vai trò, dùng chung mọi máy. Vai trò: **Nhân viên sàn < Người đặt hàng < Admin**.
+**Người dùng:** tab **👥 Người dùng** (xem mục *Phân quyền* bên dưới). Bản Code.gs cũ (trước api 9) vẫn là 3 vai trò: **Nhân viên sàn < Người đặt hàng < Admin**.
 - Nhân viên sàn: thả file, khai báo, báo xong.
 - Người đặt hàng: thêm **📦 Tổng hợp đợt** (gộp, tải 3 file nhà, chốt đợt).
 - **Admin** (toàn quyền, cần mã Admin – xem *Mã Admin* ở Phần D):
@@ -434,6 +443,46 @@ khai báo ngay tại tab. Khai báo xong thì tự biến mất, dự báo tự 
 **Màn Tách đơn buổi sáng** chỉ còn việc ảnh hưởng đơn hôm nay: dòng chưa rõ nhà có nút **⏭ Để sau**; nhắc tái bản / cùng cuốn / listing cần sửa barcode của sách nhà khác chuyển sang tab Chờ khai báo.
 Combo trộn nhà (vd "COMBO HA + … (MEGA)"): chỉ cần khai phần HA/KV/ML là lưu được – phần nhà khác không bắt buộc.
 
+## 🛒 Sàn bán gì (cần Code.gs api 8 trở lên)
+
+**Số liệu lưu thế nào** (sheet `THONG_KE`, giữ **183 ngày**, tự xóa dòng cũ cùng lúc sao lưu 23h):
+- Ghi khi **🔒 Chốt đợt** – **mọi dòng** của các file đã tải (sách mọi nhà, lịch, tranh, decal, trà, khác), sau bộ lọc trạng thái Shopee, trước bước lọc HA/KV/ML.
+- 1 dòng = tổng 1 sản phẩm / ngày / sàn / gian: `ngay | san | gian | khoa_sp | ten_sp | phan_loai | barcode | nganh | nha | so_luong | so_don | doanh_thu` (+ vài cột phụ ở cuối). Không có thông tin khách.
+- **Doanh thu** = giá bán sau giảm × SL (Shopee: *Giá ưu đãi*; TikTok: *SKU Subtotal After Discount*; web: *Thành tiền* / *Giá bán* nếu file có). File không có cột → để trống, không đoán.
+- **Gộp sản phẩm:** có mã vạch hợp lệ → theo mã vạch; không có → theo tên + phân loại đã làm gọn (bỏ hoa/thường, khoảng trắng thừa, mã nhà đầu/cuối tên, "(1 cuốn)", "Mặc định", "Not Specified"). Combo đã khai báo lưu nguyên combo + thành phần.
+- **Chống trùng:** cùng sàn + mã đơn + dòng sản phẩm chỉ tính 1 lần (đơn treo nhiều ngày không cộng lặp). **Mở lại rồi chốt lại** → ghi đè số của đợt đó.
+- **Gian:** Admin khai ở **⚙️ Cài đặt → Tên gian**, mỗi dòng `Tên gian = từ khóa trong tên file, từ khóa khác` (vd `Nhà Sách = nhasach, ns`). Tên file chứa từ khóa → dòng thuộc gian đó; không khớp → trống. Chip file ở màn Tách đơn hiện 🏪 gian nhận được.
+
+**Tab 🛒 Sàn bán gì** (mặc định bật cho Admin, Người đặt hàng, Chỉ xem). Chỉ tải dữ liệu khi mở tab (có biểu báo *Đang tải*); Apps Script cộng dồn sẵn theo khoảng ngày.
+- **Thời gian:** Hôm nay (**gồm đợt đang mở**, tính từ các phần đã Báo xong – không ghi gì), Hôm qua, 7 ngày, 30 ngày, 6 tháng, Tự chọn. **Lọc:** Ngành, Nhà, Gian, ô tìm tên / barcode (gõ không dấu được).
+- **Thẻ tóm tắt** Shopee / TikTok / Web / Tổng: số đơn, số cuốn, doanh thu, chia theo nhà. (Web không có mã đơn nên số đơn là "—"; khi lọc theo sản phẩm, số đơn là ước lượng "≈".)
+- **Bảng:** Tên SP | Phân loại | Ngành | Nhà | Shopee | TikTok | Web | Tổng | Doanh thu | ↑↓ so kỳ trước cùng độ dài. Bấm tiêu đề cột để sắp xếp, 50 dòng / trang.
+- **Gộp phân loại** (chỉ đổi cách hiện) · **Combo: tách từng cuốn / xem nguyên** (tách: doanh thu combo chia theo giá gốc × SL).
+- **💡 Cơ hội:** bán ≥ 5 ở 1 sàn mà sàn khác = 0; Top 10 tăng mạnh; Top 10 giảm mạnh.
+- **📤 Xuất Excel theo bộ lọc:** sheet Sản phẩm, Tóm tắt, Cơ hội.
+- *Số liệu là đơn đặt (Chờ xác nhận/Chờ giao), chưa trừ hủy/hoàn.*
+
+**📥 Nạp bù số liệu cũ** (quyền *Nạp bù số liệu* + mã Admin; nút ở tab Sàn bán gì): thả file đơn cũ (Shopee / TikTok / web), mỗi file chọn **ngày** (đoán sẵn từ ngày trong file) và **gian**.
+File gồm nhiều ngày (Order_all cả tháng) tự tick *chia theo ngày đặt của từng đơn*. **Chỉ ghi `THONG_KE`** – không tạo đợt, không đụng danh mục. Đơn hủy không tính; dòng đã có (sàn + mã đơn) bỏ qua – nạp lại cùng file không cộng 2 lần; dòng cũ hơn 183 ngày bỏ.
+
+## 👥 Phân quyền theo từng người (cần Code.gs api 9)
+
+Thay 3 vai trò cố định bằng **bảng quyền** (sheet `QUYEN`). Tab **👥 Người dùng**: mỗi người 1 dòng, tick từng ô:
+- **Xem tab:** Tách đơn, Tổng hợp đợt, Dự báo, Chờ khai báo, Thống kê, Sàn bán gì, Danh mục, Lịch sử, Cài đặt, Người dùng.
+- **Tải đơn:** Shopee / TikTok / Web (thả file sàn không được phép → báo lỗi file).
+- **Đợt:** Báo xong · Chốt đợt · Mở lại đợt (gồm xóa đợt, quản lý phần gửi của người khác) · Xuất file nhà.
+- **Danh mục:** Khai báo (combo / tên / nhà / barcode) · Sửa · Xóa · Thêm nhà.
+- **Quản trị:** Cài đặt (cài đặt chung, sổ nhà, nạp / xóa hàng loạt, hoàn tác của người khác) · Khôi phục sao lưu (⚙️ Cài đặt → ♻️) · Nạp bù số liệu · Quản lý người dùng.
+
+**Mẫu vai trò:** Nhân viên sàn · Người đặt hàng · Chỉ xem · Admin (luôn đủ quyền). **＋ Tạo mẫu vai trò** để thêm mẫu; sửa ô của mẫu thì người đang dùng đúng mẫu đó đổi theo.
+Ở từng người: chọn mẫu để áp rồi chỉnh từng ô (cột mẫu hiện *Đã chỉnh riêng*), **📋 Sao chép từ…** người khác, **Tạm khóa** (không vào tab nào, không ghi được gì, quyền vẫn giữ), **＋ Thêm người**, 🗑 xóa. Bấm **💾 Lưu quyền**.
+- Lưu cần **mã Admin** (kiểm tra ở Apps Script) + quyền *Quản lý người dùng*. Luôn phải còn **≥ 1 Admin** (có *Quản lý người dùng*, không bị khóa).
+- Mỗi người đổi quyền ghi 1 dòng **LICH_SU** (thêm / bớt quyền nào, khóa / mở khóa). Máy khác nhận ở lần đồng bộ **30 giây**.
+- **Chuyển đổi tự động:** người cũ giữ đúng quyền vai trò cũ (Nhân viên sàn → mẫu Nhân viên sàn, Người đặt hàng → mẫu Người đặt hàng, Admin → Admin).
+- Không có mã cá nhân: vẫn chọn tên như cũ (bấm ô **🗓️ Đợt … · Bạn: …** trên thanh đầu để đổi tên – dùng được cả khi không có quyền vào Cài đặt). Nhóm Quản trị + mở lại / xóa đợt vẫn hỏi **mã Admin**.
+- Tab / nút không có quyền thì **ẩn hẳn**; Apps Script / app vẫn chặn lần cuối nếu ai cố gọi.
+- Máy chạy app bản cũ đổi vai trò ở danh sách cũ → quyền người đó theo mẫu của vai trò mới.
+
 ## Màn Danh mục
 
 - **SKU → nhà:** tìm kiếm (gõ không dấu cũng được), cột **Tên sách** (sửa được, lọc "Chưa có tên khai báo"), đổi nhà, xóa (có hỏi lại), cột **Giá gần nhất (ngày)**, nút **🔁 Thay mã tái bản**; mã đã bị thay hiện nhãn *"mã phụ → mã mới"*.
@@ -452,7 +501,9 @@ Combo trộn nhà (vd "COMBO HA + … (MEGA)"): chỉ cần khai phần HA/KV/ML
 - **🎨 Chủ đề:** mỗi máy tự chọn, đổi ngay không cần tải lại: 🐱 Mèo pastel (mặc định), 📦 Bưu kiện, 📒 Sổ tay học trò, 📚 Thư viện cũ, 🌙 Đêm đọc sách.
   Mèo đổi phụ kiện theo chủ đề; Bưu kiện / Thư viện cũ có hiệu ứng đóng dấu *ĐÃ GỬI* / *ĐÃ ĐẶT* khi tải file nhà hoặc chốt đợt.
   (Người sửa code: thêm chủ đề = 1 khối biến trong `themes.css` + 1 dòng trong `js/chude.js`.)
-- **Tôi là:** tên người dùng máy này (xem *Nhiều người dùng cùng lúc*).
+- **Tôi là:** tên người dùng máy này (xem *Nhiều người dùng cùng lúc*). Danh sách người + quyền ở tab **👥 Người dùng**.
+- **Tên gian** (Admin): nhận gian theo tên file cho tab Sàn bán gì.
+- **♻️ Khôi phục sao lưu** (quyền *Khôi phục sao lưu* + mã Admin): chọn ngày → khôi phục danh mục ngay trong app (giống hàm `khoiPhucSaoLuu`).
 - **URL Apps Script** (xem Phần D, F).
 - **🏠 Nhà:** sổ nhà dùng chung (sheet `NHA`). Mỗi nhà: mã, tên, loại (**Đặt hằng ngày** = có thẻ + file đặt riêng như HA/KV/ML; **Nhập kho** = không vào đơn hằng ngày, tính ở Dự báo nhập kho), màu, cách nhận diện: *mã trong tên* (vd `ĐT`), *tên NCC web* (vd `megabook` → MEGA), *tiền tố barcode* (tùy chọn, vd `8936067` → ML).
   Mặc định: HA/KV/ML hằng ngày; MEGA, VT, HH, NS, QB, TN, HT (từ ô "Mã nhà khác" cũ) nhập kho – không mất gì. Thêm / sửa / xóa cần **Admin**; xóa nhà đang có sách sẽ hỏi chuyển sách sang nhà nào.
@@ -490,6 +541,10 @@ js/xuatfile.js             xuất file gửi nhà (4 cột, mỗi nhà 1 file) +
 js/danhmuc.js              gọi Apps Script, cache danh mục, cài đặt (localStorage)
 js/danhmuc-excel.js        xuất / nạp danh mục bằng Excel, file mẫu
 js/thongke.js              lịch sử đặt hàng, thống kê, dự báo dự phòng (phần tính toán)
+js/sanban.js               thống kê bán theo ngày: khóa gộp sản phẩm, gian, mã hóa khi chốt đợt, xoay bảng theo sàn, cơ hội
+js/mansanban.js, napbu.js  tab 🛒 Sàn bán gì, 📥 Nạp bù số liệu cũ
+js/quyen.js                danh sách quyền + mẫu vai trò (khớp DS_QUYEN / MAU_GOC trong Code.gs)
+js/mannguoidung.js         tab 👥 Người dùng (bảng quyền)
 js/app.js, khaibao.js, mandanhmuc.js, manthongke.js, caidat.js, linhvat.js   các màn hình
 lib/                       SheetJS 0.18.5, ExcelJS 4.4.0 (để sẵn, không cần mạng)
 apps-script/Code.gs        Apps Script cho Google Sheets
@@ -512,6 +567,8 @@ node test/kiemtra-dot.js            # đợt đặt hàng: báo xong, đơn trù
 node test/kiemtra-admin.js          # Admin: mã ở Script Properties, khóa sau 5 lần sai, thao tác chỉ Admin, hoàn tác của người khác
 node test/kiemtra-dubao.js          # lịch sử bán (đơn treo, web, khai báo muộn, nạp file cũ, gom tháng), dự báo, chờ khai báo
 node test/kiemtra-nha.js            # sổ nhà: mặc định, nhận diện (mã/NCC/tiền tố barcode), nhà mới, nhà hằng ngày thứ 4, xóa + chuyển sách
+node test/kiemtra-sanban.js         # THONG_KE: chốt đợt ghi mọi dòng, chống trùng / ghi đè, combo tách-nguyên, nạp bù, tự xóa 183 ngày, xoay bảng
+node test/kiemtra-quyen.js          # phân quyền: chuyển đổi từ vai trò cũ, lưu quyền + LICH_SU, ≥ 1 Admin, tạm khóa, khôi phục sao lưu
 node test/kiemtra-chokb.js          # Chờ khai báo: nhà đoán được, tên gợi ý gọn, xác nhận tên + nhà, là sách lẻ, gán nhà hàng loạt, ẩn có ghi lịch sử
 ```
 Thư mục `mau/` và mọi file `.xlsx` (trừ `templates/`) bị `.gitignore` chặn – **không bao giờ commit file đơn hàng thật**.
