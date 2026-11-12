@@ -227,6 +227,13 @@
   function gop() {
     // Shopee: chỉ lấy các trạng thái trong Cài đặt (mặc định "Chờ giao hàng", "Chờ xác nhận")
     S.files.forEach(function (p) { if (!p.error) root.DocFile.locTrangThai(p, DM.caiDat.trangThaiShopee); });
+    // Gian (cho tab "Sàn bán gì"): nhận từ tên file theo danh sách "Tên gian" ở Cài đặt; file web: dấu file để chống tính trùng
+    S.files.forEach(function (p) {
+      if (p.error || p.nguoi || !root.SanBan) return; // file ảo khi xem gộp: dòng đã có sẵn gian / dấu file
+      p.gian = root.SanBan.doanGian(p.file, DM.caiDat.gian);
+      var wk = p.san === 'Web' && p.webKey && root.DotGop ? root.DotGop.dauFileWeb(p.webKey) : '';
+      (p.rowsTatCa || p.rows || []).forEach(function (r) { r.gian = p.gian; if (wk) r.webKey = wk; });
+    });
     root.DocFile.gopFile(S.files);
   }
 
@@ -236,7 +243,7 @@
         return '<li class="chip is-error">😿 <b>' + esc(p.file) + '</b>: ' + esc(p.error) +
           ' <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';
       }
-      var dau = '<li class="chip"><span class="tag tag-' + p.san + '">' + p.san + '</span> ' + esc(p.file);
+      var dau = '<li class="chip"><span class="tag tag-' + p.san + '">' + p.san + '</span> ' + (p.gian ? '<span class="tag tag-gian" title="Gian nhận từ tên file">🏪 ' + esc(p.gian) + '</span> ' : '') + esc(p.file);
       if (p.san === 'Web') {
         return dau + ' · <b>' + so(p.rows.length) + '</b> dòng sách' + (p.thoiGianXuat ? ' <span class="muted">(xuất ' + esc(p.thoiGianXuat) + ')</span>' : '') +
           ' <button class="chip-x" data-xoa-file="' + i + '" aria-label="Bỏ file ' + esc(p.file) + '">×</button></li>';

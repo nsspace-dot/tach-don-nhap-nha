@@ -16,7 +16,7 @@
   var LS_DANHMUC = 'tdn.danhmuc.v1';
   var LS_ADMIN = 'tdn.admin.v1'; // mã Admin của máy này (nhập 1 lần, "Đăng xuất Admin" để xóa)
   // Thao tác chỉ Admin (Apps Script api ≥ 4 kiểm tra mã)
-  var HD_ADMIN = { kiemTraMaAdmin: 1, luuNha: 1, xoaNha: 1, luuNguoiDung: 1, moLaiDot: 1, xoaDot: 1, xoaPhan: 1, suaPhan: 1, luuCaiDatChung: 1, importBatch: 1, upsertMaChuan: 1, xoaHangLoat: 1 };
+  var HD_ADMIN = { kiemTraMaAdmin: 1, luuNha: 1, xoaNha: 1, luuNguoiDung: 1, moLaiDot: 1, xoaDot: 1, xoaPhan: 1, suaPhan: 1, luuCaiDatChung: 1, importBatch: 1, upsertMaChuan: 1, xoaHangLoat: 1, napThongKe: 1 };
   var RE_LOI_ADMIN = /^(SAI_MA_ADMIN|KHOA_ADMIN|CHUA_DAT_MA_ADMIN|CAN_MA_ADMIN):\s*/;
 
   function docLS(k, macDinh) {
@@ -28,7 +28,7 @@
 
   var caiDat = Object.assign({ url: '', toiLa: '', maKhac: root.PhanLoai.MA_KHAC_MAC_DINH.slice(), tenShop: '', sdt: '', diaChi: '', ghiChu: '',
     trangThaiShopee: root.DocFile.TRANG_THAI_MAC_DINH.slice(), duPhongBat: true, soNgayDuPhong: 2,
-    plVoNghia: root.PhanLoai.PL_VO_NGHIA_MAC_DINH.slice() },
+    plVoNghia: root.PhanLoai.PL_VO_NGHIA_MAC_DINH.slice(), gian: [] },
     docLS(LS_CAIDAT, {}));
   if ('pin' in caiDat) { delete caiDat.pin; ghiLS(LS_CAIDAT, caiDat); } // bản cũ có PIN – không dùng nữa
   var cache = docLS(LS_DANHMUC, null);
@@ -53,7 +53,7 @@
     if (!cd || typeof cd !== 'object') return;
     may.caiDatChung = cd;
     var doi = false;
-    ['maKhac', 'trangThaiShopee', 'plVoNghia'].forEach(function (k) {
+    ['maKhac', 'trangThaiShopee', 'plVoNghia', 'gian'].forEach(function (k) {
       if (k === 'maKhac' && may.api >= 6) return; // có sổ nhà: mã nhà khác lấy từ sổ nhà
       if (Array.isArray(cd[k]) && JSON.stringify(cd[k]) !== JSON.stringify(caiDat[k])) { caiDat[k] = cd[k].slice(); doi = true; }
     });
@@ -157,6 +157,8 @@
   function coAdmin() { return !!(caiDat.url && may.api >= 4); }
   /* Có lịch sử bán + dự báo + chờ khai báo (Apps Script api ≥ 5) */
   function coBanHang() { return !!(caiDat.url && may.api >= 5); }
+  /* Có thống kê bán theo ngày – tab "Sàn bán gì" (Apps Script api ≥ 8) */
+  function coThongKe() { return !!(caiDat.url && may.api >= 8); }
   /* Vai trò của "Tôi là" trên máy này: admin | dat_hang | san | '' (chưa chọn / không có trong danh sách) */
   function vaiTro() {
     var x = nguoiDung.filter(function (n) { return n.ten === caiDat.toiLa; })[0];
@@ -419,9 +421,10 @@
     get api() { return may.api; },
     get rev() { return may.rev; },
     nhieuNguoi: nhieuNguoi,
-    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 7; },
+    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 8; },
     coAdmin: coAdmin,
     coBanHang: coBanHang,
+    coThongKe: coThongKe,
     coNha: function () { return !!(caiDat.url && may.api >= 6); },
     coKhaiBaoLo: function () { return !!(caiDat.url && may.api >= 7); },
     get soNha() { return root.PhanLoai.DS_NHA; },

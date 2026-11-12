@@ -34,7 +34,7 @@ console.log('\n2. Xác nhận tên + nhà (1 lần bấm), hàng loạt');
 var r = m.post('khaiBaoLo', { items: [
   { viec: 'ten', key: na.g.khoaTen, sku: na.g.sku, ten: na.g.tenSan, phan_loai: na.g.phanLoai, nha: 'MEGA', ten_sach: 'Nấu Ăn Gia Đình' },
   { viec: 'ten', key: tk.g.khoaTen, sku: tk.g.sku, ten: tk.g.tenSan, phan_loai: tk.g.phanLoai, nha: 'VT', ten_sach: 'Truyện Kiều' }] }, 'Lan');
-check('api 7, lưu 2 sách', m.get().api === 7 && r.ok && r.soThayDoi === 2 && !r.loi.length, r);
+check('api ≥ 7, lưu 2 sách', m.get().api >= 7 && r.ok && r.soThayDoi === 2 && !r.loi.length, r);
 ds = ck();
 check('Đã xác nhận → biến khỏi danh sách', !tim(ds, 'ten', /Nấu Ăn|Truyện Kiều/));
 var e = m.get().skus.filter(function (x) { return x.key === na.g.khoaTen; })[0];

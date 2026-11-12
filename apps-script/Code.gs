@@ -77,6 +77,18 @@
  *   GET  <url>?action=lichSuDatHang&tu=yyyy-MM-dd → { ok, cot, dong }
  *   POST ghiLichSuDatHang (ghi đè theo ngày + nhà), napLichSuDatHang (cộng theo ngày đặt, bỏ đơn trùng)
  *
+ * Thống kê bán theo ngày – tab "Sàn bán gì" (từ bản api 8):
+ *   THONG_KE       ngay | san | gian | khoa_sp | ten_sp | phan_loai | barcode | nganh | nha | so_luong | so_don | doanh_thu | nguon | nhom | combo | cap_nhat
+ *                  1 dòng = tổng của 1 sản phẩm / ngày / sàn / gian. MỌI mặt hàng trong file đã tải (sách mọi nhà, lịch, tranh, decal, trà…), sau bộ lọc
+ *                  trạng thái Shopee, KHÔNG có thông tin khách. ngay = ngày của đợt (nạp bù: ngày chọn cho file). doanh_thu trống = file không có cột giá bán.
+ *                  khoa_sp: "bc:<mã vạch>" | "ten:<tên gọn>|<phân loại gọn>" | "cb:<combo_id>" | "#don" (dòng phụ: số đơn của sàn + gian trong ngày)
+ *                  nguon: dot (ghi khi chốt đợt – chốt lại thì thay) | nap (nạp bù số liệu cũ) ; nhom: khóa gộp phân loại ; combo: JSON thành phần
+ *                  [[khoa_sp, tên, barcode, nhà, SL / combo, giá gốc]] (combo đã khai báo). Dòng cũ hơn 183 ngày tự xóa (chạy chung trigger sao lưu 23h).
+ *   THONG_KE_KHOA  ngay | nguon | thu_tu | du_lieu | cap_nhat   – dấu (sàn + mã đơn + dòng) đã tính, để đơn treo nhiều ngày / nạp lại file không cộng 2 lần
+ *   GET  ?action=thongKe&tu=&den=&combo=tach|nguyen[&truoc=1] → tổng theo khoảng ngày (cộng dồn ở server) { sp, d, don, … } (+ kỳ trước cùng độ dài)
+ *   POST chotDot { …, thong_ke: { sp, d } } ; napThongKe { ngay, dl: { sp, d } } (Admin) ; thongKeTam { ngay, dl } (xem đợt đang mở, không ghi)
+ *        sp: [[sàn, gian, khoa_sp, tên, phân loại, barcode, ngành, nhà, nhóm, combo]] ; d: [[chỉ số sp, dấu dòng, SL, doanh thu | null, chỉ số đơn | -1, ngày]]
+ *
  * API:
  *   GET  <url>                  → { ok, skus, combos }
  *   GET  <url>?action=lichSu    → { ok, lich_su }   (100 thay đổi gần nhất, mới nhất trước)
@@ -87,16 +99,16 @@
  *        → { ok, catalog, ... }  hoặc  { ok: false, error }
  */
 
-var API = 7; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo)
+var API = 8; // phiên bản Apps Script – app mới đọc số này để biết đã cập nhật Code.gs chưa (2: đồng bộ danh mục, 3: người dùng + đợt, 4: Admin, 5: lịch sử bán + dự báo, 6: sổ nhà, 7: khai báo lô, 8: thống kê bán theo ngày)
 var SH = { SKU: 'SKU_NHA', COMBO: 'COMBO', TP: 'COMBO_THANH_PHAN', LS: 'LICH_SU', MC: 'MA_CHUAN', DH: 'LS_DAT_HANG', DON: 'DON_DA_GHI', XOA: 'DM_XOA',
-           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG', BH: 'BAN_HANG', DS: 'DE_SAU', NHA: 'NHA' };
+           ND: 'NGUOI_DUNG', DOT: 'DOT', PHAN: 'DOT_PHAN', CDC: 'CAI_DAT_CHUNG', BH: 'BAN_HANG', DS: 'DE_SAU', NHA: 'NHA', TK: 'THONG_KE', TKK: 'THONG_KE_KHOA' };
 var BH_TRUNG_NGAY = 60;      // chống trùng khi chốt: so với lịch sử bán 60 ngày gần nhất (đơn treo nhiều ngày)
 var BH_GOM_SAU_NGAY = 120;   // gom các ngày cũ hơn 120 ngày thành 1 khối / tháng
 var BH_NGUONG_GOM = 3000;    // … khi sheet BAN_HANG quá số dòng này
 var VAI_TRO = ['san', 'dat_hang', 'admin'];
-var HD_ADMIN = ['kiemTraMaAdmin', 'luuNha', 'xoaNha', 'luuNguoiDung', 'moLaiDot', 'xoaDot', 'xoaPhan', 'suaPhan', 'luuCaiDatChung', 'importBatch', 'upsertMaChuan', 'xoaHangLoat'];
+var HD_ADMIN = ['kiemTraMaAdmin', 'luuNha', 'xoaNha', 'luuNguoiDung', 'moLaiDot', 'xoaDot', 'xoaPhan', 'suaPhan', 'luuCaiDatChung', 'importBatch', 'upsertMaChuan', 'xoaHangLoat', 'napThongKe'];
 var ADMIN_SAI_TOI_DA = 5, ADMIN_KHOA_PHUT = 10;
-var KHOA_CAI_DAT_CHUNG = ['maKhac', 'trangThaiShopee', 'plVoNghia'];
+var KHOA_CAI_DAT_CHUNG = ['maKhac', 'trangThaiShopee', 'plVoNghia', 'gian']; // gian: "Tên gian = từ khóa trong tên file, …"
 var DOT_DL = 'DOT_DL_';   // + yyyy-MM-dd : dữ liệu dòng đơn của 1 đợt
 var GIU_DOT = 30;         // giữ dữ liệu đợt 30 ngày
 var CHIA_O = 40000;       // ký tự tối đa mỗi ô (giới hạn Google Sheets 50.000)
@@ -122,8 +134,15 @@ var COT = {
   CAI_DAT_CHUNG: ['khoa', 'gia_tri', 'cap_nhat', 'nguoi'],
   BAN_HANG: ['ngay', 'nguon', 'thu_tu', 'du_lieu', 'cap_nhat'],
   DE_SAU: ['khoa', 'ten', 'luc', 'nguoi'],
-  NHA: ['ma', 'ten', 'loai', 'mau', 'ma_ten', 'ncc', 'tien_to', 'thu_tu', 'cap_nhat']
+  NHA: ['ma', 'ten', 'loai', 'mau', 'ma_ten', 'ncc', 'tien_to', 'thu_tu', 'cap_nhat'],
+  // Thống kê bán theo ngày (tab "Sàn bán gì") – xem mô tả đầu file
+  THONG_KE: ['ngay', 'san', 'gian', 'khoa_sp', 'ten_sp', 'phan_loai', 'barcode', 'nganh', 'nha', 'so_luong', 'so_don', 'doanh_thu', 'nguon', 'nhom', 'combo', 'cap_nhat'],
+  THONG_KE_KHOA: ['ngay', 'nguon', 'thu_tu', 'du_lieu', 'cap_nhat']
 };
+var TK_GIU_NGAY = 183;     // THONG_KE giữ 183 ngày (6 tháng)
+var TK_TRUNG_NGAY = 60;    // chốt đợt: so dấu dòng với 60 ngày trước (đơn treo)
+var TK_KHOA_MOI_O = 3000;  // số dấu dòng mỗi ô
+var TK_DON = '#don';       // khoa_sp của dòng phụ "số đơn của sàn + gian trong ngày"
 // Thao tác tự động (tự học, đổi khóa combo cũ): vẫn tăng mốc đồng bộ nhưng KHÔNG tăng số phiên bản / không đổi người sửa
 var HD_TU_DONG = ['upsertSkuBatch', 'doiKhoaCombo'];
 var META = { phien_ban: 1, dong_bo: 1, nguoi_sua: 1 };
@@ -132,7 +151,8 @@ var GIU_XOA = 2000; // số bản ghi xóa giữ lại để đồng bộ
 var COT_SO = { SKU_NHA: ['gia_gan_nhat', 'phien_ban', 'dong_bo'], COMBO: ['phien_ban', 'dong_bo'], COMBO_THANH_PHAN: ['gia_goc', 'so_luong'],
                MA_CHUAN: ['gia_bia', 'phien_ban', 'dong_bo'], DM_XOA: ['phien_ban'],
                DOT_PHAN: ['so_dong', 'so_don', 'con_combo', 'con_chua_ro', 'phien'], DOT_DL: ['thu_tu'],
-               LS_DAT_HANG: ['gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo'] };
+               LS_DAT_HANG: ['gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo'],
+               THONG_KE: ['so_luong', 'so_don', 'doanh_thu'] };
 var NGUONG_GOM_THANG = 40000;   // LS_DAT_HANG quá số dòng này → gom các ngày cũ hơn 180 ngày thành 1 dòng / tháng
 var NGUONG_NHAC_LON = 30000;    // nhắc khi dữ liệu lớn
 var GIU_DON_DA_GHI = 400;       // giữ mã đơn đã ghi trong 400 ngày
@@ -157,6 +177,7 @@ function doGet(e) {
     if (action === 'thayDoi') return traVe_(docThayDoi_(e.parameter.tu));
     if (action === 'dot') return traVe_(docDot_(e.parameter.id, e.parameter.duLieu === '1'));
     if (action === 'dsDot') return traVe_(dsDot_());
+    if (action === 'thongKe') return traVe_(tkTongHop_(e.parameter));
     if (action === 'banHang') return traVe_({ ok: true, api: API, khoi: docBanHang_(e.parameter.tu) });
     if (action === 'admin') return traVe_({ ok: true, api: API, da_dat_ma: !!maAdmin_(), khoa_con_phut: khoaAdminConPhut_() });
     var rev = revHienTai_(); // đọc mốc TRƯỚC dữ liệu: có ai ghi chen giữa thì lần đồng bộ sau tải lại phần đó
@@ -213,6 +234,8 @@ function xuLy_(action, data, nguoi) {
   if (action === 'luuNguoiDung') return luuNguoiDung_(data, nguoiLog);
   if (action === 'baoXong') return baoXong_(data, nguoi);
   if (action === 'napBanHang') return napBanHang_(data);
+  if (action === 'napThongKe') return tkNap_(data, nguoiLog);
+  if (action === 'thongKeTam') return tkTam_(data);
   if (action === 'deSau') return deSau_(data, nguoi);
   if (action === 'luuDuBaoNgay') return luuDuBaoNgay_(data, nguoi);
   if (action === 'moLaiPhan') return moLaiPhan_(data, nguoi, admin);
@@ -1405,10 +1428,12 @@ function chotDot_(d, nguoi) {
   }
   // Lịch sử bán (mọi sách, kể cả nhà khác) – chốt lại sau "Mở lại đợt" thì thay khối của ngày đó, không cộng 2 lần
   var kqBh = d.ban_hang ? ghiBanHangDot_(dotId, d.ban_hang) : null;
+  // Thống kê bán theo ngày (mọi mặt hàng) – chốt lại thì ghi đè số của đợt đó
+  var kqTk = d.thong_ke ? tkGhi_(dotId, 'dot', d.thong_ke) : null;
   dot.trang_thai = 'da_chot'; dot.chot_luc = bayGio_(); dot.chot_boi = nguoi || '';
   ghiBang_(SH.DOT, dots);
   ghiLichSu_([[bayGio_(), 'chotDot', dotId, '', JSON.stringify({ ghi_chu: 'Chốt đợt ' + dotId + (kqLs ? ' – ghi lịch sử ' + kqLs.soDong + ' đầu sách' : '') }), nguoi || '', '']]);
-  return { ok: true, dot: dongDot_(dot), lichSu: kqLs, banHang: kqBh };
+  return { ok: true, dot: dongDot_(dot), lichSu: kqLs, banHang: kqBh, thongKe: kqTk };
 }
 function moLaiDot_(d, nguoi) {
   var dotId = chuoi_(d.dot_id);
@@ -1750,6 +1775,220 @@ function gomBanHang_() {
   return Object.keys(thang).length;
 }
 
+/* ===================== Thống kê bán theo ngày – tab "Sàn bán gì" (api 8) ===================== */
+
+function tkNgay_(v) { return v instanceof Date ? dinhDang_(v, 'yyyy-MM-dd') : String(v === null || v === undefined ? '' : v).slice(0, 10); }
+/* Vị trí các dòng (chỉ đọc cột ngày + cột nguồn – nhẹ) → [{ dong, ngay, nguon }] */
+function tkViTri_(ten, cotNguon) {
+  var s = sheet_(ten), n = s.getLastRow();
+  if (n < 2) return [];
+  var a = s.getRange(2, 1, n - 1, 1).getValues(), b = cotNguon ? s.getRange(2, cotNguon, n - 1, 1).getValues() : null;
+  var out = [];
+  for (var i = 0; i < a.length; i++) {
+    var ngay = tkNgay_(a[i][0]);
+    if (ngay) out.push({ dong: i + 2, ngay: ngay, nguon: b ? String(b[i][0]) : '' });
+  }
+  return out;
+}
+/* Gom các dòng liền nhau thành đoạn [dòng đầu, số dòng] */
+function tkDoan_(vt) {
+  var out = [];
+  vt.forEach(function (x) {
+    var c = out[out.length - 1];
+    if (c && c[0] + c[1] === x.dong) c[1]++; else out.push([x.dong, 1]);
+  });
+  return out;
+}
+/* Xóa hẳn các dòng (đoạn liền nhau: deleteRows ; quá rời rạc: ghi lại cả sheet) */
+function tkXoaDong_(ten, vt) {
+  if (!vt.length) return 0;
+  var s = sheet_(ten), doan = tkDoan_(vt), cols = COT[ten].length;
+  if (doan.length > 40) {
+    var n = s.getLastRow(), bo = {};
+    vt.forEach(function (x) { bo[x.dong] = 1; });
+    var giu = s.getRange(2, 1, n - 1, cols).getValues().filter(function (r, i) { return !bo[i + 2]; });
+    if (giu.length) s.getRange(2, 1, giu.length, cols).setValues(giu);
+    if (n - 1 > giu.length) s.getRange(giu.length + 2, 1, n - 1 - giu.length, cols).clearContent();
+    return vt.length;
+  }
+  for (var i = doan.length - 1; i >= 0; i--) {
+    var tong = s.getMaxRows(); // Google Sheets không cho xóa hết dòng không cố định → luôn chừa ≥ 1 dòng trống
+    if (tong - doan[i][1] < 2) s.insertRowsAfter(tong, 2 - (tong - doan[i][1]));
+    s.deleteRows(doan[i][0], doan[i][1]);
+  }
+  return vt.length;
+}
+/* Thêm dòng vào cuối sheet; cotSo: chỉ số (từ 0) các cột số, còn lại lưu dạng chữ (barcode không bị đổi thành số) */
+function tkThemDong_(ten, dong, cotSo) {
+  if (!dong.length) return;
+  var s = sheet_(ten), n = s.getLastRow(), cols = COT[ten].length, cuoi = n + dong.length;
+  if (s.getMaxRows() < cuoi) s.insertRowsAfter(s.getMaxRows(), cuoi - s.getMaxRows());
+  for (var j = 0; j < cols; j++) if ((cotSo || []).indexOf(j) < 0) s.getRange(n + 1, j + 1, dong.length, 1).setNumberFormat('@');
+  s.getRange(n + 1, 1, dong.length, cols).setValues(dong);
+}
+/* Dấu dòng đã tính (THONG_KE_KHOA) của các (ngày, nguồn) thỏa điều kiện → { dấu: 1 } */
+function tkKhoaDaCo_(chon) {
+  var s = sheet_(SH.TKK), daCo = {};
+  tkDoan_(tkViTri_(SH.TKK, 2).filter(function (x) { return chon(x.ngay, x.nguon); })).forEach(function (d) {
+    s.getRange(d[0], 4, d[1], 1).getValues().forEach(function (r) {
+      String(r[0]).split(',').forEach(function (k) { if (k) daCo[k] = 1; });
+    });
+  });
+  return daCo;
+}
+function tkXoa_(ngay, nguon) {
+  var chon = function (x) { return x.ngay === ngay && x.nguon === nguon; };
+  tkXoaDong_(SH.TKK, tkViTri_(SH.TKK, 2).filter(chon));
+  return tkXoaDong_(SH.TK, tkViTri_(SH.TK, 13).filter(chon));
+}
+function tkChu_(v, dai) { return chuoi_(v).slice(0, dai || 300); }
+/* Khối { sp, d } từ máy → các dòng THONG_KE (đã cộng theo ngày + sản phẩm), bỏ dòng có dấu đã tính.
+ * motNgay: mọi dòng tính vào ngayMacDinh (chốt đợt) ; không thì theo ngày của từng dòng (nạp bù chia theo ngày đặt). tuNgay: bỏ dòng cũ hơn. */
+function tkTuDl_(ngayMacDinh, nguon, dl, daCo, motNgay, tuNgay) {
+  var sp = (dl && dl.sp) || [], nhom = {}, thuTu = [], don = {}, khoa = {}, bo = 0, boCu = 0, soDong = 0, now = bayGio_();
+  ((dl && dl.d) || []).forEach(function (x) {
+    var p = sp[x[0]], k = chuoi_(x[1]);
+    if (!p || !k) return;
+    var ngay = !motNgay && laNgay_(x[5]) ? chuoi_(x[5]) : ngayMacDinh;
+    if (!laNgay_(ngay)) return;
+    if (tuNgay && ngay < tuNgay) { boCu++; return; }
+    if (daCo[k]) { bo++; return; }
+    daCo[k] = 1;
+    (khoa[ngay] = khoa[ngay] || []).push(k);
+    soDong++;
+    var id = ngay + '\u0001' + x[0], g = nhom[id];
+    if (!g) { g = nhom[id] = { ngay: ngay, p: p, sl: 0, dt: 0, coDt: false, don: {}, soDon: 0 }; thuTu.push(id); }
+    g.sl += Number(x[2]) || 0;
+    if (x[3] !== null && x[3] !== undefined && x[3] !== '' && isFinite(Number(x[3]))) { g.dt += Number(x[3]); g.coDt = true; }
+    var dn = x[4] === null || x[4] === undefined || x[4] === '' ? -1 : Number(x[4]);
+    if (dn >= 0) {
+      if (!g.don[dn]) { g.don[dn] = 1; g.soDon++; }
+      var kd = ngay + '\u0001' + tkChu_(p[0], 20) + '\u0001' + tkChu_(p[1], 60), o = don[kd];
+      if (!o) o = don[kd] = { ngay: ngay, san: tkChu_(p[0], 20), gian: tkChu_(p[1], 60), ds: {}, n: 0 };
+      if (!o.ds[dn]) { o.ds[dn] = 1; o.n++; }
+    }
+  });
+  var dong = thuTu.map(function (id) {
+    var g = nhom[id], p = g.p, cb = typeof p[9] === 'string' ? p[9] : p[9] ? JSON.stringify(p[9]) : '';
+    return [g.ngay, tkChu_(p[0], 20), tkChu_(p[1], 60), tkChu_(p[2], 400), tkChu_(p[3], 300), tkChu_(p[4], 200), tkChu_(p[5], 40), tkChu_(p[6], 30), tkChu_(p[7], 40),
+            g.sl, g.soDon, g.coDt ? Math.round(g.dt) : '', nguon, tkChu_(p[8], 400), cb.length <= CHIA_O ? cb : '', now];
+  });
+  Object.keys(don).forEach(function (kd) {
+    var o = don[kd];
+    dong.push([o.ngay, o.san, o.gian, TK_DON, '(số đơn)', '', '', '', '', 0, o.n, '', nguon, '', '', now]);
+  });
+  return { dong: dong, khoa: khoa, soDong: soDong, bo: bo, boCu: boCu };
+}
+function tkLuu_(x, nguon) {
+  tkThemDong_(SH.TK, x.dong, [9, 10, 11]);
+  var now = bayGio_(), dk = [];
+  Object.keys(x.khoa).sort().forEach(function (ngay) {
+    for (var i = 0, k = 0; i < x.khoa[ngay].length; i += TK_KHOA_MOI_O, k++) dk.push([ngay, nguon, String(k), x.khoa[ngay].slice(i, i + TK_KHOA_MOI_O).join(','), now]);
+  });
+  tkThemDong_(SH.TKK, dk, []);
+}
+/* Chốt đợt: thay số liệu "dot" của ngày đó; bỏ dòng đã tính trong 60 ngày trước (đơn treo) hoặc đã nạp bù */
+function tkGhi_(ngay, nguon, dl) {
+  tkXoa_(ngay, nguon);
+  var tu = congNgay_(ngay, -TK_TRUNG_NGAY);
+  var x = tkTuDl_(ngay, nguon, dl, tkKhoaDaCo_(function (n) { return n >= tu; }), true, '');
+  tkLuu_(x, nguon);
+  return { soDong: x.soDong, boTrung: x.bo, soSp: x.dong.length };
+}
+/* Admin "Nạp bù số liệu cũ": CHỈ ghi THONG_KE (không tạo đợt, không đụng danh mục). Dòng (sàn + mã đơn + dòng) đã có ở bất kỳ ngày nào → bỏ qua. */
+function tkNap_(d, nguoiLog) {
+  var ngay = laNgay_(d.ngay) ? chuoi_(d.ngay) : '';
+  if (!ngay && !d.theo_dong) throw new Error('Thiếu ngày của file.');
+  var homNay = homNayVN_();
+  if (ngay > homNay) throw new Error('Ngày ' + ngay + ' ở tương lai.');
+  var x = tkTuDl_(ngay || homNay, 'nap', d.dl, tkKhoaDaCo_(function () { return true; }), !d.theo_dong, congNgay_(homNay, -TK_GIU_NGAY));
+  tkLuu_(x, 'nap');
+  var soNgay = Object.keys(x.khoa).length;
+  if (x.soDong) ghiLichSu_([[bayGio_(), 'napThongKe', tkChu_(d.file, 120) || ngay, '', JSON.stringify({ ghi_chu: 'Nạp bù số liệu bán: ' + x.soDong + ' dòng mới, ' + soNgay + ' ngày' +
+    (x.bo ? ', bỏ ' + x.bo + ' dòng đã có' : '') }), nguoiLog || '', '']]);
+  return { ok: true, soDongMoi: x.soDong, soDongTrung: x.bo, soDongCu: x.boCu, soNgay: soNgay };
+}
+/* Cộng dồn các dòng THONG_KE trong kỳ [tu, den] (+ kỳ trước [tuT, denT]) theo sản phẩm × sàn × gian.
+ * tach: combo đã khai báo → tách ra từng cuốn (doanh thu chia theo giá gốc × SL). Trả về
+ *   sp: [[khoa_sp, tên, phân loại, barcode, ngành, nhà, nhóm, là combo]]
+ *   d:  [[chỉ số sp, sàn, gian, SL, số đơn, doanh thu | null, SL kỳ trước, doanh thu kỳ trước | null]]
+ *   don: [[sàn, gian, số đơn, số đơn kỳ trước]] */
+function tkGop_(dong, tu, den, tuT, denT, tach) {
+  var sp = [], spMap = {}, d = {}, thuTu = [], don = {};
+  function cong(ky, san, gian, tt, sl, sd, dt) {
+    var i = spMap[tt[0]];
+    if (i === undefined) { i = spMap[tt[0]] = sp.length; sp.push(tt); } else if (ky) sp[i] = tt; // tên / ngành / nhà: lấy theo dòng mới nhất trong kỳ
+    var id = i + '\u0001' + san + '\u0001' + gian, g = d[id];
+    if (!g) { g = d[id] = [i, san, gian, 0, 0, null, 0, null]; thuTu.push(id); }
+    if (ky) { g[3] += sl; g[4] += sd; if (dt !== null) g[5] = (g[5] || 0) + dt; }
+    else { g[6] += sl; if (dt !== null) g[7] = (g[7] || 0) + dt; }
+  }
+  dong.forEach(function (r) {
+    var ngay = tkNgay_(r[0]), ky = ngay >= tu && ngay <= den;
+    if (!ky && !(tuT && ngay >= tuT && ngay <= denT)) return;
+    var san = String(r[1]), gian = String(r[2]), khoa = String(r[3]);
+    var sl = Number(r[9]) || 0, sd = Number(r[10]) || 0, dt = r[11] === '' || r[11] === null || r[11] === undefined ? null : Number(r[11]) || 0;
+    if (khoa === TK_DON) {
+      var kd = san + '\u0001' + gian, o = don[kd] || (don[kd] = [san, gian, 0, 0]);
+      o[ky ? 2 : 3] += sd;
+      return;
+    }
+    var tp = null;
+    if (tach && r[14]) { try { tp = JSON.parse(String(r[14])); } catch (e) { tp = null; } }
+    if (tp && tp.length) {
+      var tongGia = 0, tongSl = 0;
+      tp.forEach(function (t) { var n = Number(t[4]) || 1; tongGia += (Number(t[5]) || 0) * n; tongSl += n; });
+      tp.forEach(function (t) {
+        var n = Number(t[4]) || 1, tl = tongGia > 0 ? (Number(t[5]) || 0) * n / tongGia : n / tongSl;
+        cong(ky, san, gian, [String(t[0]), String(t[1]), '', String(t[2] || ''), 'Sách', String(t[3] || ''), String(t[0]), 0], sl * n, sd, dt === null ? null : dt * tl);
+      });
+      return;
+    }
+    cong(ky, san, gian, [khoa, String(r[4]), String(r[5]), String(r[6]), String(r[7]), String(r[8]), String(r[13] || '') || khoa, r[14] ? 1 : 0], sl, sd, dt);
+  });
+  return { sp: sp, don: Object.keys(don).map(function (k) { return don[k]; }),
+           d: thuTu.map(function (id) { var g = d[id]; if (g[5] !== null) g[5] = Math.round(g[5]); if (g[7] !== null) g[7] = Math.round(g[7]); return g; }) };
+}
+/* GET ?action=thongKe&tu=&den=&combo=tach|nguyen&truoc=1 – cộng dồn ở server, máy không tải toàn bộ 6 tháng */
+function tkTongHop_(q) {
+  q = q || {};
+  var homNay = homNayVN_(), den = laNgay_(q.den) ? chuoi_(q.den) : homNay, tu = laNgay_(q.tu) ? chuoi_(q.tu) : congNgay_(den, -6);
+  if (tu > den) tu = den;
+  var soNgay = Math.round((Date.parse(den) - Date.parse(tu)) / 864e5) + 1, tuT = '', denT = '';
+  if (q.truoc === '1') { denT = congNgay_(tu, -1); tuT = congNgay_(tu, -soNgay); }
+  var s = sheet_(SH.TK), vt = tkViTri_(SH.TK, 0), dau = tuT || tu, min = '', max = '';
+  vt.forEach(function (x) { if (!min || x.ngay < min) min = x.ngay; if (x.ngay > max) max = x.ngay; });
+  var dong = [];
+  tkDoan_(vt.filter(function (x) { return x.ngay >= dau && x.ngay <= den; })).forEach(function (d) {
+    Array.prototype.push.apply(dong, s.getRange(d[0], 1, d[1], 15).getValues());
+  });
+  var kq = tkGop_(dong, tu, den, tuT, denT, q.combo === 'tach');
+  kq.ok = true; kq.api = API; kq.tu = tu; kq.den = den; kq.tu_truoc = tuT; kq.den_truoc = denT; kq.hom_nay = homNay;
+  kq.ngay_min = min; kq.ngay_max = max; kq.so_dong = dong.length;
+  var dot = timDot_(docBang_(SH.DOT), homNay);
+  kq.dot_hom_nay = dot ? dot.trang_thai : '';
+  return kq;
+}
+/* Đợt đang mở (chưa chốt): tính thử số liệu của ngày đó như khi chốt, KHÔNG ghi gì → { tach: {…}, nguyen: {…} } */
+function tkTam_(d) {
+  var ngay = laNgay_(d.ngay) ? chuoi_(d.ngay) : homNayVN_(), tu = congNgay_(ngay, -TK_TRUNG_NGAY);
+  var daCo = tkKhoaDaCo_(function (n, ng) { return n >= tu && !(n === ngay && ng === 'dot'); });
+  var x = tkTuDl_(ngay, 'dot', d.dl, daCo, true, '');
+  return { ok: true, ngay: ngay, soDong: x.soDong, boTrung: x.bo, tach: tkGop_(x.dong, ngay, ngay, '', '', true), nguyen: tkGop_(x.dong, ngay, ngay, '', '', false) };
+}
+/** Xóa số liệu THONG_KE cũ hơn 183 ngày (tự chạy chung với sao lưu 23h; chạy tay cũng được). */
+function tkDonCu() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var moc = congNgay_(homNayVN_(), -TK_GIU_NGAY), cu = function (x) { return x.ngay < moc; };
+    tkXoaDong_(SH.TKK, tkViTri_(SH.TKK, 0).filter(cu));
+    return tkXoaDong_(SH.TK, tkViTri_(SH.TK, 0).filter(cu));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /* "⏭ Để sau": dòng chưa rõ nhà chuyển sang tab Chờ khai báo (dùng chung mọi máy) */
 function docDeSau_() { return docBang_(SH.DS).filter(function (x) { return x.khoa; }).map(function (x) { return x.khoa; }); }
 function deSau_(d, nguoi) {
@@ -1890,12 +2129,12 @@ function bayGio_() { return dinhDang_(new Date()); }
 
 /** Chạy 1 lần: tạo đủ 4 sheet có dòng tiêu đề. */
 function khoiTao() {
-  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN, SH.CDC, SH.BH, SH.DS, SH.NHA].forEach(sheet_);
+  [SH.SKU, SH.COMBO, SH.TP, SH.LS, SH.MC, SH.DH, SH.DON, SH.XOA, SH.ND, SH.DOT, SH.PHAN, SH.CDC, SH.BH, SH.DS, SH.NHA, SH.TK, SH.TKK].forEach(sheet_);
   var ss = bangTinh_();
   ss.getSheets().forEach(function (s) {
     if (/^(Sheet1|Trang tính1)$/.test(s.getName()) && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s);
   });
-  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN, CAI_DAT_CHUNG, BAN_HANG, DE_SAU, NHA.');
+  Logger.log('Đã tạo xong các sheet: SKU_NHA, COMBO, COMBO_THANH_PHAN, LICH_SU, MA_CHUAN, LS_DAT_HANG, DON_DA_GHI, DM_XOA, NGUOI_DUNG, DOT, DOT_PHAN, CAI_DAT_CHUNG, BAN_HANG, DE_SAU, NHA, THONG_KE, THONG_KE_KHOA.');
 }
 
 /** Sao lưu 3 sheet danh mục sang file "Sao lưu danh mục – Tách đơn nhập nhà", giữ 30 bản gần nhất. */
@@ -1924,6 +2163,8 @@ function saoLuuHangNgay() {
     if (xoa.indexOf(s.getName().slice(0, 10)) >= 0) bk.deleteSheet(s);
   });
   Logger.log('Đã sao lưu ngày ' + ngay + ' vào: ' + bk.getUrl());
+  // Chạy chung trigger 23h: xóa số liệu THONG_KE cũ hơn 183 ngày (lỗi ở đây không làm hỏng việc sao lưu)
+  try { Logger.log('THONG_KE: đã xóa ' + tkDonCu() + ' dòng cũ hơn ' + TK_GIU_NGAY + ' ngày.'); } catch (e) { Logger.log('Chưa dọn được THONG_KE: ' + e); }
   return bk.getUrl();
 }
 

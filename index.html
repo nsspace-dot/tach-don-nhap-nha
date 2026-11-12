@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261019b">
-  <link rel="stylesheet" href="themes.css?v=20261019b">
-  <script src="js/chude.js?v=20261019b"></script>
+  <link rel="stylesheet" href="style.css?v=20261112a">
+  <link rel="stylesheet" href="themes.css?v=20261112a">
+  <script src="js/chude.js?v=20261112a"></script>
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -193,6 +193,7 @@
           <button class="btn" id="tk-xuat" type="button">📤 Xuất Excel các bảng</button>
           <button class="btn can-write" id="tk-nap" type="button" title="Chọn nhiều file Order_all Shopee / TikTok / Danh sách lấy hàng web cũ">📥 Nạp lịch sử từ file đơn cũ</button>
           <input type="file" id="tk-nap-input" accept=".xlsx,.xls" multiple hidden>
+          <button class="btn nut-nap-bu" type="button" hidden title="Chỉ Admin – thả file đơn cũ để có số liệu cho tab 🛒 Sàn bán gì. Chỉ ghi sheet THONG_KE, không tạo đợt, không đụng danh mục">📥 Nạp bù số liệu cũ</button>
         </div>
       </div>
       <div id="tk-noidung"></div>
@@ -291,6 +292,12 @@
           <textarea class="input" id="cd-plvn" rows="3"></textarea>
           <small>Mỗi dòng 1 phân loại. Sách chưa khai báo tên sẽ dùng tạm “tên sàn – phân loại” (vd “… Các Lớp – Lớp 3”), trừ các phân loại ở đây
             (không phân biệt hoa thường, có dấu hay không) hoặc phân loại đã có sẵn trong tên.</small>
+        </label>
+        <label class="field" id="cd-gian-o" hidden>
+          <span>Tên gian (cho tab 🛒 Sàn bán gì)</span>
+          <textarea class="input" id="cd-gian" rows="3" placeholder="Tên gian = từ khóa trong tên file, từ khóa khác"></textarea>
+          <small>Mỗi dòng 1 gian: <code>Tên gian = từ khóa 1, từ khóa 2</code>. Tên file đơn có chứa từ khóa (không phân biệt hoa thường / dấu) thì các dòng của file đó
+            được ghi vào gian này. Không khớp gian nào → cột gian để trống. Cài đặt chung do Admin quản lý.</small>
         </label>
         <h2 class="h-phu">🔮 Gợi ý đặt dự phòng</h2>
         <label class="radio"><input type="checkbox" id="cd-dp-bat"> Hiện cột “Gợi ý dự phòng” ở màn Tách đơn</label>
@@ -538,6 +545,25 @@
     </form>
   </dialog>
 
+  <dialog class="dlg dlg-wide" id="dlg-napbu" aria-labelledby="dlg-napbu-title">
+    <form method="dialog">
+      <h2 id="dlg-napbu-title">📥 Nạp bù số liệu cũ</h2>
+      <p class="muted">Thả file đơn cũ (Shopee / TikTok / Danh sách lấy hàng web) → chọn ngày cho từng file. <b>Chỉ ghi số liệu bán (sheet THONG_KE)</b> cho tab 🛒 Sàn bán gì –
+        không tạo đợt, không đụng danh mục. Đơn đã hủy không tính; dòng đã có (cùng sàn + mã đơn) tự bỏ qua. Chỉ giữ 183 ngày gần nhất.</p>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" id="nb-chon">📂 Chọn file đơn cũ</button>
+        <input type="file" id="nb-input" accept=".xlsx,.xls" multiple hidden>
+        <span class="muted" id="nb-tt" role="status"></span>
+      </div>
+      <div class="table-wrap" id="nb-bang" style="margin-top:10px"></div>
+      <p class="err" id="nb-loi" role="alert"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Đóng</button>
+        <button class="btn btn-primary" type="button" id="nb-nap" disabled>📥 Nạp vào số liệu</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="dlg" id="dlg-hoi" aria-labelledby="dlg-hoi-title">
     <form method="dialog">
       <h2 id="dlg-hoi-title">Chắc chưa nè?</h2>
@@ -553,23 +579,25 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261019b"></script>
-  <script src="js/phanloai.js?v=20261019b"></script>
-  <script src="js/thongke.js?v=20261019b"></script>
-  <script src="js/xuatfile.js?v=20261019b"></script>
-  <script src="js/danhmuc.js?v=20261019b"></script>
-  <script src="js/danhmuc-excel.js?v=20261019b"></script>
-  <script src="js/linhvat.js?v=20261019b"></script>
-  <script src="js/app.js?v=20261019b"></script>
-  <script src="js/khaibao.js?v=20261019b"></script>
-  <script src="js/barcode.js?v=20261019b"></script>
-  <script src="js/mandanhmuc.js?v=20261019b"></script>
-  <script src="js/caidat.js?v=20261019b"></script>
-  <script src="js/manthongke.js?v=20261019b"></script>
-  <script src="js/dot-gop.js?v=20261019b"></script>
-  <script src="js/dot.js?v=20261019b"></script>
-  <script src="js/banhang.js?v=20261019b"></script>
-  <script src="js/bieudo.js?v=20261019b"></script>
-  <script src="js/dubao.js?v=20261019b"></script>
+  <script src="js/docfile.js?v=20261112a"></script>
+  <script src="js/phanloai.js?v=20261112a"></script>
+  <script src="js/thongke.js?v=20261112a"></script>
+  <script src="js/xuatfile.js?v=20261112a"></script>
+  <script src="js/danhmuc.js?v=20261112a"></script>
+  <script src="js/danhmuc-excel.js?v=20261112a"></script>
+  <script src="js/linhvat.js?v=20261112a"></script>
+  <script src="js/app.js?v=20261112a"></script>
+  <script src="js/khaibao.js?v=20261112a"></script>
+  <script src="js/barcode.js?v=20261112a"></script>
+  <script src="js/mandanhmuc.js?v=20261112a"></script>
+  <script src="js/caidat.js?v=20261112a"></script>
+  <script src="js/manthongke.js?v=20261112a"></script>
+  <script src="js/dot-gop.js?v=20261112a"></script>
+  <script src="js/dot.js?v=20261112a"></script>
+  <script src="js/banhang.js?v=20261112a"></script>
+  <script src="js/bieudo.js?v=20261112a"></script>
+  <script src="js/dubao.js?v=20261112a"></script>
+  <script src="js/sanban.js?v=20261112a"></script>
+  <script src="js/napbu.js?v=20261112a"></script>
 </body>
 </html>

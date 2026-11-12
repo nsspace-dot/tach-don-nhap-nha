@@ -37,6 +37,14 @@
     return '';
   }
   var RE_HUY = /hủy|huỷ|cancel/i;
+  /* Doanh thu của 1 dòng = giá bán SAU GIẢM × SL. Ô trống / file không có cột → undefined (để trống, không đoán). */
+  function coSo(v) { return typeof v === 'number' ? isFinite(v) : clean(v) !== '' && /\d/.test(clean(v)); }
+  function doanhThu(get, cotDonGia, cotThanhTien, sl) {
+    var i, v;
+    for (i = 0; i < cotThanhTien.length; i++) { v = get(cotThanhTien[i]); if (coSo(v)) return Math.round(toNum(v)); }
+    for (i = 0; i < cotDonGia.length; i++) { v = get(cotDonGia[i]); if (coSo(v)) return Math.round(toNum(v) * (Number(sl) || 0)); }
+    return undefined;
+  }
 
   /* File TikTok ghi sai vùng dữ liệu (!ref) -> quét toàn bộ ô để tính lại. */
   function fixRef(ws, XLSX) {
@@ -68,6 +76,7 @@
           gia: toNum(get('SKU Unit Original Price')),
           sl: toNum(get('Quantity')),
           ngayDat: ngayISO(get('Created Time')),
+          doanhThu: doanhThu(get, [], ['SKU Subtotal After Discount'], toNum(get('Quantity'))),
           daHuy: RE_HUY.test(clean(get('Order Status')) + ' ' + clean(get('Order Substatus')) + ' ' + clean(get('Cancelation/Return Type')))
         };
       }
@@ -86,6 +95,7 @@
           gia: toNum(get('Giá gốc')),
           sl: toNum(get('Số lượng')),
           ngayDat: ngayISO(get('Ngày đặt hàng')),
+          doanhThu: doanhThu(get, ['Giá ưu đãi'], [], toNum(get('Số lượng'))),
           daHuy: RE_HUY.test(clean(get('Trạng Thái Đơn Hàng')))
         };
       }
@@ -104,6 +114,7 @@
         phanLoai: '',
         gia: toNum(get('Giá bìa')),
         sl: toNum(get('SL')),
+        doanhThu: doanhThu(get, ['Giá bán', 'Giá sau giảm', 'Đơn giá'], ['Thành tiền'], toNum(get('SL'))),
         ncc: clean(get('Nhà cung cấp'))   // "Nhà Sách Hồng Ân", "Minh Long Book"… (cột "Trong kho" bỏ qua)
       };
     }

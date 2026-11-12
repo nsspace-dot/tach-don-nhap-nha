@@ -653,3 +653,9 @@ main:has(> #man-chokb:not([hidden])) { max-width: none; padding: 16px 16px 40px;
   .kb-bang .kb-o-nut { flex-basis: 100%; }
   .kb-lo { top: 0; }
 }
+
+/* ---------- Gian + Nạp bù số liệu cũ ---------- */
+.tag-gian { background: var(--soft); color: var(--ink); border: 1px solid var(--line); }
+.nb-tbl td { vertical-align: middle; }
+.nb-tbl .input { min-width: 120px; }
+.nb-theo { display: block; margin-top: 4px; font-size: .85em; }

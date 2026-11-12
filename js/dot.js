@@ -277,19 +277,23 @@
       if (kq && kq.combo.length) nhac.push(kq.combo.length + ' combo chưa khai báo');
       if (kq && kq.chuaRo.length) nhac.push(kq.chuaRo.length + ' sách chưa rõ nhà');
       return A.hoi('Chốt đợt ' + DG.ngayNgan(T.gop.dot_id) + '?\n\n' + (nhac.length ? '⚠ ' + nhac.join('\n⚠ ') + '\n\n' : '') +
-        '· Khóa đợt: ai báo xong sau đó sẽ vào đợt ngày mai\n· Ghi lịch sử thống kê của đợt (1 lần, chốt lại thì ghi đè)\n· Mở lại đợt được nếu cần', '🔒 Chốt đợt', { huy: 'Chưa', tieuDe: 'Chốt đợt' })
+        '· Khóa đợt: ai báo xong sau đó sẽ vào đợt ngày mai\n· Ghi lịch sử thống kê + số liệu bán của đợt (1 lần, chốt lại thì ghi đè)\n· Mở lại đợt được nếu cần', '🔒 Chốt đợt', { huy: 'Chưa', tieuDe: 'Chốt đợt' })
         .then(function (ok) {
           if (!ok) return;
           var bg = kq ? root.ThongKe.banGhiNgay(kq, PL.NHA.slice(), T.gop.dot_id) : null;
           // Lịch sử bán (mọi sách, kể cả nhà khác) cho Dự báo nhập kho – lưu đúng 1 lần khi chốt
           var bh = DM.coBanHang() && root.BanHang ? root.BanHang.maHoa(A.S.files, T.gop.dot_id) : undefined;
-          return DM.goi('chotDot', { dot_id: T.gop.dot_id, lich_su: bg, ban_hang: bh }).then(function (j) {
+          // Thống kê bán theo ngày (MỌI mặt hàng, trước bước lọc nhà) cho tab "Sàn bán gì" – chốt lại thì ghi đè số của đợt
+          var tk = DM.coThongKe() && root.SanBan && kq ? root.SanBan.maHoa(kq, { catalog: DM.catalog, maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : undefined;
+          return DM.goi('chotDot', { dot_id: T.gop.dot_id, lich_su: bg, ban_hang: bh, thong_ke: tk }).then(function (j) {
+            if (j.thongKe && root.ManSanBan) root.ManSanBan.xoaNho();
             if (j.banHang && root.ManDuBao) root.ManDuBao.taiLai();
             if (!j.da_chot_truoc) root.LinhVat.dongDau();
             T.dot = j.dot;
             A.toast(j.da_chot_truoc ? '🔒 Đợt này đã được chốt trước đó.' : '🔒 Đã chốt đợt ' + DG.ngayNgan(T.gop.dot_id) +
               (j.lichSu ? ' – ghi lịch sử ' + A.so(j.lichSu.soDong) + ' đầu sách' : '') +
-              (j.banHang ? ', lưu ' + A.so(j.banHang.soDong) + ' dòng bán' + (j.banHang.boTrung ? ' (bỏ ' + A.so(j.banHang.boTrung) + ' dòng đơn treo đã tính)' : '') : '') + '.', 'ok');
+              (j.banHang ? ', lưu ' + A.so(j.banHang.soDong) + ' dòng bán' + (j.banHang.boTrung ? ' (bỏ ' + A.so(j.banHang.boTrung) + ' dòng đơn treo đã tính)' : '') : '') +
+              (j.thongKe ? ', thống kê sàn ' + A.so(j.thongKe.soDong) + ' dòng' : '') + '.', 'ok');
             if (j.lichSu) A.taiLichSu(undefined, true);
             taiTongHop();
           });

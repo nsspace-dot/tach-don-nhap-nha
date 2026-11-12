@@ -9,8 +9,9 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // nguồn, mã đơn, barcode/SKU, tên sàn, phân loại, giá, SL, ngày đặt, tên file, nhà cung cấp (web), ngày xuất (web), dấu file web
-  var COT = ['san', 'ma_don', 'sku', 'ten', 'phan_loai', 'gia', 'sl', 'ngay_dat', 'file', 'ncc', 'ngay_xuat', 'web_key'];
+  // nguồn, mã đơn, barcode/SKU, tên sàn, phân loại, giá, SL, ngày đặt, tên file, nhà cung cấp (web), ngày xuất (web), dấu file web,
+  // doanh thu của dòng (giá bán sau giảm × SL; trống = file không có cột), gian (nhận từ tên file; trống = không rõ) – 2 cột cuối cho tab "Sàn bán gì"
+  var COT = ['san', 'ma_don', 'sku', 'ten', 'phan_loai', 'gia', 'sl', 'ngay_dat', 'file', 'ncc', 'ngay_xuat', 'web_key', 'doanh_thu', 'gian'];
 
   /* Dấu nhận dạng file web (từ thời gian xuất + nội dung) – ngắn gọn, đủ để so trùng */
   function dauFileWeb(s) {
@@ -33,7 +34,8 @@
       var wk = p.san === 'Web' ? dauFileWeb(p.webKey) : '';
       p.rows.forEach(function (r) {
         dong.push([r.san || p.san, r.orderId || '', r.sku || '', r.ten || '', r.phanLoai || '', Number(r.gia) || 0, Number(r.sl) || 0,
-                   r.ngayDat || '', r.file || p.file || '', r.ncc || '', r.ngayXuat || '', wk]);
+                   r.ngayDat || '', r.file || p.file || '', r.ncc || '', r.ngayXuat || '', wk,
+                   r.doanhThu === undefined || r.doanhThu === null ? '' : Number(r.doanhThu) || 0, r.gian || p.gian || '']);
         if (r.orderId) don[(r.san || p.san) + ':' + r.orderId] = 1;
         else if (wk) don['web#' + wk] = 1;
       });
@@ -50,6 +52,8 @@
     if (o.ngay_dat) r.ngayDat = String(o.ngay_dat);
     if (r.san === 'Web') { r.ncc = String(o.ncc || ''); if (o.ngay_xuat) r.ngayXuat = String(o.ngay_xuat); }
     r.webKey = String(o.web_key || '');
+    if (o.doanh_thu !== undefined && o.doanh_thu !== null && o.doanh_thu !== '') r.doanhThu = Number(o.doanh_thu) || 0;
+    if (o.gian) r.gian = String(o.gian);
     return r;
   }
 

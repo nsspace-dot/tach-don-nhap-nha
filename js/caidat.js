@@ -22,6 +22,8 @@
     $('cd-dp-bat').checked = c.duPhongBat !== false;
     $('cd-dp-ngay').value = c.soNgayDuPhong === undefined ? 2 : c.soNgayDuPhong;
     $('cd-trangthai').value = (c.trangThaiShopee || root.DocFile.TRANG_THAI_MAC_DINH).join('\n');
+    $('cd-gian').value = (c.gian || []).join('\n');
+    $('cd-gian-o').hidden = !DM.coThongKe();
   }
 
   function docForm() {
@@ -35,6 +37,7 @@
         return ds.length ? ds : root.DocFile.TRANG_THAI_MAC_DINH.slice();
       })(),
       plVoNghia: $('cd-plvn').value.split(/\n/).map(function (x) { return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean),
+      gian: $('cd-gian').value.split(/\n/).map(function (x) { return x.replace(/\s+/g, ' ').trim(); }).filter(Boolean),
       duPhongBat: $('cd-dp-bat').checked,
       soNgayDuPhong: Math.max(0, Math.min(30, Math.round(Number($('cd-dp-ngay').value) || 0))),
       tenShop: $('cd-tenshop').value.trim(), sdt: $('cd-sdt').value.trim(), diaChi: $('cd-diachi').value.trim(), ghiChu: $('cd-ghichu').value.trim() };
@@ -134,7 +137,7 @@
   /* Cài đặt chung: chỉ Admin sửa (Apps Script cũ: mỗi máy tự đặt như trước) */
   function veCaiDatChung() {
     var khoa = DM.coAdmin() && !A.laAdmin();
-    ['cd-makhac', 'cd-trangthai', 'cd-plvn'].forEach(function (id) { $(id).disabled = khoa; });
+    ['cd-makhac', 'cd-trangthai', 'cd-plvn', 'cd-gian'].forEach(function (id) { $(id).disabled = khoa; });
     $('cd-chung-ghichu').hidden = !DM.coAdmin();
   }
   function veNguoiDung() {
@@ -209,7 +212,7 @@
       A.toast('💾 Đã lưu cài đặt trên máy này.', 'ok');
       // Admin: mã nhà khác / trạng thái Shopee / phân loại vô nghĩa là cài đặt chung → lưu lên Google Sheets cho mọi máy
       if (A.laAdmin()) {
-        DM.goi('luuCaiDatChung', { maKhac: f.maKhac, trangThaiShopee: f.trangThaiShopee, plVoNghia: f.plVoNghia })
+        DM.goi('luuCaiDatChung', Object.assign({ maKhac: f.maKhac, trangThaiShopee: f.trangThaiShopee, plVoNghia: f.plVoNghia }, DM.coThongKe() ? { gian: f.gian } : {}))
           .then(function (j) { DM.nhanCaiDatChung(j.cai_dat_chung); A.toast('🔑 Đã lưu cài đặt chung cho mọi máy.', 'ok'); })
           .catch(function (e) { A.baoLoi('Chưa lưu được cài đặt chung', e); });
       }

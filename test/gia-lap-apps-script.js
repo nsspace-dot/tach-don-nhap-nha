@@ -25,6 +25,14 @@ Sheet.prototype.getLastRow = function () {
 Sheet.prototype.getLastColumn = function () {
   return this.data.reduce(function (m, r) { return Math.max(m, (r || []).length); }, 0);
 };
+Sheet.prototype.getMaxRows = function () { return Math.max(this.data.length, this.maxRows || 1000); };
+Sheet.prototype.insertRowsAfter = function (r, n) { this.maxRows = this.getMaxRows() + n; return this; };
+Sheet.prototype.deleteRows = function (r, n) {
+  if (this.getMaxRows() - n < 1 + this.frozen) throw new Error('Không thể xóa hết các dòng không cố định');
+  var max = this.getMaxRows();
+  this.data.splice(r - 1, n);
+  this.maxRows = max - n;
+};
 Sheet.prototype.getRange = function (r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); };
 Sheet.prototype.getDataRange = function () { return new Range(this, 1, 1, Math.max(1, this.getLastRow()), Math.max(1, this.getLastColumn())); };
 Sheet.prototype.copyTo = function (ss) {
