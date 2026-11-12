@@ -885,7 +885,7 @@
   }
 
   function diToi(man) {
-    ['chinh', 'dot', 'dubao', 'chokb', 'thongke', 'danhmuc', 'caidat'].forEach(function (m) {
+    ['chinh', 'dot', 'dubao', 'chokb', 'thongke', 'sanban', 'danhmuc', 'caidat'].forEach(function (m) {
       $('man-' + m).hidden = m !== man;
     });
     document.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -896,6 +896,7 @@
     if (man === 'danhmuc' && root.ManDanhMuc) root.ManDanhMuc.ve();
     if (man === 'caidat' && root.CaiDat) root.CaiDat.ve();
     if (man === 'thongke' && root.ManThongKe) root.ManThongKe.ve();
+    if (man === 'sanban' && root.ManSanBan) root.ManSanBan.ve();
     if (man === 'dot' && root.ManDot) root.ManDot.veTongHop(true);
     if ((man === 'dubao' || man === 'chokb') && root.ManDuBao) root.ManDuBao.ve(man);
     DM.dongBo();

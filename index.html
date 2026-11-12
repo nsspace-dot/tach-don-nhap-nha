@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=20261112a">
-  <link rel="stylesheet" href="themes.css?v=20261112a">
-  <script src="js/chude.js?v=20261112a"></script>
+  <link rel="stylesheet" href="style.css?v=20261112b">
+  <link rel="stylesheet" href="themes.css?v=20261112b">
+  <script src="js/chude.js?v=20261112b"></script>
 </head>
 <body>
   <a class="skip" href="#noi-dung">Bỏ qua tới nội dung</a>
@@ -30,6 +30,7 @@
       <button class="nav-btn" data-man="dubao" id="nav-dubao" hidden>📈 Dự báo nhập kho</button>
       <button class="nav-btn" data-man="chokb" id="nav-chokb" hidden>📝 Chờ khai báo <span id="dem-chokb" class="dem"></span></button>
       <button class="nav-btn" data-man="thongke">📊 Thống kê</button>
+      <button class="nav-btn" data-man="sanban" id="nav-sanban" hidden>🛒 Sàn bán gì</button>
       <button class="nav-btn" data-man="danhmuc">📚 Danh mục</button>
       <button class="nav-btn" data-man="caidat">⚙️ Cài đặt</button>
     </nav>
@@ -193,10 +194,62 @@
           <button class="btn" id="tk-xuat" type="button">📤 Xuất Excel các bảng</button>
           <button class="btn can-write" id="tk-nap" type="button" title="Chọn nhiều file Order_all Shopee / TikTok / Danh sách lấy hàng web cũ">📥 Nạp lịch sử từ file đơn cũ</button>
           <input type="file" id="tk-nap-input" accept=".xlsx,.xls" multiple hidden>
-          <button class="btn nut-nap-bu" type="button" hidden title="Chỉ Admin – thả file đơn cũ để có số liệu cho tab 🛒 Sàn bán gì. Chỉ ghi sheet THONG_KE, không tạo đợt, không đụng danh mục">📥 Nạp bù số liệu cũ</button>
         </div>
       </div>
       <div id="tk-noidung"></div>
+    </section>
+
+    <!-- ============ MÀN SÀN BÁN GÌ ============ -->
+    <section class="man" id="man-sanban" aria-label="Sàn bán gì" hidden>
+      <div class="tk-loc panel sb-loc">
+        <div class="tk-loc-hang">
+          <span class="tk-nhan">Thời gian</span>
+          <div class="seg" role="group" aria-label="Khoảng thời gian" id="sb-tg">
+            <button class="seg-btn" data-v="homnay" title="Gồm cả đợt đang mở chưa chốt">Hôm nay</button>
+            <button class="seg-btn" data-v="homqua">Hôm qua</button>
+            <button class="seg-btn is-active" data-v="7">7 ngày</button>
+            <button class="seg-btn" data-v="30">30 ngày</button>
+            <button class="seg-btn" data-v="183">6 tháng</button>
+            <button class="seg-btn" data-v="tuy">Tự chọn</button>
+          </div>
+          <span id="sb-tuy" hidden>
+            <label>Từ <input class="input input-ngay" type="date" id="sb-tu"></label>
+            <label>đến <input class="input input-ngay" type="date" id="sb-den"></label>
+          </span>
+          <span class="sb-dang" id="sb-dang" role="status" aria-live="polite" hidden><span class="sb-quay" aria-hidden="true"></span> Đang tải số liệu…</span>
+        </div>
+        <div class="tk-loc-hang">
+          <span class="tk-nhan">Lọc</span>
+          <select class="select" id="sb-nganh" aria-label="Lọc ngành"></select>
+          <select class="select" id="sb-nha" aria-label="Lọc nhà"></select>
+          <select class="select" id="sb-gian" aria-label="Lọc gian"></select>
+          <input type="search" class="input sb-tim" id="sb-tim" placeholder="🔎 Tìm tên sản phẩm / barcode" aria-label="Tìm tên sản phẩm">
+        </div>
+        <div class="tk-loc-hang">
+          <span class="tk-nhan">Cách xem</span>
+          <label class="radio"><input type="checkbox" id="sb-goppl"> Gộp phân loại</label>
+          <div class="seg seg-nho" role="group" aria-label="Combo" id="sb-combo">
+            <button class="seg-btn is-active" data-v="tach">Combo: tách từng cuốn</button>
+            <button class="seg-btn" data-v="nguyen">Xem nguyên combo</button>
+          </div>
+        </div>
+        <div class="tk-loc-hang tk-nut">
+          <button class="btn" id="sb-tailai" type="button">🔄 Tải lại</button>
+          <button class="btn" id="sb-xuat" type="button">📤 Xuất Excel theo bộ lọc</button>
+          <button class="btn nut-nap-bu" type="button" hidden title="Chỉ Admin – thả file đơn cũ. Chỉ ghi sheet THONG_KE, không tạo đợt, không đụng danh mục">📥 Nạp bù số liệu cũ</button>
+          <span class="muted sb-ky" id="sb-ky"></span>
+        </div>
+      </div>
+      <div class="sb-the" id="sb-the"></div>
+      <details class="panel sb-cohoi" id="sb-cohoi" open>
+        <summary>💡 Cơ hội</summary>
+        <div class="tk-luoi tk-luoi-3 sb-cohoi-luoi" id="sb-cohoi-nd"></div>
+      </details>
+      <div class="panel">
+        <div class="table-wrap" id="sb-bang"></div>
+        <div class="sb-trang" id="sb-trang"></div>
+      </div>
+      <p class="legend sb-ghichu">Số liệu là đơn đặt (Chờ xác nhận/Chờ giao), chưa trừ hủy/hoàn.</p>
     </section>
 
     <!-- ============ MÀN DANH MỤC ============ -->
@@ -579,25 +632,26 @@
 
   <script src="lib/xlsx-0.18.5.full.min.js"></script>
   <script src="lib/exceljs-4.4.0.min.js" defer></script>
-  <script src="js/docfile.js?v=20261112a"></script>
-  <script src="js/phanloai.js?v=20261112a"></script>
-  <script src="js/thongke.js?v=20261112a"></script>
-  <script src="js/xuatfile.js?v=20261112a"></script>
-  <script src="js/danhmuc.js?v=20261112a"></script>
-  <script src="js/danhmuc-excel.js?v=20261112a"></script>
-  <script src="js/linhvat.js?v=20261112a"></script>
-  <script src="js/app.js?v=20261112a"></script>
-  <script src="js/khaibao.js?v=20261112a"></script>
-  <script src="js/barcode.js?v=20261112a"></script>
-  <script src="js/mandanhmuc.js?v=20261112a"></script>
-  <script src="js/caidat.js?v=20261112a"></script>
-  <script src="js/manthongke.js?v=20261112a"></script>
-  <script src="js/dot-gop.js?v=20261112a"></script>
-  <script src="js/dot.js?v=20261112a"></script>
-  <script src="js/banhang.js?v=20261112a"></script>
-  <script src="js/bieudo.js?v=20261112a"></script>
-  <script src="js/dubao.js?v=20261112a"></script>
-  <script src="js/sanban.js?v=20261112a"></script>
-  <script src="js/napbu.js?v=20261112a"></script>
+  <script src="js/docfile.js?v=20261112b"></script>
+  <script src="js/phanloai.js?v=20261112b"></script>
+  <script src="js/thongke.js?v=20261112b"></script>
+  <script src="js/xuatfile.js?v=20261112b"></script>
+  <script src="js/danhmuc.js?v=20261112b"></script>
+  <script src="js/danhmuc-excel.js?v=20261112b"></script>
+  <script src="js/linhvat.js?v=20261112b"></script>
+  <script src="js/app.js?v=20261112b"></script>
+  <script src="js/khaibao.js?v=20261112b"></script>
+  <script src="js/barcode.js?v=20261112b"></script>
+  <script src="js/mandanhmuc.js?v=20261112b"></script>
+  <script src="js/caidat.js?v=20261112b"></script>
+  <script src="js/manthongke.js?v=20261112b"></script>
+  <script src="js/dot-gop.js?v=20261112b"></script>
+  <script src="js/dot.js?v=20261112b"></script>
+  <script src="js/banhang.js?v=20261112b"></script>
+  <script src="js/bieudo.js?v=20261112b"></script>
+  <script src="js/dubao.js?v=20261112b"></script>
+  <script src="js/sanban.js?v=20261112b"></script>
+  <script src="js/napbu.js?v=20261112b"></script>
+  <script src="js/mansanban.js?v=20261112b"></script>
 </body>
 </html>

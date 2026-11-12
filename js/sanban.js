@@ -41,7 +41,13 @@
     var s = sach(ten), ma = tatCaMaNha(), m;
     // mã nhà đứng đầu: "HA - Sách…", "[KV] …", "(ML) …"
     while ((m = /^[\[(]?\s*([\p{L}\p{N}]{1,8})\s*[\])]?\s*[-–—:|.]\s*/u.exec(s)) && ma.indexOf(m[1].toUpperCase()) >= 0 && s.length > m[0].length) s = s.slice(m[0].length);
-    return PL.tenGoiY(s, '', opt.maKhac, opt.plVoNghia);
+    var t = PL.tenGoiY(s, '', opt.maKhac, opt.plVoNghia);
+    // tên quá ngắn bị cắt chỉ còn mã nhà ("Sách X - KV" → "KV") → lấy phần trước mã nhà
+    if (ma.indexOf(t.toUpperCase()) >= 0) {
+      var c = s.replace(/[\s\-–—_,(\[]+[\p{L}\p{N}]{1,8}[)\]]?\s*$/u, '');
+      if (c && ma.indexOf(c.toUpperCase()) < 0) t = c;
+    }
+    return t;
   }
   function plGon(pl, ten, opt) {
     opt = opt || {};
@@ -200,11 +206,12 @@
       h.pt = h.slTruoc > 0 ? Math.round((h.tong - h.slTruoc) / h.slTruoc * 100) : null; // null = kỳ trước không có
       return h;
     });
-    return { hang: ds, the: the, gian: Object.keys(dsGian).sort(), nha: Object.keys(dsNha).sort(), nganh: NGANH.filter(function (n) { return dsNganh[n]; }) };
+    // hang: sản phẩm CÓ BÁN trong kỳ (bảng chính) ; hangTatCa: thêm sản phẩm chỉ bán ở kỳ trước (để tính "giảm mạnh")
+    return { hang: ds.filter(function (h) { return h.tong > 0; }), hangTatCa: ds, the: the, gian: Object.keys(dsGian).sort(), nha: Object.keys(dsNha).sort(), nganh: NGANH.filter(function (n) { return dsNganh[n]; }) };
   }
 
   /* 💡 Cơ hội: bán ≥ nguong ở 1 sàn mà sàn khác = 0 ; top tăng / giảm mạnh so với kỳ trước */
-  function coHoi(hang, nguong) {
+  function coHoi(hang, nguong, hangTatCa) {
     nguong = nguong || 5;
     var lech = [];
     (hang || []).forEach(function (h) {
@@ -215,7 +222,7 @@
       });
     });
     lech.sort(function (a, b) { return b.sl - a.sl; });
-    var co = (hang || []).filter(function (h) { return h.tong !== h.slTruoc; });
+    var co = (hangTatCa || hang || []).filter(function (h) { return h.tong !== h.slTruoc; });
     var tang = co.filter(function (h) { return h.doi > 0; }).sort(function (a, b) { return b.doi - a.doi; }).slice(0, 10);
     var giam = co.filter(function (h) { return h.doi < 0; }).sort(function (a, b) { return a.doi - b.doi; }).slice(0, 10);
     return { lech: lech, tang: tang, giam: giam };
