@@ -461,7 +461,7 @@
     get api() { return may.api; },
     get rev() { return may.rev; },
     nhieuNguoi: nhieuNguoi,
-    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 9; },
+    canCapNhatAppsScript: function () { return !!caiDat.url && may.api !== null && may.api < 10; },
     coAdmin: coAdmin,
     coBanHang: coBanHang,
     coThongKe: coThongKe,

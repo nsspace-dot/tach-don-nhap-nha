@@ -8,7 +8,8 @@
   'use strict';
 
   var NHA = PL.NHA; // nhà đặt hằng ngày – cùng mảng với sổ nhà (đổi tại chỗ)
-  var COT = ['ngay', 'nha', 'barcode', 'ten', 'gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo'];
+  var COT = ['ngay', 'nha', 'barcode', 'ten', 'gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo', 'sl_treo_shopee', 'sl_treo_tiktok'];
+  var TREO = { Shopee: 'sl_treo_shopee', TikTok: 'sl_treo_tiktok' };
   var NGUON = { Shopee: 'sl_shopee', TikTok: 'sl_tiktok', Web: 'sl_web' };
 
   /* ---------- Ngày ---------- */
@@ -34,8 +35,10 @@
         (g.nguon || []).forEach(function (src) {
           var r = src.row || {};
           var maDon = r.orderId ? r.san + ':' + r.orderId : r.san === 'Web' ? 'web:' + (r.ngayXuat || '') + '|' + (PL.clean(r.sku) || PL.norm(r.ten)) : '';
+          // daDem: phần đã tính ở đợt / ngày trước (đơn lặp) – theo tỷ lệ của dòng đơn (thành phần combo = SL combo × số cuốn)
+          var daDem = r._daDem === undefined ? undefined : Math.min(Number(src.sl) || 0, (Number(r._daDem) || 0) * ((Number(src.sl) || 0) / (Number(r.sl) || 1)));
           out.push({ nha: n, barcode: k, ten: ten, gia: Number(g.gia) || 0, sl: Number(src.sl) || 0, nguon: src.san || r.san,
-                     maDon: maDon, ngayDat: r.ngayDat || r.ngayXuat || '' });
+                     maDon: maDon, ngayDat: r.ngayDat || r.ngayXuat || '', daDem: daDem });
         });
       });
     });
@@ -48,14 +51,22 @@
     var gom = {}, maDon = {};
     dongTuKetQua(kq, nhas).forEach(function (l) {
       var k = l.nha + '|' + l.barcode;
-      var b = gom[k] || (gom[k] = { ngay: ngay, nha: l.nha, barcode: l.barcode, ten: l.ten, gia: l.gia, sl: 0, sl_shopee: 0, sl_tiktok: 0, sl_web: 0, sl_treo: 0, _gia: 0 });
+      var b = gom[k] || (gom[k] = { ngay: ngay, nha: l.nha, barcode: l.barcode, ten: l.ten, gia: l.gia, sl: 0, sl_shopee: 0, sl_tiktok: 0, sl_web: 0, sl_treo: 0,
+                                    sl_treo_shopee: 0, sl_treo_tiktok: 0, _gia: 0 });
       b.sl += l.sl;
       if (NGUON[l.nguon]) b[NGUON[l.nguon]] += l.sl;
-      if ((l.nguon === 'Shopee' || l.nguon === 'TikTok') && l.ngayDat && l.ngayDat < ngay) b.sl_treo += l.sl;
+      // Đơn lặp: phần đã đếm ở đợt trước (tra lịch sử bán) ; chưa tra được → như cũ (đơn có ngày đặt trước ngày đợt)
+      var treo = l.daDem !== undefined ? l.daDem : (TREO[l.nguon] && l.ngayDat && l.ngayDat < ngay ? l.sl : 0);
+      if (TREO[l.nguon] && treo > 0) { b.sl_treo += treo; b[TREO[l.nguon]] += treo; }
       if (l.sl > b._gia) { b._gia = l.sl; b.gia = l.gia; } // nhiều giá → lấy giá của phần nhiều cuốn nhất
       if (l.maDon) maDon[l.maDon] = 1;
     });
-    var dong = Object.keys(gom).map(function (k) { delete gom[k]._gia; return gom[k]; });
+    var dong = Object.keys(gom).map(function (k) {
+      var b = gom[k];
+      delete b._gia;
+      ['sl_treo', 'sl_treo_shopee', 'sl_treo_tiktok'].forEach(function (c) { b[c] = Math.round(b[c] * 1000) / 1000; });
+      return b;
+    });
     return { ngay: ngay, nhas: nhas, dong: dong, maDon: Object.keys(maDon) };
   }
 
@@ -78,14 +89,18 @@
     return ds.map(function (o) {
       var x = { ngay: String(o.ngay), nha: String(o.nha), barcode: String(o.barcode), ten: String(o.ten || '') };
       ['gia', 'sl', 'sl_shopee', 'sl_tiktok', 'sl_web', 'sl_treo'].forEach(function (c) { x[c] = Number(o[c]) || 0; });
+      // Phần đơn lặp theo từng sàn (cột thêm ở bản api 10). Dòng cũ không có → chia sl_treo theo tỷ lệ Shopee / TikTok
+      var coCot = o.sl_treo_shopee !== undefined && o.sl_treo_shopee !== '' && o.sl_treo_shopee !== null;
+      var tongST = x.sl_shopee + x.sl_tiktok;
+      x.sl_treo_shopee = coCot ? Number(o.sl_treo_shopee) || 0 : tongST ? x.sl_treo * x.sl_shopee / tongST : 0;
+      x.sl_treo_tiktok = coCot ? Number(o.sl_treo_tiktok) || 0 : tongST ? x.sl_treo * x.sl_tiktok / tongST : 0;
       return x;
     }).filter(function (x) { return /^\d{4}-\d{2}-\d{2}$/.test(x.ngay); }); // dòng đã gom theo tháng không dùng cho thống kê ngày
   }
 
-  /* Số lượng dùng cho thống kê: tất cả nguồn = số đặt − phần đơn treo từ ngày trước (đã tính ở ngày trước);
-   * lọc 1 nguồn = số của nguồn đó. */
+  /* Số lượng dùng cho thống kê: số đặt − phần đơn lặp đã tính ở ngày trước (mỗi đơn chỉ đếm 1 lần); lọc 1 nguồn cũng trừ phần lặp của nguồn đó. */
   function soLuong(r, nguon) {
-    if (nguon && NGUON[nguon]) return r[NGUON[nguon]];
+    if (nguon && NGUON[nguon]) return Math.max(0, r[NGUON[nguon]] - (TREO[nguon] ? r[TREO[nguon]] || 0 : 0));
     return Math.max(0, r.sl - r.sl_treo);
   }
 

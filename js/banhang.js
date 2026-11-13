@@ -51,13 +51,19 @@
    * → { kq: kết quả phân loại (kèm nhà khác), rows, ngayMin, ngayMax, soDong } */
   /* Để nhanh: phân loại theo SẢN PHẨM (cùng nguồn + SKU + tên + phân loại + giá + nhà cung cấp) – 1 dòng đại diện mang
    * tổng SL; số bán theo ngày (_ngay), số đơn (_don), lần cuối gặp giữ riêng. Kết quả phân loại không phụ thuộc số lượng. */
-  function tongHop(khoi, catalog, settings, themRows) {
-    var ds = (khoi || []).slice().sort(function (a, b) { return a.ngay < b.ngay ? -1 : a.ngay > b.ngay ? 1 : 0; });
-    var daCo = {}, rows = [], theoSp = {}, ngayMin = '', ngayMax = '', soDong = 0;
+  /* Đơn lặp qua các ngày: mỗi khóa (sàn + mã đơn + sản phẩm) chỉ đếm 1 LẦN, vào ngày xuất hiện đầu tiên; xuất hiện lại không cộng,
+   * SL tăng thì chỉ cộng phần chênh. truoc: { khóa: SL cao nhất đã thấy TRƯỚC kỳ đang tải } (Apps Script trả kèm). */
+  function tongHop(khoi, catalog, settings, themRows, truoc) {
+    var ds = (khoi || []).slice().sort(function (a, b) { return a.ngay < b.ngay ? -1 : a.ngay > b.ngay ? 1 : (a.nguon === 'dot') - (b.nguon === 'dot'); });
+    var daCo = Object.assign({}, truoc || {}), rows = [], theoSp = {}, ngayMin = '', ngayMax = '', soDong = 0, soLap = 0, soTang = 0;
     function them(r, k) {
-      if (daCo[k]) return;
-      daCo[k] = 1;
-      soDong++;
+      var cu = k in daCo ? Number(daCo[k]) || 0 : null, sl0 = Number(r.sl) || 0;
+      if (cu !== null) {
+        if (sl0 <= cu) { soLap++; return; }
+        soTang++;
+        r = Object.assign({}, r, { sl: sl0 - cu });
+      } else soDong++;
+      daCo[k] = sl0;
       var ngay = r.ngayDat || r.ngayXuat || '';
       if (ngay) { if (!ngayMin || ngay < ngayMin) ngayMin = ngay; if (ngay > ngayMax) ngayMax = ngay; }
       var ks = JSON.stringify([r.san, sach(r.sku), sach(r.ten), sach(r.phanLoai), Number(r.gia) || 0, r.san === 'Web' ? sach(r.ncc) : '']);
@@ -72,7 +78,7 @@
       dd.sl += sl;
       if (ngay) dd._ngay[ngay] = (dd._ngay[ngay] || 0) + sl;
       var kd = r.orderId ? r.orderId : 'w' + soDong;
-      if (!dd._don[kd]) { dd._don[kd] = 1; dd._soDon++; }
+      if (cu === null && !dd._don[kd]) { dd._don[kd] = 1; dd._soDon++; }
       if (ngay > dd._lanCuoi) { dd._lanCuoi = ngay; dd.ngayDat = ngay; if (r.san === 'Web') dd.ngayXuat = ngay; }
     }
     ds.forEach(function (b) {
@@ -94,7 +100,7 @@
     });
     rows.forEach(function (r) { delete r._don; });
     var kq = PL.classify(rows, catalog || {}, Object.assign({}, settings || {}, { caNhaKhac: true }));
-    return { kq: kq, rows: rows, ngayMin: ngayMin, ngayMax: ngayMax, soDong: soDong };
+    return { kq: kq, rows: rows, ngayMin: ngayMin, ngayMax: ngayMax, soDong: soDong, soLap: soLap, soTang: soTang };
   }
 
   /* ---------- Dự báo nhập kho ----------

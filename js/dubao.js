@@ -21,7 +21,7 @@
     H.loi = '';
     var tu = BH.congNgay(DG.homNayVN(), -SO_NGAY_TAI);
     var p = H.dangTai = DM.docGet('action=banHang&tu=' + tu).then(function (j) {
-      H.khoi = j.khoi || []; H.luc = Date.now(); H.th = null;
+      H.khoi = j.khoi || []; H.truoc = j.truoc || {}; H.lap = j.lap || null; H.luc = Date.now(); H.th = null;
       return true;
     }).catch(function (e) { H.loi = e.message; return false; })
       .then(function (x) { H.dangTai = null; return x; });
@@ -40,7 +40,7 @@
   function tinh() {
     if (!H.khoi) return null;
     if (!H.th) {
-      H.th = BH.tongHop(H.khoi, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }, dongTrenMay());
+      H.th = BH.tongHop(H.khoi, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }, dongTrenMay(), H.truoc);
       H.db = null; H.ck = null;
     }
     if (!H.db) { H.db = BH.duBao(H.th, DG.homNayVN(), soNgayTheoNha()); H.dbSo = (H.dbSo || 0) + 1; }
@@ -120,6 +120,8 @@
     var x = db.nha[nha], st = trangThaiNha(nha);
     if (document.activeElement !== $('db-songay')) $('db-songay').value = x.soNgay;
     $('db-ghichu').innerHTML = 'Lịch sử bán ' + (db.soNgayDuLieu ? db.soNgayDuLieu + ' ngày (đến ' + DG.ngayNgan(db.ngayCuoi) + ')' : '') + ', ' + A.so(H.th.soDong) + ' dòng đơn, tính theo danh mục mới nhất. ' +
+      (H.th.soLap || H.th.soTang || (H.lap && H.lap.soDong) ? '🔁 Đơn lặp qua các ngày chỉ đếm 1 lần' + (H.th.soLap ? ' (bỏ ' + A.so(H.th.soLap) + ' dòng lặp' + (H.th.soTang ? ', ' + A.so(H.th.soTang) + ' dòng chỉ cộng phần SL tăng' : '') + ')' : '') +
+        (H.lap && H.lap.soDong ? ' – cả sheet có ' + A.so(H.lap.soDong) + ' dòng lặp (' + A.so(H.lap.soCuon) + ' cuốn không cộng lại)' : '') + '. ' : '') +
       'TB/ngày = trung bình có trọng số 28 ngày (ngày gần nặng hơn). Gợi ý = làm tròn lên (TB/ngày × ' + x.soNgay + ' ngày); không tính tồn kho.' +
       (db.duDuLieu ? '' : ' <b class="dot-canh">⚠ Chưa đủ dữ liệu (cần ít nhất 14 ngày) – số liệu chỉ để tham khảo.</b>');
     var q = A.boDau($('db-tim').value).trim(), chiGoiY = $('db-co-goiy').checked, sap = $('db-sap').value;

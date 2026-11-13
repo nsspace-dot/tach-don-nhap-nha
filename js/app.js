@@ -288,8 +288,20 @@
   }
 
   /* ---------- Phân loại ---------- */
-  function rows() {
+  /* Mọi dòng đang dùng (kể cả đơn lặp đã bỏ tick) */
+  function rowsTatCa() {
     return S.files.filter(function (p) { return !p.error; }).reduce(function (a, p) { return a.concat(p.rows); }, []);
+  }
+  /* Dòng để ĐẶT NHÀ: bỏ các đơn lặp người dùng đã bỏ tick (mặc định tick = tính bình thường) */
+  function rows() {
+    var r = rowsTatCa();
+    return root.DonLap ? r.filter(function (x) { return !root.DonLap.laBo(x); }) : r;
+  }
+  /* Kết quả phân loại của MỌI dòng (kể cả đơn đã bỏ tick) – dùng cho số liệu (lịch sử, thống kê) */
+  function kqDayDu() {
+    if (!root.DonLap || !root.DonLap.soBo()) return S.kq;
+    var r = rowsTatCa();
+    return r.length ? PL.classify(r, DM.catalog, { maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : null;
   }
 
   function xuLy(moi) {
@@ -303,6 +315,7 @@
     tuHoc();
     doiKhoaCu();
     if (root.ManDot) root.ManDot.sauXuLy();
+    if (root.DonLap) root.DonLap.sauXuLy();
     if (root.ManDuBao) root.ManDuBao.filesDoi();
   }
 
@@ -871,7 +884,7 @@
    * Dùng kết quả GỐC – số dự phòng không tính vào lịch sử. Không lưu thông tin khách. */
   function ghiLichSu(nhas) {
     if (!DM.coTheGhi()) return;
-    var bg = TK.banGhiNgay(S.kq, nhas);
+    var bg = TK.banGhiNgay(kqDayDu(), nhas);
     DM.goi('ghiLichSuDatHang', bg).then(function (j) {
       capNhatLichSuCucBo(bg);
       toast('📊 Đã ghi lịch sử đặt hàng hôm nay (' + so(j.soDong) + ' đầu sách) để làm thống kê.', 'ok');
@@ -1242,7 +1255,7 @@
 
   root.App = {
     S: S, esc: esc, so: so, boDau: boDau, toast: toast, hoi: hoi, taiVe: taiVe, nutGhi: nutGhi, badge: badge, baoLoi: baoLoi,
-    rows: rows, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
+    rows: rows, rowsTatCa: rowsTatCa, kqDayDu: kqDayDu, diToi: diToi, khungLechGia: khungLechGia, capNhatGiaCombo: capNhatGiaCombo, thayMa: thayMa,
     LS: LS, taiLichSu: taiLichSu, nhacLichSuLon: nhacLichSuLon,
     laAdmin: laAdmin, laDatHang: laDatHang, coQuyen: coQuyen, veQuyen: veQuyen, hoiMaAdmin: hoiMaAdmin,
     nhaOptions: nhaOptions, chonNhaHtml: chonNhaHtml, chonNha: chonNha, moiNha: moiNha, mauNha: mauNha,

@@ -23,7 +23,7 @@ check('Chỉ xem: không có quyền ghi nào', cx.every(function (k) { return /
 console.log('\n2. CHUYỂN ĐỔI TỰ ĐỘNG từ 3 vai trò cũ');
 m.post('luuNguoiDung', { ds: [{ ten: 'Tú', vai_tro: 'admin' }, { ten: 'Lan', vai_tro: 'san' }, { ten: 'Hoa', vai_tro: 'dat_hang' }] }, 'Tú');
 var g = m.get(), q = g.quyen;
-check('GET trả bảng quyền, api 9', g.api === 9 && q && q.nguoi.length === 3);
+check('GET trả bảng quyền, api ≥ 9', g.api >= 9 && q && q.nguoi.length === 3);
 check('Lan (nhân viên sàn) → mẫu Nhân viên sàn', nguoi(q, 'Lan').mau === 'Nhân viên sàn' && nguoi(q, 'Lan').quyen.join() === sp.join());
 check('Hoa (người đặt hàng) → mẫu Người đặt hàng', nguoi(q, 'Hoa').mau === 'Người đặt hàng' && nguoi(q, 'Hoa').quyen.join() === dh.join());
 check('Tú (admin) → đủ mọi quyền', nguoi(q, 'Tú').quyen.length === Q.DS.length);

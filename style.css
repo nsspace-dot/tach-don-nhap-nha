@@ -741,3 +741,8 @@ tr.nd-bi-khoa td.nd-c-ten, tr.nd-bi-khoa td.nd-c-khoa, tr.nd-bi-khoa td.nd-c-nut
 .k0-dm_khaibao #man-chokb select, .k0-dm_khaibao #man-chokb textarea { pointer-events: none; }
 .nd-ghichu { margin: 0 6px; font-size: 13px; }
 .nd-tbl .nd-c-mau .select { max-width: 170px; }
+
+/* ---------- 🔁 Đơn lặp qua các ngày ---------- */
+.don-lap { background: var(--paper); border: 2px dashed var(--cb-deep); border-radius: var(--r-md); padding: 10px 16px; font-size: 14px; }
+#dl-bang tr.dl-bo td { opacity: .55; }
+#dl-bang td { vertical-align: middle; }

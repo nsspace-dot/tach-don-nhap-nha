@@ -272,7 +272,11 @@
   /* Chốt đợt: lấy lại các phần mới nhất → nhắc → ghi lịch sử thống kê (1 lần cho cả đợt) + khóa đợt */
   function chotDot() {
     xemGop(function () {
-      var kq = A.S.kq, nhac = [];
+      // Tra đơn lặp (đã có ở đợt trước) trước khi tính số liệu – mỗi đơn chỉ đếm 1 lần
+      return (root.DonLap ? root.DonLap.cho() : Promise.resolve()).then(hoiChot);
+    });
+    function hoiChot() {
+      var kq = A.S.kq, kqSo = A.kqDayDu(), nhac = [];
       if (T.gop.choXong.length) nhac.push('Chưa báo xong: ' + T.gop.choXong.join(', '));
       if (kq && kq.combo.length) nhac.push(kq.combo.length + ' combo chưa khai báo');
       if (kq && kq.chuaRo.length) nhac.push(kq.chuaRo.length + ' sách chưa rõ nhà');
@@ -280,11 +284,11 @@
         '· Khóa đợt: ai báo xong sau đó sẽ vào đợt ngày mai\n· Ghi lịch sử thống kê + số liệu bán của đợt (1 lần, chốt lại thì ghi đè)\n· Mở lại đợt được nếu cần', '🔒 Chốt đợt', { huy: 'Chưa', tieuDe: 'Chốt đợt' })
         .then(function (ok) {
           if (!ok) return;
-          var bg = kq ? root.ThongKe.banGhiNgay(kq, PL.NHA.slice(), T.gop.dot_id) : null;
+          var bg = kqSo ? root.ThongKe.banGhiNgay(kqSo, PL.NHA.slice(), T.gop.dot_id) : null;
           // Lịch sử bán (mọi sách, kể cả nhà khác) cho Dự báo nhập kho – lưu đúng 1 lần khi chốt
           var bh = DM.coBanHang() && root.BanHang ? root.BanHang.maHoa(A.S.files, T.gop.dot_id) : undefined;
           // Thống kê bán theo ngày (MỌI mặt hàng, trước bước lọc nhà) cho tab "Sàn bán gì" – chốt lại thì ghi đè số của đợt
-          var tk = DM.coThongKe() && root.SanBan && kq ? root.SanBan.maHoa(kq, { catalog: DM.catalog, maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : undefined;
+          var tk = DM.coThongKe() && root.SanBan && kqSo ? root.SanBan.maHoa(kqSo, { catalog: DM.catalog, maKhac: DM.caiDat.maKhac, plVoNghia: DM.caiDat.plVoNghia }) : undefined;
           return DM.goi('chotDot', { dot_id: T.gop.dot_id, lich_su: bg, ban_hang: bh, thong_ke: tk }).then(function (j) {
             if (j.thongKe && root.ManSanBan) root.ManSanBan.xoaNho();
             if (j.banHang && root.ManDuBao) root.ManDuBao.taiLai();
@@ -292,7 +296,7 @@
             T.dot = j.dot;
             A.toast(j.da_chot_truoc ? '🔒 Đợt này đã được chốt trước đó.' : '🔒 Đã chốt đợt ' + DG.ngayNgan(T.gop.dot_id) +
               (j.lichSu ? ' – ghi lịch sử ' + A.so(j.lichSu.soDong) + ' đầu sách' : '') +
-              (j.banHang ? ', lưu ' + A.so(j.banHang.soDong) + ' dòng bán' + (j.banHang.boTrung ? ' (bỏ ' + A.so(j.banHang.boTrung) + ' dòng đơn treo đã tính)' : '') : '') +
+              (j.banHang ? ', lưu ' + A.so(j.banHang.soDong) + ' dòng bán' + (j.banHang.boTrung || j.banHang.soTang ? ' (đơn lặp: bỏ ' + A.so(j.banHang.boTrung) + ' dòng đã tính' + (j.banHang.soTang ? ', ' + A.so(j.banHang.soTang) + ' dòng chỉ cộng phần SL tăng' : '') + ')' : '') : '') +
               (j.thongKe ? ', thống kê sàn ' + A.so(j.thongKe.soDong) + ' dòng' : '') + '.', 'ok');
             if (j.lichSu) A.taiLichSu(undefined, true);
             taiTongHop();
@@ -300,7 +304,7 @@
         })
         .catch(function (e) { A.toast('Không chốt được: ' + e.message, 'loi'); })
         .then(veGopBar);
-    });
+    }
   }
   function moLaiDot() {
     var id = A.S.gop ? A.S.gop.dot_id : T.id;
